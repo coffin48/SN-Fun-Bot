@@ -37,6 +37,11 @@ class CommandsHandler:
                 await self._clear_cache(ctx)
                 return
             
+            # Help command
+            if user_input.lower().startswith("help"):
+                await self._handle_help_command(ctx)
+                return
+            
             # Analytics command
             if user_input.lower().startswith("analytics"):
                 await self._handle_analytics_command(ctx)
@@ -173,6 +178,54 @@ class CommandsHandler:
             logger.logger.error(f"Gagal memproses general query: {e}")
             await ctx.send(f"Gagal memproses query: {e}")
     
+    async def _handle_help_command(self, ctx):
+        """Handle !sn help command untuk menampilkan daftar commands"""
+        help_message = """
+🤖 **SN Fun Bot - K-pop Discord Bot**
+
+**📋 Daftar Commands:**
+
+**🎵 K-pop Queries:**
+• `!sn [nama member]` - Info tentang member K-pop
+• `!sn [nama grup]` - Info tentang grup K-pop
+• `!sn [member] [grup]` - Info spesifik member dari grup
+
+**💬 Conversational:**
+• `!sn aku ingin info tentang [nama]` - Query natural
+• `!sn berikan info tentang [nama]` - Query natural
+• `!sn hai/halo` - Obrolan casual
+
+**🎯 Rekomendasi:**
+• `!sn rekomendasikan lagu K-pop` - Minta rekomendasi
+• `!sn kasih saran [topik]` - Minta saran
+
+**⚙️ Utility Commands:**
+• `!sn help` - Tampilkan help ini
+• `!sn analytics` - Lihat statistik bot
+• `!sn clearcache` - Hapus cache Redis
+
+**📝 Contoh Penggunaan:**
+```
+!sn Jisoo
+!sn BTS
+!sn Jisoo Blackpink
+!sn aku mau info tentang NewJeans
+!sn rekomendasikan lagu ballad K-pop
+!sn analytics
+```
+
+**🔍 Bot akan otomatis mendeteksi:**
+- Member K-pop individual
+- Grup K-pop
+- Percakapan casual
+- Permintaan rekomendasi
+- Multiple matches (nama ambiguous)
+
+Selamat menggunakan SN Fun Bot! 🎉
+"""
+        await self._send_chunked_message(ctx, help_message)
+        logger.logger.info("Help command requested")
+
     async def _handle_analytics_command(self, ctx):
         """Handle !analytics command untuk view statistics"""
         try:
