@@ -212,8 +212,8 @@ class SmartKPopDetector:
                 
                 for group_name, group_idx in detected_groups:
                     if member_group.lower() == group_name.lower():
-                        # Member dan group cocok
-                        combined_name = f"{member_name} {group_name}"
+                        # Member dan group cocok - return format untuk scraping
+                        combined_name = f"{member_name} from {group_name}"
                         import logger
                         logger.logger.debug(f"🎯 MEMBER_GROUP detected: {combined_name}")
                         return "MEMBER_GROUP", combined_name, []
@@ -221,7 +221,7 @@ class SmartKPopDetector:
             # Jika tidak ada yang cocok, ambil yang pertama
             member_name = detected_members[0][0]
             group_name = detected_groups[0][0]
-            combined_name = f"{member_name} {group_name}"
+            combined_name = f"{member_name} from {group_name}"
             import logger
             logger.logger.debug(f"🎯 MEMBER_GROUP detected (fallback): {combined_name}")
             return "MEMBER_GROUP", combined_name, []
