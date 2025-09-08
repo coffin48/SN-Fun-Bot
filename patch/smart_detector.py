@@ -18,10 +18,11 @@ class SmartKPopDetector:
         self._build_indexes()
     
     def _build_indexes(self):
-        """Build indexes untuk exact matching dan alias detection"""
-        self.member_names = {}  # name -> [(original_name, row_index)]
-        self.group_names = {}   # name -> [(original_name, row_index)]
-        self.aliases = {}       # alias -> [(original_name, row_index, type)]
+        """Build indexes untuk pencarian cepat"""
+        self.member_names = {}
+        self.group_names = {}
+        self.aliases = {}
+        self.priority_kpop_names = set()
         
         for idx, row in self.kpop_df.iterrows():
             # Group names
@@ -32,7 +33,7 @@ class SmartKPopDetector:
                     self.group_names[group_lower] = []
                 self.group_names[group_lower].append((group, idx))
             
-            # Member names (Stage Name)
+            # Stage Name
             if "Stage Name" in row and str(row["Stage Name"]).strip():
                 name = str(row["Stage Name"]).strip()
                 name_lower = name.lower()
@@ -42,15 +43,25 @@ class SmartKPopDetector:
                 # Tambahkan ke priority names
                 self.priority_kpop_names.add(name_lower)
             
-            # Aliases (jika ada kolom alias)
-            if "Aliases" in row and str(row["Aliases"]).strip():
-                aliases = str(row["Aliases"]).split(",")
-                for alias in aliases:
-                    alias = alias.strip().lower()
-                    if alias:
-                        if alias not in self.aliases:
-                            self.aliases[alias] = []
-                        self.aliases[alias].append((name, idx, "MEMBER"))
+            # Full Name sebagai alias
+            if "Full Name" in row and str(row["Full Name"]).strip():
+                full_name = str(row["Full Name"]).strip()
+                full_name_lower = full_name.lower()
+                if full_name_lower not in self.aliases:
+                    self.aliases[full_name_lower] = []
+                self.aliases[full_name_lower].append((full_name, idx, "MEMBER"))
+                # Tambahkan ke priority names
+                self.priority_kpop_names.add(full_name_lower)
+            
+            # Korean Stage Name sebagai alias
+            if "Korean Stage Name" in row and str(row["Korean Stage Name"]).strip():
+                korean_name = str(row["Korean Stage Name"]).strip()
+                korean_name_lower = korean_name.lower()
+                if korean_name_lower not in self.aliases:
+                    self.aliases[korean_name_lower] = []
+                self.aliases[korean_name_lower].append((korean_name, idx, "MEMBER"))
+                # Tambahkan ke priority names
+                self.priority_kpop_names.add(korean_name_lower)
     
     def detect(self, user_input):
         """
@@ -170,7 +181,7 @@ class SmartKPopDetector:
         return False
     
     def _detect_member_group(self, input_norm):
-        """Deteksi kombinasi member + group (contoh: Jisoo Blackpink)"""
+        """Deteksi kombinasi member + group (contoh: Jisoo Blackpink, Hina QWER)"""
         words = input_norm.split()
         if len(words) < 2:
             return None
@@ -194,10 +205,25 @@ class SmartKPopDetector:
         
         # Jika ada member dan group dalam input yang sama
         if detected_members and detected_groups:
-            # Ambil member pertama dan group pertama
+            # Cari member yang benar-benar dari group yang disebutkan
+            for member_name, member_idx in detected_members:
+                member_row = self.kpop_df.iloc[member_idx]
+                member_group = str(member_row.get('Group', '')).strip()
+                
+                for group_name, group_idx in detected_groups:
+                    if member_group.lower() == group_name.lower():
+                        # Member dan group cocok
+                        combined_name = f"{member_name} {group_name}"
+                        import logger
+                        logger.logger.debug(f"🎯 MEMBER_GROUP detected: {combined_name}")
+                        return "MEMBER_GROUP", combined_name, []
+            
+            # Jika tidak ada yang cocok, ambil yang pertama
             member_name = detected_members[0][0]
             group_name = detected_groups[0][0]
-            combined_name = f"{member_name} ({group_name})"
+            combined_name = f"{member_name} {group_name}"
+            import logger
+            logger.logger.debug(f"🎯 MEMBER_GROUP detected (fallback): {combined_name}")
             return "MEMBER_GROUP", combined_name, []
         
         return None
