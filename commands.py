@@ -64,11 +64,17 @@ class CommandsHandler:
             summary = cached_summary.decode("utf-8")
             logger.log_cache_hit(category, detected_name)
         else:
+            # Log mulai scraping untuk Railway log explorer
+            logger.logger.info(f"🔍 Starting scraping process for {category}: {detected_name}")
+            
             # Fetch info dari berbagai sumber
             info = await self.data_fetcher.fetch_kpop_info(detected_name)
             if not info.strip():
+                logger.logger.warning(f"❌ No scraping data found for {category}: {detected_name}")
                 await ctx.send("Maaf, info K-pop tidak ditemukan.")
                 return
+            
+            logger.logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
             
             # Generate AI summary
             try:

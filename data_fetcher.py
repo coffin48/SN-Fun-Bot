@@ -26,30 +26,45 @@ class DataFetcher:
     
     async def fetch_kpop_info(self, query):
         """Fetch informasi K-pop dari berbagai sumber"""
+        logger.logger.info(f"🌐 Starting multi-source data fetch for: {query}")
         results = []
         
         # Scraping dari berbagai situs
-        results.extend(await self._scrape_websites(query))
+        logger.logger.info(f"📄 Scraping websites for: {query}")
+        scrape_results = await self._scrape_websites(query)
+        results.extend(scrape_results)
+        logger.logger.info(f"📄 Website scraping completed: {len(scrape_results)} results")
         
         # Google Custom Search Engine
-        results.extend(await self._fetch_from_cse(query))
+        logger.logger.info(f"🔍 Fetching from Google CSE for: {query}")
+        cse_results = await self._fetch_from_cse(query)
+        results.extend(cse_results)
+        logger.logger.info(f"🔍 Google CSE completed: {len(cse_results)} results")
         
         # NewsAPI
-        results.extend(await self._fetch_from_newsapi(query))
+        logger.logger.info(f"📰 Fetching from NewsAPI for: {query}")
+        news_results = await self._fetch_from_newsapi(query)
+        results.extend(news_results)
+        logger.logger.info(f"📰 NewsAPI completed: {len(news_results)} results")
         
         # Bersihkan dan gabungkan hasil
-        return self._clean_text(results)
+        clean_data = self._clean_text(results)
+        logger.logger.info(f"🧹 Data cleaning completed: {len(clean_data)} characters final")
+        
+        return clean_data
     
     async def _scrape_websites(self, query):
         """Scraping dari daftar website K-pop"""
         results = []
         formatted_query = query.replace(' ', '+')
         
-        for site in self.scraping_sites:
+        for i, site in enumerate(self.scraping_sites, 1):
             try:
                 url = site["url"].format(formatted_query)
                 if "allkpop" in url:
                     url = site["url"].format(query.replace(' ', '-'))
+                
+                logger.logger.info(f"🌐 Scraping site {i}/7: {url.split('/')[2]}")
                 
                 response = requests.get(
                     url, 
@@ -68,8 +83,10 @@ class DataFetcher:
                 ]
                 results.extend(site_results)
                 
+                logger.logger.info(f"✅ Site {i}/7 completed: {len(site_results)} results from {url.split('/')[2]}")
+                
             except Exception as e:
-                logger.logger.error(f"Scraping gagal untuk {url}: {e}")
+                logger.logger.error(f"❌ Scraping failed for site {i}/7 ({url.split('/')[2]}): {e}")
         
         return results
     
@@ -77,31 +94,30 @@ class DataFetcher:
         """Fetch dari Google Custom Search Engine"""
         results = []
         
-        for key, cse_id in zip(self.CSE_API_KEYS, self.CSE_IDS):
+        for i, (key, cse_id) in enumerate(zip(self.CSE_API_KEYS, self.CSE_IDS), 1):
             if not key or not cse_id:
+                logger.logger.info(f"⚠️ CSE API {i}: Keys not configured, skipping")
                 continue
-                
+            
             try:
-                url = f"https://www.googleapis.com/customsearch/v1"
-                params = {
-                    "q": query,
-                    "key": key,
-                    "cx": cse_id,
-                    "num": 3
-                }
-                
-                response = requests.get(url, params=params, timeout=5)
+                logger.logger.info(f"🔍 Calling Google CSE API {i}/3 for: {query}")
+                url = f"https://www.googleapis.com/customsearch/v1?key={key}&cx={cse_id}&q={query}"
+                response = requests.get(url, timeout=5)
                 response.raise_for_status()
                 
-                items = response.json().get("items", [])
+                data = response.json()
+                items = data.get("items", [])[:3]
+                
                 cse_results = [
-                    f"{item['title']} - {item.get('link', '')}" 
+                    f"{item['title']}: {item.get('snippet', '')}"
                     for item in items
                 ]
                 results.extend(cse_results)
                 
+                logger.logger.info(f"✅ CSE API {i}/3 completed: {len(cse_results)} results")
+                
             except Exception as e:
-                logger.logger.error(f"CSE request gagal: {e}")
+                logger.logger.error(f"❌ CSE API {i}/3 failed: {e}")
         
         return results
     
@@ -110,28 +126,29 @@ class DataFetcher:
         results = []
         
         if not self.NEWS_API_KEY:
+            logger.logger.info("⚠️ NewsAPI: Key not configured, skipping")
             return results
             
         try:
-            url = "https://newsapi.org/v2/everything"
-            params = {
-                "q": query,
-                "pageSize": 3,
-                "apiKey": self.NEWS_API_KEY
-            }
-            
-            response = requests.get(url, params=params, timeout=5)
+            logger.logger.info(f"📰 Calling NewsAPI for: {query}")
+            url = f"https://newsapi.org/v2/everything?q={query}+kpop&apiKey={self.NEWS_API_KEY}&pageSize=3"
+            response = requests.get(url, timeout=5)
             response.raise_for_status()
             
-            articles = response.json().get("articles", [])
+            data = response.json()
+            articles = data.get("articles", [])
+            
             news_results = [
-                f"{article['title']} - {article['url']}" 
+                f"{article['title']}: {article.get('description', '')}"
                 for article in articles
+                if article.get('title') and article.get('description')
             ]
             results.extend(news_results)
             
+            logger.logger.info(f"✅ NewsAPI completed: {len(news_results)} articles")
+            
         except Exception as e:
-            logger.logger.error(f"NewsAPI request gagal: {e}")
+            logger.logger.error(f"❌ NewsAPI failed: {e}")
         
         return results
     
