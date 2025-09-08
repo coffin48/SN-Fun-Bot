@@ -160,9 +160,9 @@ class CommandsHandler:
                     
                     if stage_name:
                         names.append(stage_name)
-                    if full_name and full_name != stage_name:
+                    if full_name and full_name != stage_name and full_name != 'nan':
                         names.append(full_name)
-                    if korean_name and korean_name != stage_name:
+                    if korean_name and korean_name != stage_name and korean_name != 'nan':
                         names.append(korean_name)
                     
                     # Format: "Stage Name Full Name Korean Name from Group"
@@ -199,10 +199,10 @@ class CommandsHandler:
                         
                         if stage_name:
                             names.append(stage_name)
-                        if full_name and full_name != stage_name:
+                        if full_name and full_name != stage_name and full_name != 'nan':
                             names.append(full_name)
                         # Include Korean name untuk scraping yang lebih komprehensif
-                        if korean_name and korean_name != stage_name:
+                        if korean_name and korean_name != stage_name and korean_name != 'nan':
                             names.append(korean_name)
                         
                         names_str = " ".join(names)
