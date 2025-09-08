@@ -1,7 +1,8 @@
 """
 Commands Module - Menangani semua Discord commands
 """
-from discord.ext import asyncio
+from discord.ext
+import asyncio
 import redis
 import logger
 from ai_handler import AIHandler
