@@ -3,7 +3,7 @@ AI Handler Module - Menangani integrasi dengan Cerebras AI
 """
 import os
 import asyncio
-from openai import OpenAI
+import requests
 import logger
 from analytics import analytics
 import time

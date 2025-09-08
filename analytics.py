@@ -6,7 +6,7 @@ import time
 import json
 import os
 from datetime import datetime
-import logger
+import logging
 
 class BotAnalytics:
     def __init__(self):
@@ -20,7 +20,7 @@ class BotAnalytics:
                 with open(self.analytics_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                logger.logger.error(f"Error loading analytics: {e}")
+                logging.error(f"Error loading analytics: {e}")
         
         # Default structure
         return {
@@ -57,7 +57,7 @@ class BotAnalytics:
             with open(self.analytics_file, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            logger.logger.error(f"Error saving analytics: {e}")
+            logging.error(f"Error saving analytics: {e}")
     
     def track_query_success(self, query_type, success, detected_name):
         """Track query success rate"""
@@ -171,7 +171,7 @@ class BotAnalytics:
     def log_analytics_to_railway(self):
         """Log analytics summary to Railway logs"""
         summary = self.get_analytics_summary()
-        logger.logger.info(f"📊 DAILY ANALYTICS REPORT:\n{summary}")
+        logging.info(f"📊 DAILY ANALYTICS REPORT:\n{summary}")
 
 # Global analytics instance
 analytics = BotAnalytics()
