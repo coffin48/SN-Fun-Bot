@@ -24,6 +24,9 @@ class CommandsHandler:
         self.conversation_memory = {}  # {user_id: [messages]}
         self.max_memory_length = 3  # Simpan 3 pesan terakhir
         
+        # Anti-duplicate response system
+        self.processing_messages = set()  # Track messages being processed
+        
         # Register commands
         self._register_commands()
     
@@ -35,41 +38,55 @@ class CommandsHandler:
     
     async def _handle_sn_command(self, ctx, user_input: str):
         """Handle command !sn"""
-        async with ctx.typing():
-            # Clear cache command
-            if user_input.lower().startswith("clearcache") or user_input.lower().startswith("clear cache"):
-                await self._clear_cache(ctx)
-                return
-            
-            # Help command
-            if user_input.lower().startswith("help"):
-                await self._handle_help_command(ctx)
-                return
-            
-            # Analytics command
-            if user_input.lower().startswith("analytics"):
-                await self._handle_analytics_command(ctx)
-                return
-            
-            # Deteksi K-pop member/group dengan SmartDetector
-            category, detected_name, multiple_matches = self.kpop_detector.detect(user_input)
-            logger.log_sn_command(ctx.author, user_input, category, detected_name)
-            
-            # Proses berdasarkan kategori
-            if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
-                # Reset conversation memory untuk K-pop queries
-                self._clear_user_memory(ctx.author.id)
-                await self._handle_kpop_query(ctx, category, detected_name)
-            elif category == "MULTIPLE":
-                self._clear_user_memory(ctx.author.id)
-                await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
-            elif category == "REKOMENDASI":
-                self._clear_user_memory(ctx.author.id)
-                await self._handle_recommendation_query(ctx, user_input)
-            elif category == "OBROLAN":
-                await self._handle_casual_conversation(ctx, user_input)
-            else:
-                await self._handle_general_query(ctx, user_input)
+        # Create unique message ID untuk prevent duplicates
+        message_id = f"{ctx.author.id}:{ctx.message.id}:{user_input}"
+        
+        # Check if already processing this message
+        if message_id in self.processing_messages:
+            return  # Skip duplicate processing
+        
+        # Add to processing set
+        self.processing_messages.add(message_id)
+        
+        try:
+            async with ctx.typing():
+                # Clear cache command
+                if user_input.lower().startswith("clearcache") or user_input.lower().startswith("clear cache"):
+                    await self._clear_cache(ctx)
+                    return
+                
+                # Help command
+                if user_input.lower().startswith("help"):
+                    await self._handle_help_command(ctx)
+                    return
+                
+                # Analytics command
+                if user_input.lower().startswith("analytics"):
+                    await self._handle_analytics_command(ctx)
+                    return
+                
+                # Deteksi K-pop member/group dengan SmartDetector
+                category, detected_name, multiple_matches = self.kpop_detector.detect(user_input)
+                logger.log_sn_command(ctx.author, user_input, category, detected_name)
+                
+                # Proses berdasarkan kategori
+                if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
+                    # Reset conversation memory untuk K-pop queries
+                    self._clear_user_memory(ctx.author.id)
+                    await self._handle_kpop_query(ctx, category, detected_name)
+                elif category == "MULTIPLE":
+                    self._clear_user_memory(ctx.author.id)
+                    await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
+                elif category == "REKOMENDASI":
+                    self._clear_user_memory(ctx.author.id)
+                    await self._handle_recommendation_query(ctx, user_input)
+                elif category == "OBROLAN":
+                    await self._handle_casual_conversation(ctx, user_input)
+                else:
+                    await self._handle_general_query(ctx, user_input)
+        finally:
+            # Remove from processing set when done
+            self.processing_messages.discard(message_id)
     
     async def _clear_cache(self, ctx):
         """Clear Redis cache"""
