@@ -20,6 +20,10 @@ class CommandsHandler:
         self.ai_handler = AIHandler()
         self.data_fetcher = DataFetcher()
         
+        # Conversation memory untuk obrolan santai (per user)
+        self.conversation_memory = {}  # {user_id: [messages]}
+        self.max_memory_length = 3  # Simpan 3 pesan terakhir
+        
         # Register commands
         self._register_commands()
     
@@ -53,10 +57,14 @@ class CommandsHandler:
             
             # Proses berdasarkan kategori
             if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
+                # Reset conversation memory untuk K-pop queries
+                self._clear_user_memory(ctx.author.id)
                 await self._handle_kpop_query(ctx, category, detected_name)
             elif category == "MULTIPLE":
+                self._clear_user_memory(ctx.author.id)
                 await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
             elif category == "REKOMENDASI":
+                self._clear_user_memory(ctx.author.id)
                 await self._handle_recommendation_query(ctx, user_input)
             elif category == "OBROLAN":
                 await self._handle_casual_conversation(ctx, user_input)
@@ -145,12 +153,65 @@ class CommandsHandler:
         # Kirim ke Discord (chunk <=2000 karakter)
         await self._send_chunked_message(ctx, summary)
     
+    def _add_to_memory(self, user_id, role, message):
+        """Tambahkan pesan ke conversation memory"""
+        if user_id not in self.conversation_memory:
+            self.conversation_memory[user_id] = []
+        
+        self.conversation_memory[user_id].append({"role": role, "content": message})
+        
+        # Batasi memory hanya 3 pesan terakhir
+        if len(self.conversation_memory[user_id]) > self.max_memory_length * 2:  # *2 karena user+bot
+            self.conversation_memory[user_id] = self.conversation_memory[user_id][-self.max_memory_length * 2:]
+    
+    def _clear_user_memory(self, user_id):
+        """Hapus conversation memory untuk user tertentu"""
+        if user_id in self.conversation_memory:
+            del self.conversation_memory[user_id]
+    
+    def _get_conversation_context(self, user_id, current_message):
+        """Dapatkan konteks percakapan untuk AI"""
+        context_messages = []
+        
+        # Tambahkan pesan sebelumnya jika ada
+        if user_id in self.conversation_memory:
+            context_messages.extend(self.conversation_memory[user_id])
+        
+        # Tambahkan pesan saat ini
+        context_messages.append({"role": "user", "content": current_message})
+        
+        # Format untuk AI prompt
+        if len(context_messages) <= 1:
+            return current_message
+        
+        # Buat konteks percakapan
+        conversation_context = "Konteks percakapan sebelumnya:\n"
+        for msg in context_messages[:-1]:  # Semua kecuali pesan terakhir
+            role_label = "User" if msg["role"] == "user" else "Bot"
+            conversation_context += f"{role_label}: {msg['content']}\n"
+        
+        conversation_context += f"\nPesan saat ini: {current_message}\n"
+        conversation_context += "\nRespond secara natural dan konsisten dengan percakapan sebelumnya:"
+        
+        return conversation_context
+
     async def _handle_casual_conversation(self, ctx, user_input):
-        """Handle obrolan casual"""
+        """Handle obrolan casual dengan memory"""
         try:
-            summary = await self.ai_handler.handle_general_query(user_input)
+            user_id = ctx.author.id
+            
+            # Dapatkan konteks percakapan
+            conversation_context = self._get_conversation_context(user_id, user_input)
+            
+            # Generate response dengan konteks
+            summary = await self.ai_handler.handle_general_query(conversation_context)
+            
+            # Simpan ke memory
+            self._add_to_memory(user_id, "user", user_input)
+            self._add_to_memory(user_id, "assistant", summary)
+            
             await ctx.send(summary)
-            logger.logger.info(f"OBROLAN request processed: {user_input}")
+            logger.logger.info(f"OBROLAN request processed with memory: {user_input}")
         except Exception as e:
             logger.logger.error(f"Gagal memproses obrolan: {e}")
             await ctx.send(f"Maaf, terjadi error: {e}")
