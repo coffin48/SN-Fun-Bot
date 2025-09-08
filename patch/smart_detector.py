@@ -71,7 +71,12 @@ class SmartKPopDetector:
             logger.logger.debug("✅ Detected as REKOMENDASI")
             return "REKOMENDASI", input_norm, []
         
-        # Prioritas 2: Quick check untuk K-pop names yang ada di database
+        # Prioritas 2: Hardcoded fixes untuk member names yang bermasalah
+        if input_lower == "hina":
+            logger.logger.debug("🎯 Hardcoded fix: Hina → MEMBER from QWER")
+            return "MEMBER", "Hina", []
+        
+        # Prioritas 3: Quick check untuk K-pop names yang ada di database
         if input_lower in self.priority_kpop_names:
             logger.logger.debug(f"🎯 Found '{input_lower}' in priority K-pop names")
             # Langsung cek exact member match untuk nama yang ada di database
