@@ -74,10 +74,18 @@ class CommandsHandler:
             
             # Fetch info dari berbagai sumber dengan enhanced query
             info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
+            
+            # Fallback ke simple query jika enhanced query gagal
             if not info.strip():
-                logger.logger.warning(f"❌ No scraping data found for {category}: {detected_name}")
-                await ctx.send("Maaf, info K-pop tidak ditemukan.")
-                return
+                logger.logger.warning(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
+                simple_info = await self.data_fetcher.fetch_kpop_info(detected_name)
+                if simple_info.strip():
+                    info = simple_info
+                    logger.logger.info(f"✅ Simple query successful: {len(info)} characters")
+                else:
+                    logger.logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
+                    await ctx.send("Maaf, info K-pop tidak ditemukan.")
+                    return
             
             logger.logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
             
