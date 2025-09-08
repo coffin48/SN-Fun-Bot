@@ -152,15 +152,21 @@ class CommandsHandler:
                     # Ambil group dari row pertama
                     group = str(member_rows.iloc[0].get('Group', '')).strip()
                     if group:
-                        return f"{detected_name} {group}"
+                        return f"{detected_name} from {group}"
                         
             elif category == "GROUP":
-                # Untuk group, tambahkan keyword "kpop group"
-                return f"{detected_name} kpop group"
+                # Untuk group, scraping group saja
+                return detected_name
                 
             elif category == "MEMBER_GROUP":
-                # Sudah ada format member + group
-                return detected_name
+                # Extract member dan group dari format "Member Group"
+                parts = detected_name.split()
+                if len(parts) >= 2:
+                    member_name = parts[0]
+                    group_name = " ".join(parts[1:])
+                    return f"{member_name} from {group_name}"
+                else:
+                    return detected_name
                 
         except Exception as e:
             logger.logger.error(f"Error building enhanced query: {e}")
