@@ -83,6 +83,11 @@ class SmartKPopDetector:
             return "REKOMENDASI", input_norm, []
         
         
+        # Prioritas 2: Deteksi MEMBER_GROUP (nama member + grup) - cek dulu sebelum single member
+        member_group_result = self._detect_member_group(input_norm)
+        if member_group_result:
+            return member_group_result
+        
         # Prioritas 3: Quick check untuk K-pop names yang ada di database
         if input_lower in self.priority_kpop_names:
             logger.logger.debug(f"🎯 Found '{input_lower}' in priority K-pop names")
@@ -92,15 +97,10 @@ class SmartKPopDetector:
                 logger.logger.debug(f"✅ Exact member match: {result}")
                 return result
         
-        # Prioritas 3: Deteksi OBROLAN (casual conversation) - hanya jika bukan K-pop name
+        # Prioritas 4: Deteksi OBROLAN (casual conversation) - hanya jika bukan K-pop name
         if input_lower not in self.priority_kpop_names and self._is_casual_conversation(input_lower):
             logger.logger.debug("✅ Detected as OBROLAN (casual conversation)")
             return "OBROLAN", input_norm, []
-        
-        # Prioritas 3: Deteksi MEMBER_GROUP (nama member + grup)
-        member_group_result = self._detect_member_group(input_norm)
-        if member_group_result:
-            return member_group_result
         
         # Length filter dengan exception untuk nama K-pop valid
         if len(input_norm) <= 3 and input_lower not in self.short_name_exceptions:

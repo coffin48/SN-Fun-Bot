@@ -96,7 +96,7 @@ class DataFetcher:
         
         for i, (key, cse_id) in enumerate(zip(self.CSE_API_KEYS, self.CSE_IDS), 1):
             if not key or not cse_id:
-                logger.logger.info(f"⚠️ CSE API {i}: Keys not configured, skipping")
+                logger.logger.debug(f"CSE API {i}: Keys not configured, skipping")
                 continue
             
             try:
@@ -126,7 +126,7 @@ class DataFetcher:
         results = []
         
         if not self.NEWS_API_KEY:
-            logger.logger.info("⚠️ NewsAPI: Key not configured, skipping")
+            logger.logger.debug("NewsAPI: Key not configured, skipping")
             return results
             
         try:
