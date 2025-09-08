@@ -159,14 +159,8 @@ class CommandsHandler:
                 return detected_name
                 
             elif category == "MEMBER_GROUP":
-                # Extract member dan group dari format "Member Group"
-                parts = detected_name.split()
-                if len(parts) >= 2:
-                    member_name = parts[0]
-                    group_name = " ".join(parts[1:])
-                    return f"{member_name} from {group_name}"
-                else:
-                    return detected_name
+                # MEMBER_GROUP sudah dalam format "Member Group", langsung return
+                return detected_name
                 
         except Exception as e:
             logger.logger.error(f"Error building enhanced query: {e}")
