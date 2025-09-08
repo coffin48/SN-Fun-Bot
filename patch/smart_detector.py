@@ -9,7 +9,7 @@ class SmartKPopDetector:
         self.kpop_df = kpop_df
         
         # Exception list untuk nama K-pop pendek yang valid
-        self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb']
+        self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb', 'hina']
         
         # Pre-build indexes untuk performa
         self._build_indexes()
