@@ -147,7 +147,7 @@ class CommandsHandler:
         try:
             if category == "MEMBER":
                 # Cari group info dari database untuk member
-                member_rows = self.kpop_df[self.kpop_df['Member'].str.lower() == detected_name.lower()]
+                member_rows = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == detected_name.lower()]
                 if len(member_rows) > 0:
                     # Ambil group dari row pertama
                     group = str(member_rows.iloc[0].get('Group', '')).strip()
