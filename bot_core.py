@@ -15,9 +15,7 @@ class BotCore:
         self.DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
         self.KPOP_CSV_ID = os.getenv("KPOP_CSV_ID")
         self.REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-        self.STATUS_CHANNEL_ID_TEST = os.getenv("STATUS_CHANNEL_ID_TEST")  # Test environment channel
-        self.STATUS_CHANNEL_ID_MAIN = os.getenv("STATUS_CHANNEL_ID_MAIN")  # Main/production channel
-        self.ENVIRONMENT = os.getenv("ENVIRONMENT", "test")  # Default to test environment
+        self.STATUS_CHANNEL_ID = os.getenv("STATUS_CHANNEL_ID")  # Single channel for status messages
         
         # Redis connection
         self.redis_client = redis.from_url(self.REDIS_URL)
@@ -82,32 +80,21 @@ class BotCore:
         logger.logger.info(f"📊 Database loaded: {len(self.kpop_df)} K-pop entries")
         logger.logger.info("🟢 Bot is ready and online!")
         
-        # Kirim status message ke Discord berdasarkan environment
+        # Kirim status message ke Discord
         try:
-            # Tentukan channel ID berdasarkan environment
-            if self.ENVIRONMENT.lower() == "main":
-                target_channel_id = self.STATUS_CHANNEL_ID_MAIN
-                env_name = "MAIN"
-            else:
-                target_channel_id = self.STATUS_CHANNEL_ID_TEST
-                env_name = "TEST"
-            
-            # Tambahkan environment info ke status message
-            env_status_message = f"**[{env_name}]** {status_message}"
-            
-            if target_channel_id:
-                # Kirim ke channel yang ditentukan berdasarkan environment
-                channel = self.bot.get_channel(int(target_channel_id))
+            if self.STATUS_CHANNEL_ID:
+                # Kirim ke channel yang ditentukan
+                channel = self.bot.get_channel(int(self.STATUS_CHANNEL_ID))
                 if channel:
-                    await channel.send(env_status_message)
-                    logger.logger.info(f"✅ Status message sent to {env_name} channel: {channel.name}")
+                    await channel.send(status_message)
+                    logger.logger.info(f"✅ Status message sent to channel: {channel.name}")
                 else:
-                    logger.logger.warning(f"❌ {env_name} channel with ID {target_channel_id} not found")
+                    logger.logger.warning(f"❌ Channel with ID {self.STATUS_CHANNEL_ID} not found")
                     # Fallback ke auto-detect
-                    await self._send_to_any_channel(env_status_message)
+                    await self._send_to_any_channel(status_message)
             else:
-                logger.logger.info(f"⚠️ No {env_name} channel configured, using auto-detect")
-                await self._send_to_any_channel(env_status_message)
+                logger.logger.info("⚠️ No status channel configured, using auto-detect")
+                await self._send_to_any_channel(status_message)
                 
         except Exception as e:
             logger.logger.error(f"❌ Failed to send status message: {e}")
