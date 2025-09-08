@@ -1,13 +1,14 @@
 """
-Bot Core Module - Inisialisasi dan konfigurasi Discord bot
+Bot Core Module - Menangani inisialisasi bot dan konfigurasi utama
 """
+import os
 import discord
 from discord.ext import commands
-import os
 import pandas as pd
 import redis
 import logger
 from patch.smart_detector import SmartKPopDetector
+from analytics import analytics
 
 class BotCore:
     def __init__(self):

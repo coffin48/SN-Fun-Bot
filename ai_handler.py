@@ -1,10 +1,12 @@
 """
-AI Handler Module - Menangani semua interaksi dengan Cerebras AI
+AI Handler Module - Menangani integrasi dengan Cerebras AI
 """
 import os
-import requests
 import asyncio
+from openai import OpenAI
 import logger
+from analytics import analytics
+import time
 
 class AIHandler:
     def __init__(self):

@@ -1,5 +1,6 @@
 import logging
 import sys
+from analytics import analytics
 
 # ---- Logger setup ----
 logger = logging.getLogger("sn_fun_bot")

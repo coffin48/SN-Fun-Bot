@@ -42,16 +42,21 @@ class CommandsHandler:
             logger.log_sn_command(ctx.author, user_input, category, detected_name)
             
             # Proses berdasarkan kategori
-            if category == "MULTIPLE":
-                await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
-            elif category in ["GROUP", "MEMBER", "MEMBER_GROUP"]:
+            if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
                 await self._handle_kpop_query(ctx, category, detected_name)
+            elif category == "MULTIPLE":
+                await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
+            elif category == "REKOMENDASI":
+                await self._handle_recommendation_query(ctx, user_input)
             elif category == "OBROLAN":
                 await self._handle_casual_conversation(ctx, user_input)
-            elif category == "REKOMENDASI":
-                await self._handle_recommendation_request(ctx, user_input)
             else:
-                await self._handle_general_query(ctx, user_input)
+                if user_input.lower().startswith("clear cache"):
+                    await self._clear_cache(ctx)
+                elif user_input.lower().startswith("analytics"):
+                    await self._handle_analytics_command(ctx)
+                else:
+                    await self._handle_general_query(ctx, user_input)
     
     async def _clear_cache(self, ctx):
         """Clear Redis cache"""
@@ -159,14 +164,24 @@ class CommandsHandler:
             await ctx.send(f"Maaf, terjadi error: {e}")
     
     async def _handle_general_query(self, ctx, user_input):
-        """Handle pertanyaan umum lainnya"""
+        """Handle general queries"""
         try:
             summary = await self.ai_handler.handle_general_query(user_input)
             await ctx.send(summary)
-            logger.logger.info(f"GENERAL request processed: {user_input}")
+            logger.logger.info(f"General query processed: {user_input}")
         except Exception as e:
-            logger.logger.error(f"Gagal memproses pertanyaan umum: {e}")
-            await ctx.send(f"Maaf, terjadi error: {e}")
+            logger.logger.error(f"Gagal memproses general query: {e}")
+            await ctx.send(f"Gagal memproses query: {e}")
+    
+    async def _handle_analytics_command(self, ctx):
+        """Handle !analytics command untuk view statistics"""
+        try:
+            summary = analytics.get_analytics_summary()
+            await self._send_chunked_message(ctx, summary)
+            logger.logger.info("Analytics summary requested")
+        except Exception as e:
+            logger.logger.error(f"Error getting analytics: {e}")
+            await ctx.send(f"Error getting analytics: {e}")
     
     async def _handle_multiple_matches(self, ctx, detected_name, multiple_matches):
         """Handle multiple matches untuk nama ambiguous"""
