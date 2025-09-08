@@ -32,9 +32,9 @@ class SmartKPopDetector:
                     self.group_names[group_lower] = []
                 self.group_names[group_lower].append((group, idx))
             
-            # Member names
-            if "Member" in row and str(row["Member"]).strip():
-                name = str(row["Member"]).strip()
+            # Member names (Stage Name)
+            if "Stage Name" in row and str(row["Stage Name"]).strip():
+                name = str(row["Stage Name"]).strip()
                 name_lower = name.lower()
                 if name_lower not in self.member_names:
                     self.member_names[name_lower] = []
@@ -71,10 +71,6 @@ class SmartKPopDetector:
             logger.logger.debug("✅ Detected as REKOMENDASI")
             return "REKOMENDASI", input_norm, []
         
-        # Prioritas 2: Hardcoded fixes untuk member names yang bermasalah
-        if input_lower == "hina":
-            logger.logger.debug("🎯 Hardcoded fix: Hina → MEMBER from QWER")
-            return "MEMBER", "Hina", []
         
         # Prioritas 3: Quick check untuk K-pop names yang ada di database
         if input_lower in self.priority_kpop_names:
