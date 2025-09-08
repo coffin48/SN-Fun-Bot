@@ -64,11 +64,15 @@ class CommandsHandler:
             summary = cached_summary.decode("utf-8")
             logger.log_cache_hit(category, detected_name)
         else:
+            # Enhanced query dengan group info untuk scraping yang lebih akurat
+            enhanced_query = self._build_enhanced_query(category, detected_name)
+            
             # Log mulai scraping untuk Railway log explorer
             logger.logger.info(f"🔍 Starting scraping process for {category}: {detected_name}")
+            logger.logger.info(f"🎯 Enhanced query: {enhanced_query}")
             
-            # Fetch info dari berbagai sumber
-            info = await self.data_fetcher.fetch_kpop_info(detected_name)
+            # Fetch info dari berbagai sumber dengan enhanced query
+            info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
             if not info.strip():
                 logger.logger.warning(f"❌ No scraping data found for {category}: {detected_name}")
                 await ctx.send("Maaf, info K-pop tidak ditemukan.")
@@ -137,6 +141,32 @@ class CommandsHandler:
         
         message += f"\nKamu bisa spesifik dengan format: `!sn {detected_name} [nama grup]`"
         await ctx.send(message)
+    
+    def _build_enhanced_query(self, category, detected_name):
+        """Build enhanced query dengan group info untuk scraping yang lebih akurat"""
+        try:
+            if category == "MEMBER":
+                # Cari group info dari database untuk member
+                member_rows = self.kpop_df[self.kpop_df['Member'].str.lower() == detected_name.lower()]
+                if len(member_rows) > 0:
+                    # Ambil group dari row pertama
+                    group = str(member_rows.iloc[0].get('Group', '')).strip()
+                    if group:
+                        return f"{detected_name} {group}"
+                        
+            elif category == "GROUP":
+                # Untuk group, tambahkan keyword "kpop group"
+                return f"{detected_name} kpop group"
+                
+            elif category == "MEMBER_GROUP":
+                # Sudah ada format member + group
+                return detected_name
+                
+        except Exception as e:
+            logger.logger.error(f"Error building enhanced query: {e}")
+        
+        # Fallback ke detected_name original
+        return detected_name
     
     async def _send_chunked_message(self, ctx, message):
         """Kirim pesan dalam chunk <=2000 karakter"""
