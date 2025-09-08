@@ -15,6 +15,9 @@ class BotCore:
         self.DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
         self.KPOP_CSV_ID = os.getenv("KPOP_CSV_ID")
         self.REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+        self.STATUS_CHANNEL_ID_TEST = os.getenv("STATUS_CHANNEL_ID_TEST")  # Test environment channel
+        self.STATUS_CHANNEL_ID_MAIN = os.getenv("STATUS_CHANNEL_ID_MAIN")  # Main/production channel
+        self.ENVIRONMENT = os.getenv("ENVIRONMENT", "test")  # Default to test environment
         
         # Redis connection
         self.redis_client = redis.from_url(self.REDIS_URL)
@@ -57,7 +60,7 @@ class BotCore:
         return bot
     
     async def _on_bot_ready(self):
-        """Handle bot ready event with status message"""
+        """Handle bot ready event with Discord status message"""
         import random
         
         # Variasi pesan bot ready
@@ -74,14 +77,53 @@ class BotCore:
         # Pilih pesan random
         status_message = random.choice(ready_messages)
         
-        # Log ke console dan Railway
+        # Log ke Railway
         logger.logger.info(f"🤖 Bot logged in as {self.bot.user}")
         logger.logger.info(f"📊 Database loaded: {len(self.kpop_df)} K-pop entries")
         logger.logger.info("🟢 Bot is ready and online!")
         
-        # Kirim ke channel umum (opsional - bisa diatur channel ID tertentu)
-        # Untuk sekarang hanya log, nanti bisa ditambah channel notification
-        print(status_message)
+        # Kirim status message ke Discord berdasarkan environment
+        try:
+            # Tentukan channel ID berdasarkan environment
+            if self.ENVIRONMENT.lower() == "main":
+                target_channel_id = self.STATUS_CHANNEL_ID_MAIN
+                env_name = "MAIN"
+            else:
+                target_channel_id = self.STATUS_CHANNEL_ID_TEST
+                env_name = "TEST"
+            
+            # Tambahkan environment info ke status message
+            env_status_message = f"**[{env_name}]** {status_message}"
+            
+            if target_channel_id:
+                # Kirim ke channel yang ditentukan berdasarkan environment
+                channel = self.bot.get_channel(int(target_channel_id))
+                if channel:
+                    await channel.send(env_status_message)
+                    logger.logger.info(f"✅ Status message sent to {env_name} channel: {channel.name}")
+                else:
+                    logger.logger.warning(f"❌ {env_name} channel with ID {target_channel_id} not found")
+                    # Fallback ke auto-detect
+                    await self._send_to_any_channel(env_status_message)
+            else:
+                logger.logger.info(f"⚠️ No {env_name} channel configured, using auto-detect")
+                await self._send_to_any_channel(env_status_message)
+                
+        except Exception as e:
+            logger.logger.error(f"❌ Failed to send status message: {e}")
+            print(status_message)  # Fallback ke console
+    
+    async def _send_to_any_channel(self, message):
+        """Fallback method to send message to any available channel"""
+        for guild in self.bot.guilds:
+            for channel in guild.text_channels:
+                if channel.permissions_for(guild.me).send_messages:
+                    await channel.send(message)
+                    logger.logger.info(f"✅ Status message sent to {guild.name}#{channel.name}")
+                    return
+            else:
+                continue
+            break
     
     def run(self):
         """Start the Discord bot"""
