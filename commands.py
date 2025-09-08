@@ -1,10 +1,13 @@
 """
 Commands Module - Menangani semua Discord commands
 """
-from discord.ext import commands
+from discord.ext import asyncio
+import redis
 import logger
 from ai_handler import AIHandler
 from data_fetcher import DataFetcher
+from analytics import analytics
+import time
 
 class CommandsHandler:
     def __init__(self, bot_core):
@@ -57,6 +60,9 @@ class CommandsHandler:
     
     async def _handle_kpop_query(self, ctx, category, detected_name):
         """Handle K-pop related queries"""
+        start_time = time.time()
+        analytics.track_daily_usage()
+        
         cache_key = f"{category}:{detected_name.lower()}"
         
         # Cek cache terlebih dahulu
@@ -72,26 +78,46 @@ class CommandsHandler:
             logger.logger.info(f"🔍 Starting scraping process for {category}: {detected_name}")
             logger.logger.info(f"🎯 Enhanced query: {enhanced_query}")
             
+            # Track scraping time
+            scraping_start = time.time()
+            
             # Fetch info dari berbagai sumber dengan enhanced query
             info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
             
             # Fallback ke simple query jika enhanced query gagal
-            if not info.strip():
+            enhanced_success = bool(info.strip())
+            if not enhanced_success:
                 logger.logger.warning(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
                 simple_info = await self.data_fetcher.fetch_kpop_info(detected_name)
-                if simple_info.strip():
+                simple_success = bool(simple_info.strip())
+                
+                if simple_success:
                     info = simple_info
                     logger.logger.info(f"✅ Simple query successful: {len(info)} characters")
+                    analytics.track_query_success("simple", True, detected_name)
                 else:
                     logger.logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
+                    analytics.track_query_success("enhanced", False, detected_name)
+                    analytics.track_query_success("simple", False, detected_name)
                     await ctx.send("Maaf, info K-pop tidak ditemukan.")
                     return
+                
+                analytics.track_query_success("enhanced", False, detected_name)
+            else:
+                analytics.track_query_success("enhanced", True, detected_name)
+            
+            scraping_time = time.time() - scraping_start
+            analytics.track_response_time("scraping", scraping_time)
             
             logger.logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
             
             # Generate AI summary
+            ai_start = time.time()
             try:
                 summary = await self.ai_handler.generate_kpop_summary(category, info)
+                
+                ai_time = time.time() - ai_start
+                analytics.track_response_time("ai_generation", ai_time)
                 
                 # Simpan ke Redis cache
                 self.redis_client.set(cache_key, summary, ex=86400)  # 24 jam
@@ -101,6 +127,10 @@ class CommandsHandler:
                 logger.logger.error(f"Gagal membuat ringkasan: {e}")
                 await ctx.send(f"Gagal membuat ringkasan: {e}")
                 return
+        
+        # Track total response time
+        total_time = time.time() - start_time
+        analytics.track_response_time("total_response", total_time)
         
         # Kirim ke Discord (chunk <=2000 karakter)
         await self._send_chunked_message(ctx, summary)

@@ -6,6 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import logger
+from analytics import analytics
+import time
 
 class DataFetcher:
     def __init__(self):
@@ -101,6 +103,8 @@ class DataFetcher:
             
             try:
                 logger.logger.info(f"🔍 Calling Google CSE API {i}/3 for: {query}")
+                cse_start = time.time()
+                
                 url = f"https://www.googleapis.com/customsearch/v1?key={key}&cx={cse_id}&q={query}"
                 response = requests.get(url, timeout=5)
                 response.raise_for_status()
@@ -114,16 +118,24 @@ class DataFetcher:
                 ]
                 results.extend(cse_results)
                 
+                cse_time = time.time() - cse_start
+                analytics.track_source_performance("google_cse", True, cse_time)
+                
                 logger.logger.info(f"✅ CSE API {i}/3 completed: {len(cse_results)} results")
                 break  # Success, exit loop
                 
             except requests.exceptions.HTTPError as e:
+                cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
+                analytics.track_source_performance("google_cse", False, cse_time)
+                
                 if e.response.status_code == 429:
                     logger.logger.warning(f"⚠️ CSE API {i}/3 rate limited (429), trying next key...")
                     continue  # Try next API key
                 else:
                     logger.logger.error(f"❌ CSE API {i}/3 HTTP error: {e}")
             except Exception as e:
+                cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
+                analytics.track_source_performance("google_cse", False, cse_time)
                 logger.logger.error(f"❌ CSE API {i}/3 failed: {e}")
         
         return results
