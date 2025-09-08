@@ -61,19 +61,28 @@ class SmartKPopDetector:
         input_norm = user_input.strip()
         input_lower = input_norm.lower()
         
+        # Debug logging
+        import logger
+        logger.logger.debug(f"🔍 Detecting: '{input_norm}' (lower: '{input_lower}')")
+        logger.logger.debug(f"📊 Priority names contains '{input_lower}': {input_lower in self.priority_kpop_names}")
+        
         # Prioritas 1: Deteksi REKOMENDASI
         if self._is_recommendation_request(input_lower):
+            logger.logger.debug("✅ Detected as REKOMENDASI")
             return "REKOMENDASI", input_norm, []
         
         # Prioritas 2: Quick check untuk K-pop names yang ada di database
         if input_lower in self.priority_kpop_names:
+            logger.logger.debug(f"🎯 Found '{input_lower}' in priority K-pop names")
             # Langsung cek exact member match untuk nama yang ada di database
             result = self._check_exact_members(input_lower)
             if result:
+                logger.logger.debug(f"✅ Exact member match: {result}")
                 return result
         
         # Prioritas 3: Deteksi OBROLAN (casual conversation) - hanya jika bukan K-pop name
         if input_lower not in self.priority_kpop_names and self._is_casual_conversation(input_lower):
+            logger.logger.debug("✅ Detected as OBROLAN (casual conversation)")
             return "OBROLAN", input_norm, []
         
         # Prioritas 3: Deteksi MEMBER_GROUP (nama member + grup)
