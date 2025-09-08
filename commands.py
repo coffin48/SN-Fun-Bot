@@ -11,6 +11,7 @@ class CommandsHandler:
         self.bot = bot_core.bot
         self.redis_client = bot_core.redis_client
         self.kpop_detector = bot_core.kpop_detector
+        self.kpop_df = bot_core.kpop_df  # Add access to dataframe
         
         # Initialize handlers
         self.ai_handler = AIHandler()
