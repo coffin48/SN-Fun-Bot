@@ -115,7 +115,14 @@ class DataFetcher:
                 results.extend(cse_results)
                 
                 logger.logger.info(f"✅ CSE API {i}/3 completed: {len(cse_results)} results")
+                break  # Success, exit loop
                 
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 429:
+                    logger.logger.warning(f"⚠️ CSE API {i}/3 rate limited (429), trying next key...")
+                    continue  # Try next API key
+                else:
+                    logger.logger.error(f"❌ CSE API {i}/3 HTTP error: {e}")
             except Exception as e:
                 logger.logger.error(f"❌ CSE API {i}/3 failed: {e}")
         
