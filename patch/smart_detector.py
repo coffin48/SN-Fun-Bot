@@ -71,7 +71,7 @@ class SmartKPopDetector:
             return member_group_result
         
         # Length filter dengan exception untuk nama K-pop valid
-        if len(input_norm) <= 2 and input_lower not in self.short_name_exceptions:
+        if len(input_norm) <= 3 and input_lower not in self.short_name_exceptions:
             return "OBROLAN", input_norm, []
         
         # Strategy 1: Alias detection
