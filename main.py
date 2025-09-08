@@ -2,6 +2,12 @@
 SN Fun Bot - K-pop Discord Bot
 Entry point utama untuk menjalankan bot
 """
+import sys
+import os
+
+# Add current directory to Python path for production
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from bot_core import BotCore
 from commands import CommandsHandler
 
