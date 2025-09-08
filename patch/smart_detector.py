@@ -11,6 +11,9 @@ class SmartKPopDetector:
         # Exception list untuk nama K-pop pendek yang valid
         self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb', 'hina']
         
+        # Priority K-pop names yang harus dicek dulu sebelum casual conversation
+        self.priority_kpop_names = set()
+        
         # Pre-build indexes untuk performa
         self._build_indexes()
     
@@ -30,13 +33,14 @@ class SmartKPopDetector:
                 self.group_names[group_lower].append((group, idx))
             
             # Member names
-            for col in ["Stage Name", "Korean Stage Name", "Full Name"]:
-                name = str(row.get(col, "")).strip()
-                if name:
-                    name_lower = name.lower()
-                    if name_lower not in self.member_names:
-                        self.member_names[name_lower] = []
-                    self.member_names[name_lower].append((name, idx))
+            if "Member" in row and str(row["Member"]).strip():
+                name = str(row["Member"]).strip()
+                name_lower = name.lower()
+                if name_lower not in self.member_names:
+                    self.member_names[name_lower] = []
+                self.member_names[name_lower].append((name, idx))
+                # Tambahkan ke priority names
+                self.priority_kpop_names.add(name_lower)
             
             # Aliases (jika ada kolom alias)
             if "Aliases" in row and str(row["Aliases"]).strip():
@@ -61,8 +65,15 @@ class SmartKPopDetector:
         if self._is_recommendation_request(input_lower):
             return "REKOMENDASI", input_norm, []
         
-        # Prioritas 2: Deteksi OBROLAN (casual conversation)
-        if self._is_casual_conversation(input_lower):
+        # Prioritas 2: Quick check untuk K-pop names yang ada di database
+        if input_lower in self.priority_kpop_names:
+            # Langsung cek exact member match untuk nama yang ada di database
+            result = self._check_exact_members(input_lower)
+            if result:
+                return result
+        
+        # Prioritas 3: Deteksi OBROLAN (casual conversation) - hanya jika bukan K-pop name
+        if input_lower not in self.priority_kpop_names and self._is_casual_conversation(input_lower):
             return "OBROLAN", input_norm, []
         
         # Prioritas 3: Deteksi MEMBER_GROUP (nama member + grup)
