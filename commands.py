@@ -33,8 +33,13 @@ class CommandsHandler:
         """Handle command !sn"""
         async with ctx.typing():
             # Clear cache command
-            if user_input.lower().startswith("clearcache"):
+            if user_input.lower().startswith("clearcache") or user_input.lower().startswith("clear cache"):
                 await self._clear_cache(ctx)
+                return
+            
+            # Analytics command
+            if user_input.lower().startswith("analytics"):
+                await self._handle_analytics_command(ctx)
                 return
             
             # Deteksi K-pop member/group dengan SmartDetector
@@ -51,12 +56,7 @@ class CommandsHandler:
             elif category == "OBROLAN":
                 await self._handle_casual_conversation(ctx, user_input)
             else:
-                if user_input.lower().startswith("clear cache"):
-                    await self._clear_cache(ctx)
-                elif user_input.lower().startswith("analytics"):
-                    await self._handle_analytics_command(ctx)
-                else:
-                    await self._handle_general_query(ctx, user_input)
+                await self._handle_general_query(ctx, user_input)
     
     async def _clear_cache(self, ctx):
         """Clear Redis cache"""
