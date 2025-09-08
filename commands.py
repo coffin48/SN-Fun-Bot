@@ -143,23 +143,72 @@ class CommandsHandler:
         await ctx.send(message)
     
     def _build_enhanced_query(self, category, detected_name):
-        """Build enhanced query dengan group info untuk scraping yang lebih akurat"""
+        """Build enhanced query dengan semua nama variations untuk scraping yang lebih komprehensif"""
         try:
             if category == "MEMBER":
-                # Cari group info dari database untuk member
+                # Cari semua info dari database untuk member
                 member_rows = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == detected_name.lower()]
                 if len(member_rows) > 0:
-                    # Ambil group dari row pertama
-                    group = str(member_rows.iloc[0].get('Group', '')).strip()
+                    row = member_rows.iloc[0]
+                    
+                    # Kumpulkan semua nama variations
+                    names = []
+                    stage_name = str(row.get('Stage Name', '')).strip()
+                    full_name = str(row.get('Full Name', '')).strip()
+                    korean_name = str(row.get('Korean Stage Name', '')).strip()
+                    group = str(row.get('Group', '')).strip()
+                    
+                    if stage_name:
+                        names.append(stage_name)
+                    if full_name and full_name != stage_name:
+                        names.append(full_name)
+                    if korean_name and korean_name != stage_name:
+                        names.append(korean_name)
+                    
+                    # Format: "Stage Name Full Name Korean Name from Group"
                     if group:
-                        return f"{detected_name} from {group}"
+                        names_str = " ".join(names)
+                        return f"{names_str} from {group}"
+                    else:
+                        return " ".join(names)
                         
             elif category == "GROUP":
                 # Untuk group, scraping group saja
                 return detected_name
                 
             elif category == "MEMBER_GROUP":
-                # MEMBER_GROUP sudah dalam format "Member Group", langsung return
+                # Extract member name dari format "Member from Group"
+                if " from " in detected_name:
+                    member_part = detected_name.split(" from ")[0]
+                    group_part = detected_name.split(" from ")[1]
+                    
+                    # Cari semua nama variations untuk member ini
+                    member_rows = self.kpop_df[
+                        (self.kpop_df['Stage Name'].str.lower() == member_part.lower()) &
+                        (self.kpop_df['Group'].str.lower() == group_part.lower())
+                    ]
+                    
+                    if len(member_rows) > 0:
+                        row = member_rows.iloc[0]
+                        
+                        # Kumpulkan semua nama variations
+                        names = []
+                        stage_name = str(row.get('Stage Name', '')).strip()
+                        full_name = str(row.get('Full Name', '')).strip()
+                        korean_name = str(row.get('Korean Stage Name', '')).strip()
+                        
+                        if stage_name:
+                            names.append(stage_name)
+                        if full_name and full_name != stage_name:
+                            names.append(full_name)
+                        # Include Korean name untuk scraping yang lebih komprehensif
+                        if korean_name and korean_name != stage_name:
+                            names.append(korean_name)
+                        
+                        names_str = " ".join(names)
+                        return f"{names_str} from {group_part}"
+                
+                # Fallback ke detected_name original
                 return detected_name
                 
         except Exception as e:
