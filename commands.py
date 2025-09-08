@@ -4,10 +4,10 @@ Commands Module - Menangani semua Discord commands
 import asyncio
 import redis
 import logger
+import time
 from ai_handler import AIHandler
 from data_fetcher import DataFetcher
 from analytics import analytics
-import time
 
 class CommandsHandler:
     def __init__(self, bot_core):
