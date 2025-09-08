@@ -97,10 +97,13 @@ class CommandsHandler:
             await ctx.send(f"Maaf, terjadi error: {e}")
     
     async def _handle_recommendation_request(self, ctx, user_input):
-        """Handle request rekomendasi"""
+        """Handle request rekomendasi - langsung AI tanpa cache"""
         try:
-            summary = await self.ai_handler.handle_general_query(user_input)
-            await ctx.send(summary)
+            # Langsung AI response dengan max_tokens terbatas
+            summary = await self.ai_handler.chat_async(user_input, max_tokens=1500)
+            
+            # Kirim dalam chunks untuk menghindari Discord limit
+            await self._send_chunked_message(ctx, summary)
             logger.logger.info(f"REKOMENDASI request processed: {user_input}")
         except Exception as e:
             logger.logger.error(f"Gagal memproses rekomendasi: {e}")

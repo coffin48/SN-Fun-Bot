@@ -197,12 +197,21 @@ class SmartKPopDetector:
         """Check exact group matches"""
         if input_lower in self.group_names:
             matches = self.group_names[input_lower]
-            if len(matches) == 1:
-                group_name, idx = matches[0]
+            
+            # Deduplikasi berdasarkan nama grup yang sama
+            unique_groups = {}
+            for group_name, idx in matches:
+                if group_name not in unique_groups:
+                    unique_groups[group_name] = (group_name, idx)
+            
+            unique_matches = list(unique_groups.values())
+            
+            if len(unique_matches) == 1:
+                group_name, idx = unique_matches[0]
                 return "GROUP", group_name, []
             else:
-                # Multiple groups dengan nama sama
-                return "MULTIPLE", input_lower, [(name, "GROUP") for name, idx in matches]
+                # Multiple groups dengan nama berbeda
+                return "MULTIPLE", input_lower, [(name, "GROUP") for name, idx in unique_matches]
         return None
     
     def _check_exact_members(self, input_lower):
