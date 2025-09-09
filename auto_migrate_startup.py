@@ -22,7 +22,7 @@ def check_postgres_has_data():
         engine = create_engine(database_url)
         
         with engine.connect() as conn:
-            # Cek apakah table kpop_members ada dan memiliki data
+            # Cek apakah table kpop_members ada
             result = conn.execute(text("""
                 SELECT COUNT(*) FROM information_schema.tables 
                 WHERE table_name = 'kpop_members'
@@ -31,10 +31,15 @@ def check_postgres_has_data():
             table_exists = result.fetchone()[0] > 0
             
             if table_exists:
-                result = conn.execute(text("SELECT COUNT(*) FROM kpop_members"))
-                row_count = result.fetchone()[0]
-                logger.info(f"PostgreSQL table exists with {row_count} records")
-                return row_count > 0
+                # Table ada, cek jumlah data
+                try:
+                    result = conn.execute(text("SELECT COUNT(*) FROM kpop_members"))
+                    row_count = result.fetchone()[0]
+                    logger.info(f"PostgreSQL table exists with {row_count} records")
+                    return row_count > 0
+                except Exception as e:
+                    logger.warning(f"Error checking table data: {e}")
+                    return False
             else:
                 logger.info("PostgreSQL table kpop_members does not exist")
                 return False
