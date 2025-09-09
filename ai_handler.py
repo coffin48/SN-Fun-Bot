@@ -52,8 +52,23 @@ class AIHandler:
                 return self._get_fallback_response()
             
             content = candidate["content"]
-            if "parts" not in content or not content["parts"]:
-                logger.logger.error(f"No parts in content: {content}")
+            
+            # Handle different content formats from Gemini API
+            if "parts" not in content:
+                # Check if content has 'role' only (empty response case)
+                if content.get("role") == "model" and len(content) == 1:
+                    logger.logger.warning(f"Empty model response from Gemini API: {content}")
+                    return self._get_fallback_response()
+                # Check for alternative response formats
+                elif "text" in content:
+                    text = content["text"]
+                    if text and text.strip():
+                        return text.strip()
+                logger.logger.error(f"No parts in content and no alternative format: {content}")
+                return self._get_fallback_response()
+            
+            if not content["parts"]:
+                logger.logger.error(f"Empty parts array in content: {content}")
                 return self._get_fallback_response()
             
             text = content["parts"][0].get("text", "")
@@ -77,7 +92,13 @@ class AIHandler:
             return self._get_fallback_response()
     
     def create_member_summary_prompt(self, info):
-        """Generate prompt untuk ringkasan member K-pop"""
+        """Generate prompt untuk ringkasan member K-pop dengan input truncation"""
+        # Truncate input jika terlalu panjang (max 8000 karakter untuk safety)
+        max_input_length = 8000
+        if len(info) > max_input_length:
+            logger.logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
+            info = info[:max_input_length] + "...[truncated]"
+        
         return f"""
 Rangkum konten berikut menjadi informasi penting tentang member/idol K-pop.
 Fokus pada: Profile (Nama, Ultah, Social Media), Fun Fact, Rumor.
@@ -90,7 +111,13 @@ Konten:
 """
     
     def create_group_summary_prompt(self, info):
-        """Generate prompt untuk ringkasan grup K-pop"""
+        """Generate prompt untuk ringkasan grup K-pop dengan input truncation"""
+        # Truncate input jika terlalu panjang (max 8000 karakter untuk safety)
+        max_input_length = 8000
+        if len(info) > max_input_length:
+            logger.logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
+            info = info[:max_input_length] + "...[truncated]"
+        
         return f"""
 Rangkum konten berikut menjadi informasi penting tentang grup K-pop.
 Fokus pada: Debut, Nama-nama member, Discography, Prestasi, Fandom.
