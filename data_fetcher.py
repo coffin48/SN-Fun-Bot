@@ -14,6 +14,7 @@ import redis
 from typing import List, Dict, Optional
 import json
 from datetime import datetime, timedelta
+from io import BytesIO
 
 class DataFetcher:
     def __init__(self, kpop_df=None):
@@ -859,3 +860,71 @@ check official music platforms and databases like:
             content += enhancement
         
         return content
+    
+    async def scrape_kpop_image(self, query):
+        """Scrape foto K-pop dari berbagai sumber dan return sebagai BytesIO object"""
+        image_sources = [
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".wp-image, .entry-content img", "type": "kprofile"},
+            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".wp-image, .entry-content img", "type": "kprofile_group"},
+            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage", "type": "wiki"}
+        ]
+        
+        formatted_query = query.lower().replace(' ', '-')
+        
+        for source in image_sources:
+            try:
+                # Format URL berdasarkan tipe
+                if source["type"] == "kprofile":
+                    url = source["url"].format(formatted_query)
+                elif source["type"] == "kprofile_group":
+                    url = source["url"].format(formatted_query)
+                elif source["type"] == "wiki":
+                    url = source["url"].format(query.replace(' ', '_'))
+                
+                logger.logger.info(f"🖼️ Scraping image from: {url}")
+                
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            soup = BeautifulSoup(await response.text(), 'html.parser')
+                            
+                            # Cari image dengan selector
+                            img_tags = soup.select(source["selector"])
+                            
+                            for img in img_tags[:3]:  # Try first 3 images
+                                img_url = img.get('src') or img.get('data-src')
+                                if not img_url:
+                                    continue
+                                
+                                # Skip small images, icons, atau logo
+                                if any(skip in img_url.lower() for skip in ['icon', 'logo', 'avatar', 'thumb']):
+                                    continue
+                                
+                                # Make URL absolute
+                                if img_url.startswith('//'):
+                                    img_url = 'https:' + img_url
+                                elif img_url.startswith('/'):
+                                    from urllib.parse import urljoin
+                                    img_url = urljoin(url, img_url)
+                                
+                                # Download image
+                                try:
+                                    async with session.get(img_url) as img_response:
+                                        if img_response.status == 200:
+                                            image_data = await img_response.read()
+                                            
+                                            # Check if image is valid size (> 10KB, < 5MB)
+                                            if 10000 < len(image_data) < 5000000:
+                                                logger.logger.info(f"✅ Image found: {len(image_data)} bytes from {source['type']}")
+                                                return BytesIO(image_data)
+                                                
+                                except Exception as e:
+                                    logger.logger.debug(f"Failed to download image {img_url}: {e}")
+                                    continue
+                                    
+            except Exception as e:
+                logger.logger.debug(f"Failed to scrape from {source['type']}: {e}")
+                continue
+        
+        logger.logger.info(f"❌ No suitable image found for: {query}")
+        return None
