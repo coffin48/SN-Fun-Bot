@@ -24,7 +24,9 @@ class AIHandler:
         # Multiple API keys for load balancing
         self.api_keys = []
         for i in range(1, 6):  # Support up to 5 API keys (including 2 backup keys)
-            key = os.getenv(f"GEMINI_API_KEY_{i}") or os.getenv("GEMINI_API_KEY" if i == 1 else None)
+            key = os.getenv(f"GEMINI_API_KEY_{i}")
+            if not key and i == 1:
+                key = os.getenv("GEMINI_API_KEY")  # Fallback for first key
             if key:
                 self.api_keys.append(key)
         
