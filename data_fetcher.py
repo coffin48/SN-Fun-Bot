@@ -922,8 +922,14 @@ check official music platforms and databases like:
                                 if not img_url:
                                     continue
                                 
-                                # Skip small images, icons, atau logo
-                                if any(skip in img_url.lower() for skip in ['icon', 'logo', 'avatar', 'thumb']):
+                                # Enhanced image filtering for accuracy
+                                skip_patterns = ['icon', 'logo', 'avatar', 'thumb', 'banner', 'header', 'footer', 
+                                               'sidebar', 'menu', 'button', 'ad', 'advertisement', 'sponsor']
+                                if any(skip in img_url.lower() for skip in skip_patterns):
+                                    continue
+                                
+                                # Skip images that are too generic or unrelated
+                                if any(generic in img_url.lower() for generic in ['default', 'placeholder', 'sample']):
                                     continue
                                 
                                 # Make URL absolute
@@ -964,6 +970,13 @@ check official music platforms and databases like:
         ambiguous_names = self._get_ambiguous_name_alternatives(query)
         if ambiguous_names:
             alternative_queries.extend(ambiguous_names)
+        
+        # Enhanced accuracy with context-aware alternatives
+        context_alternatives = self._get_context_aware_alternatives(query)
+        if context_alternatives:
+            # Insert at beginning for higher priority
+            for i, alt in enumerate(context_alternatives):
+                alternative_queries.insert(i, alt)
         
         for alt_query in alternative_queries:
             if alt_query != query:  # Skip if same as original
@@ -1032,6 +1045,78 @@ check official music platforms and databases like:
                 unique_alternatives.append(alt)
         
         return unique_alternatives[:10]  # Limit to top 10 alternatives
+    
+    def _get_context_aware_alternatives(self, query):
+        """Generate context-aware alternatives with popularity and accuracy focus"""
+        if self.kpop_df is None:
+            return []
+        
+        query_lower = query.lower()
+        alternatives = []
+        
+        # Find exact match in database
+        exact_match = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == query_lower]
+        
+        if not exact_match.empty:
+            # Get the most popular/recent group for this name
+            member = exact_match.iloc[0]  # Take first match
+            stage_name = member.get('Stage Name', '')
+            full_name = member.get('Full Name', '')
+            group = member.get('Group', '')
+            
+            # Priority alternatives based on popularity
+            popular_groups = {
+                'BLACKPINK': ['Lisa', 'Jennie', 'Jisoo', 'Rosé'],
+                'TWICE': ['Nayeon', 'Jeongyeon', 'Momo', 'Sana', 'Jihyo', 'Mina', 'Dahyun', 'Chaeyoung', 'Tzuyu'],
+                'IZ*ONE': ['Eunbi', 'Sakura', 'Hyewon', 'Yena', 'Chaeyeon', 'Chaewon', 'Minju', 'Nako', 'Hitomi', 'Yuri', 'Yujin', 'Wonyoung'],
+                'aespa': ['Karina', 'Giselle', 'Winter', 'Ningning'],
+                'ITZY': ['Yeji', 'Lia', 'Ryujin', 'Chaeryeong', 'Yuna'],
+                'Red Velvet': ['Irene', 'Seulgi', 'Wendy', 'Joy', 'Yeri'],
+                'VIVIZ': ['Eunha', 'SinB', 'Umji'],
+                'Dreamcatcher': ['JiU', 'SuA', 'Siyeon', 'Handong', 'Yoohyeon', 'Dami', 'Gahyeon']
+            }
+            
+            # Check if this member belongs to a popular group
+            for pop_group, members in popular_groups.items():
+                if stage_name in members:
+                    alternatives.extend([
+                        f"{stage_name} {pop_group}",
+                        f"{stage_name}-{pop_group.lower()}",
+                        f"{pop_group} {stage_name}",
+                    ])
+                    
+                    # Add full name if available
+                    if full_name and str(full_name).strip() and full_name != 'N/A':
+                        alternatives.extend([
+                            full_name,
+                            f"{full_name} {pop_group}",
+                            full_name.replace(' ', '-')
+                        ])
+                    break
+            
+            # If not in popular groups, use database group info
+            if not alternatives and group:
+                alternatives.extend([
+                    f"{stage_name} {group}",
+                    f"{stage_name}-{group.lower()}",
+                    f"{group} {stage_name}"
+                ])
+                
+                if full_name and str(full_name).strip() and full_name != 'N/A':
+                    alternatives.extend([
+                        full_name,
+                        f"{full_name} {group}"
+                    ])
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_alternatives = []
+        for alt in alternatives:
+            if alt and alt.lower() not in seen:
+                seen.add(alt.lower())
+                unique_alternatives.append(alt)
+        
+        return unique_alternatives[:5]  # Top 5 most relevant alternatives
     
     async def _search_google_images(self, query):
         """Search Google Images using Custom Search API (if configured)"""
