@@ -79,7 +79,7 @@ class CommandsHandler:
                     await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
                 elif category == "REKOMENDASI":
                     self._clear_user_memory(ctx.author.id)
-                    await self._handle_recommendation_query(ctx, user_input)
+                    await self._handle_recommendation_request(ctx, user_input)
                 elif category == "OBROLAN":
                     await self._handle_casual_conversation(ctx, user_input)
                 else:
