@@ -485,23 +485,6 @@ class SmartKPopDetector:
                 return "MULTIPLE", input_lower, [(name, "GROUP") for name, idx in unique_matches]
         return None
 
-def _check_exact_members(self, input_lower):
-    """Check exact member matches"""
-    if input_lower in self.member_names:
-        matches = self.member_names[input_lower]
-        if len(matches) == 1:
-            member_name, idx = matches[0]
-            return "MEMBER", member_name, []
-        else:
-            # Multiple members dengan nama sama (contoh: Siyeon dari Dreamcatcher vs QWER)
-            multiple_matches = []
-            for member_name, idx in matches:
-                row = self.kpop_df.iloc[idx]
-                group = str(row.get("Group", "")).strip()
-                multiple_matches.append((f"{member_name} ({group})", "MEMBER"))
-            return "MULTIPLE", input_lower, multiple_matches
-    return None
-
     def _fuzzy_match(self, input_norm):
         """Fuzzy matching dengan confidence scoring - skip blacklisted names dan prevent substring false positives"""
         best_score = 0
@@ -549,7 +532,7 @@ def _check_exact_members(self, input_lower):
                 # Multiple groups dengan nama berbeda
                 return "MULTIPLE", input_lower, [(name, "GROUP") for name, idx in unique_matches]
         return None
-    
+        
     def _check_exact_members(self, input_lower):
         """Check exact member matches"""
         if input_lower in self.member_names:
@@ -566,13 +549,13 @@ def _check_exact_members(self, input_lower):
                     multiple_matches.append((f"{member_name} ({group})", "MEMBER"))
                 return "MULTIPLE", input_lower, multiple_matches
         return None
-    
+
     def _fuzzy_match(self, input_norm):
         """Fuzzy matching dengan confidence scoring - skip blacklisted names dan prevent substring false positives"""
         best_score = 0
         best_match = None
         best_category = None
-        
+
         input_lower = input_norm.lower()
         
         # Skip jika input dalam blacklist
