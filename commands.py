@@ -403,8 +403,62 @@ Selamat menggunakan SN Fun Bot! 🎉
         return detected_name
     
     async def _send_chunked_message(self, ctx, message):
-        """Kirim pesan dalam chunk <=2000 karakter"""
-        chunk_size = 2000
-        for i in range(0, len(message), chunk_size):
-            chunk = message[i:i+chunk_size]
+        """Kirim pesan dalam chunk <=2000 karakter dengan smart splitting"""
+        chunk_size = 1900  # Buffer untuk safety
+        
+        if len(message) <= chunk_size:
+            await ctx.send(message)
+            return
+        
+        # Split berdasarkan paragraf atau kalimat untuk readability
+        chunks = []
+        current_chunk = ""
+        
+        # Split by double newlines (paragraphs) first
+        paragraphs = message.split('\n\n')
+        
+        for paragraph in paragraphs:
+            # Jika paragraph + current chunk masih dalam limit
+            if len(current_chunk + '\n\n' + paragraph) <= chunk_size:
+                if current_chunk:
+                    current_chunk += '\n\n' + paragraph
+                else:
+                    current_chunk = paragraph
+            else:
+                # Simpan chunk saat ini jika ada
+                if current_chunk:
+                    chunks.append(current_chunk)
+                    current_chunk = ""
+                
+                # Jika paragraph terlalu panjang, split by sentences
+                if len(paragraph) > chunk_size:
+                    sentences = paragraph.split('. ')
+                    for sentence in sentences:
+                        sentence = sentence.strip()
+                        if not sentence:
+                            continue
+                        # Add period back if not last sentence
+                        if not sentence.endswith('.') and not sentence.endswith('!') and not sentence.endswith('?'):
+                            sentence += '.'
+                        
+                        if len(current_chunk + ' ' + sentence) <= chunk_size:
+                            if current_chunk:
+                                current_chunk += ' ' + sentence
+                            else:
+                                current_chunk = sentence
+                        else:
+                            if current_chunk:
+                                chunks.append(current_chunk)
+                            current_chunk = sentence
+                else:
+                    current_chunk = paragraph
+        
+        # Add remaining chunk
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        # Send all chunks
+        for i, chunk in enumerate(chunks):
+            if i > 0:
+                await asyncio.sleep(0.5)  # Small delay between chunks
             await ctx.send(chunk)
