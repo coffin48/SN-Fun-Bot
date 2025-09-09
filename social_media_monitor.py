@@ -104,7 +104,7 @@ class SocialMediaMonitor:
                         data = await response.json()
                         await self.process_instagram_data(data)
                     else:
-                        logger.logger.warning(f"Instagram check failed: {response.status}")
+                        logger.logger.info(f"🔍 Instagram check status: {response.status}")
                         
         except Exception as e:
             logger.logger.error(f"Instagram monitoring error: {e}")
@@ -127,7 +127,7 @@ class SocialMediaMonitor:
                         content = await response.text()
                         await self.process_twitter_rss(content)
                     else:
-                        logger.logger.warning(f"Twitter check failed: {response.status}")
+                        logger.logger.info(f"🔍 Twitter check status: {response.status}")
                         
         except Exception as e:
             logger.logger.error(f"Twitter monitoring error: {e}")
@@ -155,7 +155,7 @@ class SocialMediaMonitor:
                         data = await response.json()
                         await self.process_youtube_data(data)
                     else:
-                        logger.logger.warning(f"YouTube check failed: {response.status}")
+                        logger.logger.info(f"🔍 YouTube check status: {response.status}")
                         
         except Exception as e:
             logger.logger.error(f"YouTube monitoring error: {e}")
@@ -177,7 +177,7 @@ class SocialMediaMonitor:
                         content = await response.text()
                         await self.process_tiktok_data(content)
                     else:
-                        logger.logger.warning(f"TikTok check failed: {response.status}")
+                        logger.logger.info(f"🔍 TikTok check status: {response.status}")
                         
         except Exception as e:
             logger.logger.error(f"TikTok monitoring error: {e}")
@@ -355,7 +355,7 @@ class SocialMediaMonitor:
         """Send notification to Discord channel"""
         try:
             if not self.notification_channel_id:
-                logger.logger.warning("No SECRET_NUMBER_CHANNEL_ID set for notifications")
+                logger.logger.info("🔍 No SECRET_NUMBER_CHANNEL_ID set for notifications")
                 return
             
             channel = self.bot.get_channel(int(self.notification_channel_id))
