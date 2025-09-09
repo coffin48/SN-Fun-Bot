@@ -11,14 +11,14 @@ import time
 class AIHandler:
     def __init__(self):
         self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     
-    async def chat_async(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
+    async def chat_async(self, prompt, model="gemini-2.5-flash", max_tokens=2000):
         """Async wrapper untuk Gemini chat"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._chat_sync, prompt, model, max_tokens)
     
-    def _chat_sync(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
+    def _chat_sync(self, prompt, model="gemini-2.5-flash", max_tokens=2000):
         """Synchronous Gemini API call"""
         url = f"{self.base_url}?key={self.GEMINI_API_KEY}"
         headers = {
