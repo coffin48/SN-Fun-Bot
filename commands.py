@@ -39,11 +39,6 @@ class CommandsHandler:
         @self.bot.command(name="sn")
         async def sn_command(ctx, *, user_input: str):
             await self._handle_sn_command(ctx, user_input)
-        
-        @self.bot.command(name="monitor")
-        async def monitor_command(ctx, action: str = None, platform: str = None):
-            """Social media monitoring commands"""
-            await self._handle_monitor_command(ctx, action, platform)
     
     async def _handle_sn_command(self, ctx, user_input: str):
         """Handle command !sn"""
@@ -78,6 +73,15 @@ class CommandsHandler:
                     # Database status command
                     if user_input.lower().startswith("db status") or user_input.lower().startswith("database"):
                         await self._handle_database_status(ctx)
+                        return
+                    
+                    # Monitor command (social media monitoring)
+                    if user_input.lower().startswith("monitor"):
+                        # Parse monitor subcommand: "monitor start", "monitor stop", etc.
+                        parts = user_input.split()
+                        action = parts[1] if len(parts) > 1 else None
+                        platform = parts[2] if len(parts) > 2 else None
+                        await self._handle_monitor_command(ctx, action, platform)
                         return
                     
                     # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
