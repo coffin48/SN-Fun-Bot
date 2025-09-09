@@ -18,7 +18,7 @@ class CommandsHandler:
         
         # Initialize handlers
         self.ai_handler = AIHandler()
-        self.data_fetcher = DataFetcher()
+        self.data_fetcher = DataFetcher(bot_core.kpop_df)  # Pass database untuk fallback
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
