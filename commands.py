@@ -688,7 +688,7 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
                 
                 embed.add_field(
                     name="⚙️ Commands",
-                    value="`!monitor start` - Start monitoring\n`!monitor stop` - Stop monitoring\n`!monitor check` - Manual check all\n`!monitor check instagram` - Check specific platform\n`!monitor status` - Show detailed status",
+                    value="`!sn monitor start` - Start monitoring\n`!sn monitor stop` - Stop monitoring\n`!sn monitor check` - Manual check all\n`!sn monitor check instagram` - Check specific platform\n`!sn monitor status` - Show detailed status",
                     inline=False
                 )
                 
