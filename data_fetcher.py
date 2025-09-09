@@ -197,18 +197,14 @@ class DataFetcher:
         all_results.extend(website_results)
         logger.logger.info(f"Async scraping completed: {len(website_results)} results")
         
-        # Check if we have sufficient quality data
-        if self._is_sufficient_data(all_results):
-            logger.logger.info("Sufficient data obtained, skipping additional sources")
-        else:
-            # 2. Google Custom Search (only if needed)
-            cse_results = await self._fetch_from_cse(query)
-            all_results.extend(cse_results)
-            
-            # 3. NewsAPI (only if still needed)
-            if not self._is_sufficient_data(all_results):
-                news_results = await self._fetch_from_newsapi(query)
-                all_results.extend(news_results)
+        # Always try to get more sources untuk akurasi maksimal
+        # 2. Google Custom Search
+        cse_results = await self._fetch_from_cse(query)
+        all_results.extend(cse_results)
+        
+        # 3. NewsAPI
+        news_results = await self._fetch_from_newsapi(query)
+        all_results.extend(news_results)
         
         # 4. Database fallback info
         database_info = self._get_database_info(query)
@@ -437,15 +433,27 @@ class DataFetcher:
         combined_text = " ".join(results)
         text_length = len(combined_text)
         
-        # Quality thresholds
-        min_length = 2000  # Minimal 2000 characters
-        quality_keywords = ['profile', 'member', 'group', 'debut', 'agency', 'birthday', 'position']
+        # Enhanced quality thresholds untuk akurasi lebih baik
+        min_length = 1500  # Turunkan threshold untuk member individual
+        quality_keywords = [
+            'profile', 'member', 'group', 'debut', 'agency', 'birthday', 'position',
+            'instagram', 'full name', 'korean', 'born', 'vocalist', 'rapper', 'dancer'
+        ]
         
-        # Count quality indicators
-        quality_score = sum(1 for keyword in quality_keywords if keyword.lower() in combined_text.lower())
+        # Count quality indicators dengan weight
+        quality_score = 0
+        for keyword in quality_keywords:
+            if keyword.lower() in combined_text.lower():
+                if keyword in ['instagram', 'birthday', 'full name']:
+                    quality_score += 2  # Higher weight untuk info penting
+                else:
+                    quality_score += 1
         
-        # Sufficient if we have enough content AND quality indicators
-        return text_length >= min_length and quality_score >= 3
+        # Lebih permissive untuk member individual
+        has_basic_info = any(word in combined_text.lower() for word in ['birthday', 'instagram', 'full name', 'korean'])
+        
+        # Sufficient jika ada basic info ATAU cukup panjang dengan quality score
+        return (text_length >= min_length and quality_score >= 4) or (has_basic_info and text_length >= 800)
     
     def _get_from_cache(self, cache_key):
         """Get data from Redis cache"""
@@ -823,11 +831,11 @@ class DataFetcher:
                 stage_name = member.get('Stage Name', 'N/A')
                 full_name = member.get('Full Name', 'N/A')
                 group = member.get('Group', 'N/A')
-                korean_name = member.get('Korean Name', 'N/A')
-                position = member.get('Position', 'N/A')
-                birthday = member.get('Birthday', 'N/A')
-                agency = member.get('Agency', 'N/A')
+                korean_name = member.get('Korean Stage Name', 'N/A')  # Fix: use Korean Stage Name
+                date_of_birth = member.get('Date of Birth', 'N/A')  # Fix: use Date of Birth
+                instagram = member.get('Instagram', 'N/A')
                 
+                # Enhanced member info dengan semua data yang tersedia
                 member_info = f"Database Info: {stage_name}"
                 if full_name != 'N/A' and str(full_name).strip():
                     member_info += f" (Full Name: {full_name})"
@@ -835,12 +843,10 @@ class DataFetcher:
                     member_info += f" (Korean: {korean_name})"
                 if group != 'N/A' and str(group).strip():
                     member_info += f" from {group}"
-                if position != 'N/A' and str(position).strip():
-                    member_info += f" - Position: {position}"
-                if birthday != 'N/A' and str(birthday).strip():
-                    member_info += f" - Birthday: {birthday}"
-                if agency != 'N/A' and str(agency).strip():
-                    member_info += f" - Agency: {agency}"
+                if date_of_birth != 'N/A' and str(date_of_birth).strip():
+                    member_info += f" - Birthday: {date_of_birth}"
+                if instagram != 'N/A' and str(instagram).strip():
+                    member_info += f" - Instagram: {instagram}"
                 
                 database_info.append(member_info)
         
