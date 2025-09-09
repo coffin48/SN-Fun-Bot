@@ -65,8 +65,9 @@ class CommandsHandler:
                     await self._handle_analytics_command(ctx)
                     return
                 
-                # Deteksi K-pop member/group dengan SmartDetector
-                category, detected_name, multiple_matches = self.kpop_detector.detect(user_input)
+                # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
+                conversation_context = self._get_recent_conversation_context(ctx.author.id)
+                category, detected_name, multiple_matches = self.kpop_detector.detect(user_input, conversation_context)
                 logger.log_sn_command(ctx.author, user_input, category, detected_name)
                 
                 # Proses berdasarkan kategori
@@ -211,6 +212,23 @@ class CommandsHandler:
         conversation_context += "\nRespond secara natural dan konsisten dengan percakapan sebelumnya:"
         
         return conversation_context
+    
+    def _get_recent_conversation_context(self, user_id):
+        """Get recent conversation context untuk transition detection"""
+        if user_id not in self.conversation_memory:
+            return None
+        
+        # Get last 3 messages untuk context
+        recent_messages = self.conversation_memory[user_id][-3:]
+        if not recent_messages:
+            return None
+        
+        # Combine recent context
+        context = ""
+        for msg in recent_messages:
+            context += f"{msg['content']} "
+        
+        return context.strip()
 
     async def _handle_casual_conversation(self, ctx, user_input):
         """Handle obrolan casual dengan memory dan caching"""
