@@ -23,7 +23,7 @@ class AIHandler:
     def __init__(self):
         # Multiple API keys for load balancing
         self.api_keys = []
-        for i in range(1, 4):  # Support up to 3 API keys
+        for i in range(1, 6):  # Support up to 5 API keys (including 2 backup keys)
             key = os.getenv(f"GEMINI_API_KEY_{i}") or os.getenv("GEMINI_API_KEY" if i == 1 else None)
             if key:
                 self.api_keys.append(key)
@@ -35,9 +35,9 @@ class AIHandler:
                 self.api_keys.append(single_key)
         
         if not self.api_keys:
-            logger.logger.error("No GEMINI_API_KEY found. Set GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3")
+            logger.logger.error("No GEMINI_API_KEY found. Set GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3, GEMINI_API_KEY_4, GEMINI_API_KEY_5")
         else:
-            logger.logger.info(f"Loaded {len(self.api_keys)} Gemini API keys for load balancing")
+            logger.logger.info(f"Loaded {len(self.api_keys)} Gemini API keys for load balancing (including backup keys)")
         
         # Multiple model options with Gemini 2.0 Flash as primary
         self.models = [
@@ -61,12 +61,15 @@ class AIHandler:
             "REKOMENDASI": 2   # API Key 3 for recommendations
         }
         
-        # Fallback mapping if fewer than 3 keys available
-        if len(self.api_keys) < 3:
+        # Backup keys (4 & 5) will be used in rotation for all categories
+        # when primary keys fail or for load balancing
+        
+        # Fallback mapping if fewer keys available
+        if len(self.api_keys) > 0:
             self.category_api_mapping = {
                 "OBROLAN": 0 % len(self.api_keys),
-                "KPOP": 1 % len(self.api_keys),
-                "REKOMENDASI": 2 % len(self.api_keys)
+                "KPOP": 1 % len(self.api_keys) if len(self.api_keys) > 1 else 0,
+                "REKOMENDASI": 2 % len(self.api_keys) if len(self.api_keys) > 2 else 0
             }
     
     async def chat_async(self, prompt, model="gemini-2.0-flash-exp", max_tokens=2000, category=None):
@@ -97,13 +100,15 @@ class AIHandler:
                 current_key = self.api_keys[preferred_key_index]
                 url = f"{self.base_url_template.format(model=current_model)}?key={current_key}"
                 
-                logger.logger.info(f"Trying model: {current_model} with dedicated {category} API key #{preferred_key_index + 1}")
+                key_type = "primary" if preferred_key_index < 3 else "backup"
+                logger.logger.info(f"Trying model: {current_model} with {key_type} {category} API key #{preferred_key_index + 1}")
                 
                 result = self._try_model_request(url, prompt, max_tokens, current_model, preferred_key_index, category)
                 
                 if result != "MODEL_FAILED":
                     # Success with preferred key
                     self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
+                    logger.logger.info(f"✅ Success with {key_type} API key #{preferred_key_index + 1} for {category}")
                     return result
             
             # If preferred key failed or not available, try all other keys
@@ -117,7 +122,8 @@ class AIHandler:
                 current_key = self.api_keys[current_key_index]
                 url = f"{self.base_url_template.format(model=current_model)}?key={current_key}"
                 
-                logger.logger.info(f"Trying model: {current_model} with fallback API key #{current_key_index + 1}")
+                key_type = "primary" if current_key_index < 3 else "backup"
+                logger.logger.info(f"Trying model: {current_model} with {key_type} fallback API key #{current_key_index + 1}")
                 
                 result = self._try_model_request(url, prompt, max_tokens, current_model, current_key_index, category)
                 
@@ -125,6 +131,7 @@ class AIHandler:
                     # Success with fallback key
                     self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
                     self.current_key_index = current_key_index
+                    logger.logger.info(f"✅ Success with {key_type} fallback API key #{current_key_index + 1} for {category or 'GENERAL'}")
                     return result
             
         
