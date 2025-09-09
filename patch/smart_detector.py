@@ -9,7 +9,10 @@ class SmartKPopDetector:
         self.kpop_df = kpop_df
         
         # Exception list untuk nama K-pop pendek yang valid
-        self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb', 'hina']
+        self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb', 'hina', 'txt']
+        
+        # Blacklist untuk nama yang terlalu umum dan menyebabkan false positive
+        self.member_name_blacklist = ['u']
         
         # Priority K-pop names yang harus dicek dulu sebelum casual conversation
         self.priority_kpop_names = set()
@@ -24,39 +27,56 @@ class SmartKPopDetector:
         self.aliases = {}
         self.priority_kpop_names = set()
         
+        # First pass: Build group names index
         for idx, row in self.kpop_df.iterrows():
-            # Group names
             group = str(row.get("Group", "")).strip()
             if group:
                 group_lower = group.lower()
                 if group_lower not in self.group_names:
                     self.group_names[group_lower] = []
                 self.group_names[group_lower].append((group, idx))
-            
-            # Stage Name
+                # Tambahkan grup ke priority names dengan prioritas tinggi
+                self.priority_kpop_names.add(group_lower)
+        
+        # Second pass: Build member names, avoiding conflicts with group names
+        for idx, row in self.kpop_df.iterrows():
             if "Stage Name" in row and str(row["Stage Name"]).strip():
                 name = str(row["Stage Name"]).strip()
                 name_lower = name.lower()
+                
+                # Skip jika nama ini sudah ada sebagai grup atau dalam blacklist
+                if name_lower in self.group_names or name_lower in self.member_name_blacklist:
+                    continue
+                    
                 if name_lower not in self.member_names:
                     self.member_names[name_lower] = []
                 self.member_names[name_lower].append((name, idx))
-                # Tambahkan ke priority names
                 self.priority_kpop_names.add(name_lower)
             
-            # Full Name sebagai alias
+            # Full Name sebagai alias - skip blacklisted names
             if "Full Name" in row and str(row["Full Name"]).strip():
                 full_name = str(row["Full Name"]).strip()
                 full_name_lower = full_name.lower()
+                
+                # Skip jika dalam blacklist atau konflik dengan grup
+                if full_name_lower in self.member_name_blacklist or full_name_lower in self.group_names:
+                    continue
+                    
                 if full_name_lower not in self.aliases:
                     self.aliases[full_name_lower] = []
                 self.aliases[full_name_lower].append((full_name, idx, "MEMBER"))
                 # Tambahkan ke priority names
                 self.priority_kpop_names.add(full_name_lower)
             
-            # Korean Stage Name sebagai alias
+            # Korean Stage Name sebagai alias - skip blacklisted names
             if "Korean Stage Name" in row and str(row["Korean Stage Name"]).strip():
                 korean_name = str(row["Korean Stage Name"]).strip()
                 korean_name_lower = korean_name.lower()
+                
+                # Skip jika dalam blacklist atau konflik dengan grup
+                if korean_name_lower in self.member_name_blacklist or korean_name_lower in self.group_names:
+                    continue
+                    
                 if korean_name_lower not in self.aliases:
                     self.aliases[korean_name_lower] = []
                 self.aliases[korean_name_lower].append((korean_name, idx, "MEMBER"))
@@ -121,14 +141,16 @@ class SmartKPopDetector:
         if result:
             return result
         
-        # Strategy 4: Fuzzy matching
+        # Strategy 4: AI context detection untuk mixed queries (prioritas tinggi)
+        if self._has_kpop_context(user_input):
+            context_result = self._extract_kpop_from_context(user_input)
+            if context_result[0] != "NON-KPOP":
+                return context_result
+        
+        # Strategy 5: Fuzzy matching (fallback)
         result = self._fuzzy_match(input_norm)
         if result:
             return result
-        
-        # Strategy 5: AI context detection untuk mixed queries
-        if self._has_kpop_context(user_input):
-            return self._extract_kpop_from_context(user_input)
         
         # Default: OBROLAN untuk input yang tidak terdeteksi
         return "OBROLAN", input_norm, []
@@ -162,13 +184,19 @@ class SmartKPopDetector:
             r'(hari ini|kemarin|besok|tadi|nanti)',
             r'(hujan|panas|dingin|mendung|cerah)',
             r'(capek|lelah|ngantuk|lapar|kenyang)',
-            r'(lagi ngapain|sedang apa|gimana|bagaimana|kenapa)'
+            r'(lagi ngapain|sedang apa|gimana|bagaimana|kenapa)',
+            r'(saya baik|aku baik|baik-baik saja|baik saja|alhamdulillah baik)',
+            r'(terima kasih|makasih|thanks|thank you)',
+            r'(kuku kakek|kaku kaku|tongue twister|pantun|puisi)',
+            r'(lagu baru|musik baru|karena lagu)'
         ]
         
         # Question patterns
         question_patterns = [
             r'(siapa namamu|nama kamu|kamu siapa)',
             r'(umur berapa|berapa umur)',
+            r'(pakai bahasa|gunakan bahasa|berbahasa|bahasa natural)',
+            r'(natural saja|santai saja|biasa saja|casual saja)',
             r'\?$'  # Questions ending with ?
         ]
         
@@ -279,12 +307,16 @@ class SmartKPopDetector:
         return None
     
     def _fuzzy_match(self, input_norm):
-        """Fuzzy matching dengan confidence scoring"""
+        """Fuzzy matching dengan confidence scoring - skip blacklisted names"""
         best_score = 0
         best_match = None
         best_category = None
         
         input_lower = input_norm.lower()
+        
+        # Skip jika input dalam blacklist
+        if input_lower in self.member_name_blacklist:
+            return None
         
         for idx, row in self.kpop_df.iterrows():
             # Group fuzzy matching
@@ -296,10 +328,10 @@ class SmartKPopDetector:
                     best_category = "GROUP"
                     best_score = score
             
-            # Member fuzzy matching
+            # Member fuzzy matching - skip blacklisted names
             for col in ["Stage Name", "Korean Stage Name", "Full Name"]:
                 member_name = str(row.get(col, "")).strip()
-                if member_name:
+                if member_name and member_name.lower() not in self.member_name_blacklist:
                     score = fuzz.partial_ratio(input_lower, member_name.lower())
                     if score > best_score and score >= self.threshold:
                         best_match = member_name
@@ -329,38 +361,68 @@ class SmartKPopDetector:
         """Extract K-pop name from mixed context"""
         words = user_input.split()
         
-        # Cek setiap kata untuk K-pop names
-        for word in words:
-            word_clean = re.sub(r'[^\w]', '', word).strip()
-            if len(word_clean) > 1:  # Lowered threshold untuk nama pendek seperti BTS
-                # Try exact match pada word ini
-                result = self._check_exact_groups(word_clean.lower())
-                if result:
-                    return result
-                
-                result = self._check_exact_members(word_clean.lower())
-                if result:
-                    return result
+        # Filter kata-kata umum yang bukan K-pop names
+        common_words = {'aku', 'saya', 'kamu', 'dia', 'info', 'tentang', 'soal', 'dari', 'untuk', 'dengan', 'yang', 'ini', 'itu', 'dan', 'atau', 'beri', 'kasih', 'minta', 'ingin', 'mau', 'pengen', 'baik', 'saja', 'juga', 'lagi', 'apa', 'dong', 'nih'}
         
-        # Jika tidak ada exact match, coba fuzzy matching pada setiap kata
+        # Cek setiap kata untuk K-pop names - prioritas grup dulu
         for word in words:
             word_clean = re.sub(r'[^\w]', '', word).strip()
-            if len(word_clean) > 2:
-                # Fuzzy match untuk groups
-                for _, row in self.kpop_df.iterrows():
-                    group_name = str(row.get("Group", "")).strip()
-                    if group_name:
-                        score = fuzz.ratio(word_clean.lower(), group_name.lower())
-                        if score >= 85:  # High threshold untuk context extraction
-                            return "GROUP", group_name, []
+            word_lower = word_clean.lower()
+            
+            # Skip kata-kata umum
+            if word_lower in common_words or len(word_clean) <= 1:
+                continue
                 
-                # Fuzzy match untuk members
-                for _, row in self.kpop_df.iterrows():
-                    for col in ["Stage Name", "Korean Stage Name", "Full Name"]:
-                        member_name = str(row.get(col, "")).strip()
-                        if member_name:
-                            score = fuzz.ratio(word_clean.lower(), member_name.lower())
-                            if score >= 85:  # High threshold untuk context extraction
-                                return "MEMBER", member_name, []
+            # Try exact match grup dulu (prioritas tinggi)
+            result = self._check_exact_groups(word_lower)
+            if result:
+                return result
+        
+        # Kemudian cek member jika tidak ada grup yang cocok
+        for word in words:
+            word_clean = re.sub(r'[^\w]', '', word).strip()
+            word_lower = word_clean.lower()
+            
+            # Skip kata-kata umum
+            if word_lower in common_words or len(word_clean) <= 1:
+                continue
+                
+            result = self._check_exact_members(word_lower)
+            if result:
+                return result
+        
+        # Jika tidak ada exact match, coba fuzzy matching - prioritas grup dulu
+        for word in words:
+            word_clean = re.sub(r'[^\w]', '', word).strip()
+            word_lower = word_clean.lower()
+            
+            # Skip kata-kata umum dan pendek
+            if word_lower in common_words or len(word_clean) <= 2:
+                continue
+                
+            # Fuzzy match untuk groups dulu
+            for _, row in self.kpop_df.iterrows():
+                group_name = str(row.get("Group", "")).strip()
+                if group_name:
+                    score = fuzz.ratio(word_lower, group_name.lower())
+                    if score >= 85:  # High threshold untuk context extraction
+                        return "GROUP", group_name, []
+        
+        # Kemudian fuzzy match untuk members
+        for word in words:
+            word_clean = re.sub(r'[^\w]', '', word).strip()
+            word_lower = word_clean.lower()
+            
+            # Skip kata-kata umum, pendek, dan blacklisted
+            if word_lower in common_words or len(word_clean) <= 2 or word_lower in self.member_name_blacklist:
+                continue
+                
+            for _, row in self.kpop_df.iterrows():
+                for col in ["Stage Name", "Korean Stage Name", "Full Name"]:
+                    member_name = str(row.get(col, "")).strip()
+                    if member_name and member_name.lower() not in self.member_name_blacklist:
+                        score = fuzz.ratio(word_lower, member_name.lower())
+                        if score >= 85:  # High threshold untuk context extraction
+                            return "MEMBER", member_name, []
         
         return "NON-KPOP", None, []
