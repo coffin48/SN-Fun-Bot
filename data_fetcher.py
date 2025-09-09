@@ -10,10 +10,11 @@ from analytics import analytics
 import time
 
 class DataFetcher:
-    def __init__(self):
+    def __init__(self, kpop_df=None):
         self.NEWS_API_KEY = os.getenv("NEWS_API_KEY")
         self.CSE_API_KEYS = [os.getenv(f"CSE_API_KEY_{i}") for i in range(1, 4)]
         self.CSE_IDS = [os.getenv(f"CSE_ID_{i}") for i in range(1, 4)]
+        self.kpop_df = kpop_df  # Database untuk fallback info
         
         # Daftar situs untuk scraping dengan strategi berbeda
         self.scraping_sites = [
@@ -83,33 +84,37 @@ class DataFetcher:
         }
     
     async def fetch_kpop_info(self, query):
-        """Fetch informasi K-pop dari berbagai sumber"""
+        """Fetch comprehensive K-pop information from multiple sources"""
         logger.logger.info(f"Starting multi-source data fetch for: {query}")
-        results = []
         
-        # Scraping dari berbagai situs
-        logger.logger.info(f"Scraping websites for: {query}")
-        scrape_results = await self._scrape_websites(query)
-        results.extend(scrape_results)
-        logger.logger.info(f"Website scraping completed: {len(scrape_results)} results")
+        all_results = []
         
-        # Google Custom Search Engine
-        logger.logger.info(f"Fetching from Google CSE for: {query}")
+        # 1. Scrape websites
+        website_results = await self._scrape_websites(query)
+        all_results.extend(website_results)
+        logger.logger.info(f"Website scraping completed: {len(website_results)} results")
+        
+        # 2. Google Custom Search
         cse_results = await self._fetch_from_cse(query)
-        results.extend(cse_results)
+        all_results.extend(cse_results)
         logger.logger.info(f"Google CSE completed: {len(cse_results)} results")
         
-        # NewsAPI
-        logger.logger.info(f"Fetching from NewsAPI for: {query}")
+        # 3. NewsAPI
         news_results = await self._fetch_from_newsapi(query)
-        results.extend(news_results)
+        all_results.extend(news_results)
         logger.logger.info(f"NewsAPI completed: {len(news_results)} results")
         
-        # Bersihkan dan gabungkan hasil
-        clean_data = self._clean_text(results)
-        logger.logger.info(f"Data cleaning completed: {len(clean_data)} characters final")
+        # 4. Database fallback info
+        database_info = self._get_database_info(query)
+        if database_info:
+            all_results.append(database_info)
+            logger.logger.info(f"Database fallback added: {len(database_info)} characters")
         
-        return clean_data
+        # Clean and combine results
+        final_text = self._clean_text(all_results)
+        logger.logger.info(f"Data cleaning completed: {len(final_text)} characters final")
+        
+        return final_text
     
     async def _scrape_websites(self, query):
         """Scraping dari daftar website K-pop"""
@@ -337,3 +342,75 @@ class DataFetcher:
         clean_text = re.sub(r"\s+", " ", clean_text).strip()
         
         return clean_text
+    
+    def _get_database_info(self, query):
+        """Ambil informasi dari database sebagai fallback"""
+        if self.kpop_df is None:
+            return ""
+        
+        database_info = []
+        query_lower = query.lower()
+        
+        # Cari grup yang cocok
+        group_matches = self.kpop_df[self.kpop_df['Group'].str.lower() == query_lower]
+        
+        if len(group_matches) > 0:
+            # Info grup dari database
+            group_name = group_matches.iloc[0]['Group']
+            agency = group_matches.iloc[0].get('Agency', 'N/A')
+            
+            database_info.append(f"Database Info: {group_name} members include:")
+            
+            # List semua member dengan info lengkap
+            for idx, member in group_matches.iterrows():
+                stage_name = member.get('Stage Name', 'N/A')
+                full_name = member.get('Full Name', 'N/A')
+                korean_name = member.get('Korean Name', 'N/A')
+                position = member.get('Position', 'N/A')
+                birthday = member.get('Birthday', 'N/A')
+                
+                member_info = f"{stage_name}"
+                if full_name != 'N/A' and str(full_name).strip():
+                    member_info += f" (Full Name: {full_name})"
+                if korean_name != 'N/A' and str(korean_name).strip():
+                    member_info += f" (Korean: {korean_name})"
+                if position != 'N/A' and str(position).strip():
+                    member_info += f" - Position: {position}"
+                if birthday != 'N/A' and str(birthday).strip():
+                    member_info += f" - Birthday: {birthday}"
+                
+                database_info.append(member_info)
+            
+            if agency != 'N/A' and str(agency).strip():
+                database_info.append(f"Agency: {agency}")
+        
+        # Cari member individual
+        member_matches = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == query_lower]
+        
+        if len(member_matches) > 0:
+            for idx, member in member_matches.iterrows():
+                stage_name = member.get('Stage Name', 'N/A')
+                full_name = member.get('Full Name', 'N/A')
+                group = member.get('Group', 'N/A')
+                korean_name = member.get('Korean Name', 'N/A')
+                position = member.get('Position', 'N/A')
+                birthday = member.get('Birthday', 'N/A')
+                agency = member.get('Agency', 'N/A')
+                
+                member_info = f"Database Info: {stage_name}"
+                if full_name != 'N/A' and str(full_name).strip():
+                    member_info += f" (Full Name: {full_name})"
+                if korean_name != 'N/A' and str(korean_name).strip():
+                    member_info += f" (Korean: {korean_name})"
+                if group != 'N/A' and str(group).strip():
+                    member_info += f" from {group}"
+                if position != 'N/A' and str(position).strip():
+                    member_info += f" - Position: {position}"
+                if birthday != 'N/A' and str(birthday).strip():
+                    member_info += f" - Birthday: {birthday}"
+                if agency != 'N/A' and str(agency).strip():
+                    member_info += f" - Agency: {agency}"
+                
+                database_info.append(member_info)
+        
+        return " ".join(database_info)
