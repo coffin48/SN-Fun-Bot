@@ -25,7 +25,9 @@ class DataFetcher:
             {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news"},
             {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news"},
             {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database"},
-            {"url": "https://namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "wiki"}
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english"},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_encoded"},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_hangul"}
         ]
         
         # Mapping grup dengan nama lengkap untuk format extended KProfiles
@@ -52,6 +54,32 @@ class DataFetcher:
             "super junior": "super-junior",
             "girls generation": "girls-generation-snsd",
             "snsd": "girls-generation-snsd"
+        }
+        
+        # Mapping grup untuk Namu Wiki dengan berbagai format
+        self.namu_wiki_mappings = {
+            # Format Hangul (Korean)
+            "bts": "%EB%B0%A9%ED%83%84%EC%86%8C%EB%85%84%EB%8B%A8",  # 방탄소년단
+            "blackpink": "%EB%B8%94%EB%9E%99%ED%95%91%ED%81%AC",  # 블랙핑크
+            "twice": "%ED%8A%B8%EC%99%80%EC%9D%B4%EC%8A%A4",  # 트와이스
+            "red velvet": "%EB%A0%88%EB%93%9C%EB%B2%A8%EB%B2%B3",  # 레드벨벳
+            "itzy": "%EC%9E%87%EC%A7%80",  # 있지
+            "aespa": "%EC%97%90%EC%8A%A4%ED%8C%8C",  # 에스파
+            "newjeans": "%EB%89%B4%EC%A7%84%EC%8A%A4",  # 뉴진스
+            "ive": "%EC%95%84%EC%9D%B4%EB%B8%8C",  # 아이브
+            "le sserafim": "%EB%A5%B4%EC%84%B8%EB%9D%BC%ED%95%8C",  # 르세라핌
+            "gidle": "%EC%97%AC%EC%9E%90%EC%95%84%EC%9D%B4%EB%93%A4",  # 여자아이들
+            "(g)i-dle": "%EC%97%AC%EC%9E%90%EC%95%84%EC%9D%B4%EB%93%A4",  # 여자아이들
+            "stray kids": "%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%9D%B4%ED%82%A4%EC%A6%88",  # 스트레이키즈
+            "seventeen": "%EC%84%B8%EB%B8%90%ED%8B%B4",  # 세븐틴
+            "txt": "%ED%88%AC%EB%AA%A8%EB%A1%9C%EC%9A%B0%EB%B0%94%EC%9D%B4%ED%88%AC%EA%B2%8C%EB%8D%94",  # 투모로우바이투게더
+            "tomorrow x together": "%ED%88%AC%EB%AA%A8%EB%A1%9C%EC%9A%B0%EB%B0%94%EC%9D%B4%ED%88%AC%EA%B2%8C%EB%8D%94",
+            "enhypen": "%EC%97%94%ED%95%98%EC%9D%B4%ED%94%88",  # 엔하이픈
+            "nct": "%EC%97%94%EC%8B%9C%ED%8B%B0",  # 엔시티
+            "exo": "%EC%97%91%EC%86%8C",  # 엑소
+            "qwer": "QWER",  # English format
+            "secret number": "SECRET%20NUMBER",  # URL encoded space
+            "hearts2hearts": "%EC%8A%A4%ED%85%94%EB%9D%BC(Hearts2Hearts)"  # Mixed format
         }
     
     async def fetch_kpop_info(self, query):
@@ -102,12 +130,32 @@ class DataFetcher:
                         url = site["url"].format(extended_name)
                     else:
                         url = site["url"].format(formatted_name)
+                elif site.get("type") in ["namu_english", "namu_encoded", "namu_hangul"]:
+                    # Format khusus untuk Namu Wiki dengan berbagai format
+                    query_lower = query.lower()
+                    
+                    if site.get("type") == "namu_english":
+                        # Format English: QWER, TXT, etc.
+                        formatted_name = query.upper() if len(query) <= 4 else query.replace(' ', '%20')
+                        url = site["url"].format(formatted_name)
+                    elif site.get("type") == "namu_encoded":
+                        # Format URL encoded: SECRET%20NUMBER
+                        formatted_name = query.replace(' ', '%20')
+                        url = site["url"].format(formatted_name)
+                    elif site.get("type") == "namu_hangul":
+                        # Format Hangul: mapping ke Korean names
+                        if query_lower in self.namu_wiki_mappings:
+                            formatted_name = self.namu_wiki_mappings[query_lower]
+                            url = site["url"].format(formatted_name)
+                        else:
+                            # Skip jika tidak ada mapping Hangul
+                            continue
                 elif "allkpop" in site["url"]:
                     url = site["url"].format(query.replace(' ', '-'))
                 else:
                     url = site["url"].format(formatted_query)
                 
-                logger.logger.info(f"Scraping site {i}/9: {url.split('/')[2]}")
+                logger.logger.info(f"Scraping site {i}/11: {url.split('/')[2]}")
                 
                 response = requests.get(
                     url, 
@@ -156,9 +204,9 @@ class DataFetcher:
                                 # Fallback ke judul saja
                                 site_results.append(link.get_text().strip())
                 
-                elif site_type == "wiki":
-                    # Wikipedia/Namu: ambil konten paragraf
-                    if "wikipedia" in url:
+                elif site_type in ["wiki", "namu_english", "namu_encoded", "namu_hangul"]:
+                    # Wikipedia/Namu Wiki: ambil konten paragraf
+                    if "wikipedia" in url or "namu.wiki" in url:
                         content_elements = soup.select(".mw-parser-output p")[:4]
                     else:
                         content_elements = soup.select(".wiki-paragraph, .wiki-content p")[:4]
