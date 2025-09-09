@@ -18,21 +18,47 @@ class AIHandler:
             logger.logger.error("GEMINI_API_KEY environment variable not found")
             self.GEMINI_API_KEY = None
         
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        # Multiple free model options for fallback
+        self.models = [
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b", 
+            "gemini-1.0-pro"
+        ]
+        self.current_model_index = 0
+        self.base_url_template = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     
     async def chat_async(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
         """Async wrapper untuk Gemini chat"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._chat_sync, prompt, model, max_tokens)
     
-    def _chat_sync(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
-        """Synchronous Gemini API call"""
+    def _chat_sync(self, prompt, model=None, max_tokens=2000):
+        """Synchronous Gemini API call with model fallback"""
         # Validate API key
         if not self.GEMINI_API_KEY:
             logger.logger.error("Gemini API key not found")
             return self._get_fallback_response()
         
-        url = f"{self.base_url}?key={self.GEMINI_API_KEY}"
+        # Try all available models if current one fails
+        for model_attempt in range(len(self.models)):
+            current_model = self.models[(self.current_model_index + model_attempt) % len(self.models)]
+            url = f"{self.base_url_template.format(model=current_model)}?key={self.GEMINI_API_KEY}"
+            
+            logger.logger.info(f"Trying model: {current_model}")
+            
+            result = self._try_model_request(url, prompt, max_tokens, current_model)
+            
+            if result != "MODEL_FAILED":
+                # Success with this model, update current model index
+                self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
+                return result
+        
+        # All models failed
+        logger.logger.error("All Gemini models failed")
+        return self._get_fallback_response()
+    
+    def _try_model_request(self, url, prompt, max_tokens, model_name):
+        """Try a single model request with retry logic"""
         headers = {
             "Content-Type": "application/json"
         }
@@ -84,10 +110,14 @@ class AIHandler:
                     logger.logger.warning(f"Gemini API 503 error, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
+                elif e.response.status_code == 404:
+                    # Model not found - try next model
+                    logger.logger.warning(f"Model {model_name} not found (404), trying next model")
+                    return "MODEL_FAILED"
                 else:
-                    # Final attempt failed or non-503 error
-                    logger.logger.error(f"Gemini API HTTP error: {e}")
-                    return self._get_fallback_response()
+                    # Final attempt failed or other HTTP error
+                    logger.logger.error(f"Gemini API HTTP error for {model_name}: {e}")
+                    return "MODEL_FAILED"
             except Exception as e:
                 if attempt < max_retries - 1:
                     wait_time = (2 ** attempt) + 1
@@ -95,12 +125,12 @@ class AIHandler:
                     time.sleep(wait_time)
                     continue
                 else:
-                    logger.logger.error(f"Gemini API final error: {e}")
-                    return self._get_fallback_response()
+                    logger.logger.error(f"Gemini API final error for {model_name}: {e}")
+                    return "MODEL_FAILED"
         else:
-            # All retries failed
-            logger.logger.error("All Gemini API retry attempts failed")
-            return self._get_fallback_response()
+            # All retries failed for this model
+            logger.logger.error(f"All retry attempts failed for model {model_name}")
+            return "MODEL_FAILED"
         
         try:
             
@@ -116,7 +146,7 @@ class AIHandler:
                     if "blockReason" in feedback:
                         logger.logger.warning(f"Content blocked by safety filter: {feedback['blockReason']}")
                         return "Maaf, pertanyaan ini tidak bisa dijawab karena kebijakan keamanan. Coba tanya yang lain ya! 🛡️"
-                return self._get_fallback_response()
+                return "MODEL_FAILED"
             
             candidate = result["candidates"][0]
             
@@ -127,7 +157,7 @@ class AIHandler:
             
             if "content" not in candidate:
                 logger.logger.error(f"No content in candidate: {candidate}")
-                return self._get_fallback_response()
+                return "MODEL_FAILED"
             
             content = candidate["content"]
             
@@ -136,38 +166,38 @@ class AIHandler:
                 # Check if content has 'role' only (empty response case)
                 if content.get("role") == "model" and len(content) == 1:
                     logger.logger.warning(f"Empty model response from Gemini API: {content}")
-                    return self._get_fallback_response()
+                    return "MODEL_FAILED"
                 # Check for alternative response formats
                 elif "text" in content:
                     text = content["text"]
                     if text and text.strip():
                         return text.strip()
                 logger.logger.error(f"No parts in content and no alternative format: {content}")
-                return self._get_fallback_response()
+                return "MODEL_FAILED"
             
             if not content["parts"]:
                 logger.logger.error(f"Empty parts array in content: {content}")
-                return self._get_fallback_response()
+                return "MODEL_FAILED"
             
             text = content["parts"][0].get("text", "")
             if not text.strip():
                 logger.logger.warning("Empty text response from API")
-                return self._get_fallback_response()
+                return "MODEL_FAILED"
             
             return text.strip()
             
         except requests.exceptions.Timeout:
-            logger.logger.error("Gemini API timeout")
-            return "Maaf, AI sedang sibuk. Coba lagi sebentar ya! 😅"
+            logger.logger.error(f"Gemini API timeout for model {model_name}")
+            return "MODEL_FAILED"
         except requests.exceptions.ConnectionError:
-            logger.logger.error("Gemini API connection error")
-            return "Koneksi bermasalah. Tunggu sebentar ya! 🔄"
+            logger.logger.error(f"Gemini API connection error for model {model_name}")
+            return "MODEL_FAILED"
         except KeyError as e:
-            logger.logger.error(f"Gemini API response format error: {e}")
-            return self._get_fallback_response()
+            logger.logger.error(f"Gemini API response format error for {model_name}: {e}")
+            return "MODEL_FAILED"
         except Exception as e:
-            logger.logger.error(f"Gemini API unexpected error: {e}")
-            return self._get_fallback_response()
+            logger.logger.error(f"Gemini API unexpected error for {model_name}: {e}")
+            return "MODEL_FAILED"
     
     def create_member_summary_prompt(self, info):
         """Generate prompt untuk ringkasan member K-pop dengan input truncation"""
