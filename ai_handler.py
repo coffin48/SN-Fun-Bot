@@ -1,5 +1,5 @@
 """
-AI Handler Module - Menangani integrasi dengan Cerebras AI
+AI Handler Module - Menangani integrasi dengan Google Gemini AI
 """
 import os
 import asyncio
@@ -10,32 +10,39 @@ import time
 
 class AIHandler:
     def __init__(self):
-        self.CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
-        self.base_url = "https://api.cerebras.ai/v1/chat/completions"
+        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
     
-    async def chat_async(self, prompt, model="gpt-oss-120b", max_tokens=2000):
-        """Async wrapper untuk Cerebras chat"""
+    async def chat_async(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
+        """Async wrapper untuk Gemini chat"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._chat_sync, prompt, model, max_tokens)
     
-    def _chat_sync(self, prompt, model="gpt-oss-120b", max_tokens=2000):
-        """Synchronous Cerebras API call"""
+    def _chat_sync(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
+        """Synchronous Gemini API call"""
+        url = f"{self.base_url}?key={self.GEMINI_API_KEY}"
         headers = {
-            "Authorization": f"Bearer {self.CEREBRAS_API_KEY}", 
             "Content-Type": "application/json"
         }
         data = {
-            "model": model, 
-            "messages": [{"role": "user", "content": prompt}], 
-            "max_tokens": max_tokens
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": max_tokens,
+                "temperature": 0.7
+            }
         }
         
         try:
-            response = requests.post(self.base_url, headers=headers, json=data)
+            response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"].strip()
+            result = response.json()
+            return result["candidates"][0]["content"]["parts"][0]["text"].strip()
         except Exception as e:
-            logger.logger.error(f"Cerebras API error: {e}")
+            logger.logger.error(f"Gemini API error: {e}")
             raise
     
     def create_member_summary_prompt(self, info):
