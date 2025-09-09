@@ -25,6 +25,7 @@ class DataFetcher:
             {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts"},
             {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile"},
             {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki"},
+            {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki"},
             {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news"},
             {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news"},
             {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database"},
@@ -48,14 +49,58 @@ class DataFetcher:
             "(g)i-dle": "g-i-dle",
             "stray kids": "stray-kids",
             "seventeen": "seventeen",
+            "secret number": "secret-number",
+            "fifty fifty": "fifty-fifty",
+            "fiftyfifty": "fifty-fifty",
             "txt": "txt-tomorrow-x-together",
             "tomorrow x together": "txt-tomorrow-x-together",
             "enhypen": "enhypen",
             "nct": "nct",
             "exo": "exo",
             "qwer": "qwer",
-            "secret number": "secret-number",
             "hearts2hearts": "hearts2hearts"
+        }
+        
+        # Wikipedia URL mapping untuk grup-grup tertentu
+        self.wikipedia_mappings = {
+            # English Wikipedia
+            "secret number": "Secret_Number",
+            "secretnumber": "Secret_Number", 
+            "aespa": "Aespa",
+            "newjeans": "NewJeans",
+            "ive": "IVE_(group)",
+            "itzy": "Itzy",
+            "twice": "Twice_(group)",
+            "blackpink": "Blackpink",
+            "red velvet": "Red_Velvet_(group)",
+            "gidle": "(G)I-dle",
+            "(g)i-dle": "(G)I-dle",
+            "stray kids": "Stray_Kids",
+            "bts": "BTS",
+            "seventeen": "Seventeen_(South_Korean_band)",
+            "txt": "Tomorrow_X_Together",
+            "tomorrow x together": "Tomorrow_X_Together",
+            "enhypen": "Enhypen",
+            "le sserafim": "Le_Sserafim",
+            "fifty fifty": "Fifty_Fifty_(group)",
+            "fiftyfifty": "Fifty_Fifty_(group)",
+            
+            # Indonesian Wikipedia (id.wikipedia.org)
+            "aespa_id": "Aespa_(grup_musik)",
+            "fifty fifty_id": "Fifty_Fifty", 
+            "fiftyfifty_id": "Fifty_Fifty",
+            "newjeans_id": "NewJeans",
+            "ive_id": "IVE_(grup_musik)",
+            "itzy_id": "Itzy",
+            "twice_id": "Twice",
+            "blackpink_id": "Blackpink",
+            "bts_id": "BTS",
+            
+            # Member individual Wikipedia ID mappings
+            "giselle_id": "Giselle_(penyanyi)",
+            "lee soodam_id": "Lee_Soodam",
+            "soodam_id": "Lee_Soodam",
+            "ningning_id": "Ningning"
         }
         
         # Mapping untuk member individual format: {member-name}-{group-name}-profile/
@@ -215,6 +260,44 @@ class DataFetcher:
                         for el in content_elements 
                         if el.get_text().strip() and len(el.get_text().strip()) > 30
                     ]
+                
+                elif site_type == "wiki":
+                    # Wikipedia: ambil paragraf utama dengan URL mapping
+                    query_lower = query.lower()
+                    
+                    # Tentukan apakah ini Wikipedia EN atau ID berdasarkan URL
+                    is_id_wiki = "id.wikipedia.org" in url
+                    
+                    # Gunakan mapping Wikipedia jika tersedia
+                    if not is_id_wiki and query_lower in self.wikipedia_mappings:
+                        # English Wikipedia
+                        wiki_title = self.wikipedia_mappings[query_lower]
+                        url = f"https://en.wikipedia.org/wiki/{wiki_title}"
+                    elif is_id_wiki and f"{query_lower}_id" in self.wikipedia_mappings:
+                        # Indonesian Wikipedia
+                        wiki_title = self.wikipedia_mappings[f"{query_lower}_id"]
+                        url = f"https://id.wikipedia.org/wiki/{wiki_title}"
+                    
+                    # Re-fetch dengan URL yang sudah di-map
+                    if 'wiki_title' in locals():
+                        try:
+                            response = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+                            soup = BeautifulSoup(response.text, "html.parser")
+                        except:
+                            pass  # Fallback ke URL original
+                    
+                    # Extract content dari Wikipedia
+                    wiki_paragraphs = soup.select(site["selector"])[:5]
+                    site_results = []
+                    
+                    for p in wiki_paragraphs:
+                        text = p.get_text().strip()
+                        # Filter paragraf yang relevan dan cukup panjang
+                        if (text and len(text) > 50 and 
+                            not text.startswith("Coordinates:") and
+                            not text.startswith("From Wikipedia") and
+                            "disambiguation" not in text.lower()):
+                            site_results.append(text)
                 
                 elif site_type == "profile":
                     # KProfiles search: cari halaman profil langsung
