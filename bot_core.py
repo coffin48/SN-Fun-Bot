@@ -36,7 +36,9 @@ class BotCore:
     
     def _get_legacy_dataframe(self):
         """Get legacy DataFrame format untuk compatibility dengan SmartKPopDetector"""
-        if hasattr(self.db_manager, 'kpop_df') and self.db_manager.kpop_df is not None:
+        # Prioritas: CSV fallback dari DatabaseManager
+        if hasattr(self.db_manager, 'kpop_df') and self.db_manager.kpop_df is not None and not self.db_manager.kpop_df.empty:
+            logger.logger.info(f"Using CSV DataFrame: {len(self.db_manager.kpop_df)} records")
             return self.db_manager.kpop_df
         
         # Jika PostgreSQL, convert ke DataFrame format
@@ -53,10 +55,23 @@ class BotCore:
                         'Date of Birth': member.get('date_of_birth', ''),
                         'Instagram': member.get('instagram', '')
                     })
-                return pd.DataFrame(df_data)
+                df = pd.DataFrame(df_data)
+                logger.logger.info(f"Converted PostgreSQL to DataFrame: {len(df)} records")
+                return df
         except Exception as e:
             logger.logger.error(f"Error converting PostgreSQL to DataFrame: {e}")
         
+        # Emergency fallback - load CSV directly
+        try:
+            if self.KPOP_CSV_ID:
+                csv_url = f"https://docs.google.com/spreadsheets/d/{self.KPOP_CSV_ID}/export?format=csv"
+                df = pd.read_csv(csv_url)
+                logger.logger.info(f"Emergency CSV fallback: {len(df)} records")
+                return df
+        except Exception as e:
+            logger.logger.error(f"Emergency CSV fallback failed: {e}")
+        
+        logger.logger.warning("No data source available - using empty DataFrame")
         return pd.DataFrame()
     
     def _load_kpop_database(self):
