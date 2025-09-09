@@ -11,6 +11,13 @@ class SmartKPopDetector:
         # Exception list untuk nama K-pop pendek yang valid
         self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb', 'hina', 'txt']
         
+        # Hardcoded groups yang belum ada di database
+        self.additional_groups = {
+            'wooah': 'WOOAH',
+            'woo!ah!': 'WOOAH', 
+            'woah': 'WOOAH'
+        }
+        
         # Blacklist untuk nama member yang terlalu umum atau problematik
         self.member_name_blacklist = ['u', 'n', 'i']
         
@@ -37,6 +44,13 @@ class SmartKPopDetector:
                 self.group_names[group_lower].append((group, idx))
                 # Tambahkan grup ke priority names dengan prioritas tinggi
                 self.priority_kpop_names.add(group_lower)
+        
+        # Add hardcoded additional groups
+        for group_key, group_name in self.additional_groups.items():
+            if group_key not in self.group_names:
+                self.group_names[group_key] = []
+            self.group_names[group_key].append((group_name, -1))  # -1 untuk hardcoded groups
+            self.priority_kpop_names.add(group_key)
         
         # Second pass: Build member names, avoiding conflicts with group names
         for idx, row in self.kpop_df.iterrows():
@@ -313,7 +327,7 @@ class SmartKPopDetector:
         return None
     
     def _fuzzy_match(self, input_norm):
-        """Fuzzy matching dengan confidence scoring - skip blacklisted names"""
+        """Fuzzy matching dengan confidence scoring - skip blacklisted names dan prevent substring false positives"""
         best_score = 0
         best_match = None
         best_category = None
@@ -324,21 +338,37 @@ class SmartKPopDetector:
         if input_lower in self.member_name_blacklist:
             return None
         
+        # Skip fuzzy matching untuk casual conversation patterns
+        casual_patterns = [
+            'enak', 'mie', 'goreng', 'rebus', 'atau', 'apa', 'bagaimana', 'kenapa', 'dimana', 'kapan',
+            'makanan', 'minuman', 'cuaca', 'hari', 'hujan', 'panas', 'dingin', 'baik', 'buruk'
+        ]
+        
+        # Jika input mengandung kata casual, skip fuzzy matching
+        for pattern in casual_patterns:
+            if pattern in input_lower:
+                return None
+        
         for idx, row in self.kpop_df.iterrows():
             # Group fuzzy matching
             group_name = str(row.get("Group", "")).strip()
             if group_name:
-                score = fuzz.partial_ratio(input_lower, group_name.lower())
+                # Use ratio instead of partial_ratio untuk exact matching yang lebih ketat
+                score = fuzz.ratio(input_lower, group_name.lower())
                 if score > best_score and score >= self.threshold:
                     best_match = group_name
                     best_category = "GROUP"
                     best_score = score
             
-            # Member fuzzy matching - skip blacklisted names
+            # Member fuzzy matching - skip blacklisted names dan gunakan matching yang lebih ketat
             for col in ["Stage Name", "Korean Stage Name", "Full Name"]:
                 member_name = str(row.get(col, "")).strip()
                 if member_name and member_name.lower() not in self.member_name_blacklist:
-                    score = fuzz.partial_ratio(input_lower, member_name.lower())
+                    # Gunakan ratio untuk exact matching, bukan partial_ratio
+                    score = fuzz.ratio(input_lower, member_name.lower())
+                    # Tambahan check: jika member name sangat pendek (<=3 char), butuh exact match
+                    if len(member_name) <= 3 and score < 100:
+                        continue
                     if score > best_score and score >= self.threshold:
                         best_match = member_name
                         best_category = "MEMBER"
