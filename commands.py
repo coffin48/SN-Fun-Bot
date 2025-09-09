@@ -53,56 +53,70 @@ class CommandsHandler:
         
         try:
             async with ctx.typing():
-                # Clear cache command
-                if user_input.lower().startswith("clearcache") or user_input.lower().startswith("clear cache"):
-                    await self._clear_cache(ctx)
-                    return
-                
-                # Help command
-                if user_input.lower().startswith("help"):
-                    await self._handle_help_command(ctx)
-                    return
-                
-                # Analytics command
-                if user_input.lower().startswith("analytics"):
-                    await self._handle_analytics_command(ctx)
-                    return
-                
-                # Database status command
-                if user_input.lower().startswith("db status") or user_input.lower().startswith("database"):
-                    await self._handle_database_status(ctx)
-                    return
-                
-                # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
-                start_time = time.time()
-                conversation_context = self._get_recent_conversation_context(ctx.author.id)
-                category, detected_name, multiple_matches = self.kpop_detector.detect(user_input, conversation_context)
-                detection_time = int((time.time() - start_time) * 1000)
-                
-                # Log dengan format yang rapi
-                logger.log_sn_command(ctx.author, user_input, category, detected_name)
-                logger.log_detection(user_input, category, detected_name)
-                logger.log_performance("Detection", detection_time)
-                
-                # Log transition jika ada context
-                if conversation_context:
-                    logger.log_transition(conversation_context, user_input, category)
-                
-                # Proses berdasarkan kategori
-                if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
-                    # Reset conversation memory untuk K-pop queries
-                    self._clear_user_memory(ctx.author.id)
-                    await self._handle_kpop_query(ctx, category, detected_name)
-                elif category == "MULTIPLE":
-                    self._clear_user_memory(ctx.author.id)
-                    await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
-                elif category == "REKOMENDASI":
-                    self._clear_user_memory(ctx.author.id)
-                    await self._handle_recommendation_request(ctx, user_input)
-                elif category == "OBROLAN":
-                    await self._handle_casual_conversation(ctx, user_input)
-                else:
-                    await self._handle_general_query(ctx, user_input)
+                try:
+                    # Clear cache command
+                    if user_input.lower().startswith("clearcache") or user_input.lower().startswith("clear cache"):
+                        await self._clear_cache(ctx)
+                        return
+                    
+                    # Help command
+                    if user_input.lower().startswith("help"):
+                        await self._handle_help_command(ctx)
+                        return
+                    
+                    # Analytics command
+                    if user_input.lower().startswith("analytics"):
+                        await self._handle_analytics_command(ctx)
+                        return
+                    
+                    # Database status command
+                    if user_input.lower().startswith("db status") or user_input.lower().startswith("database"):
+                        await self._handle_database_status(ctx)
+                        return
+                    
+                    # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
+                    start_time = time.time()
+                    conversation_context = self._get_recent_conversation_context(ctx.author.id)
+                    category, detected_name, multiple_matches = self.kpop_detector.detect(user_input, conversation_context)
+                    detection_time = int((time.time() - start_time) * 1000)
+                    
+                    # Log dengan format yang rapi
+                    logger.log_sn_command(ctx.author, user_input, category, detected_name)
+                    logger.log_detection(user_input, category, detected_name)
+                    logger.log_performance("Detection", detection_time)
+                    
+                    # Log transition jika ada context
+                    if conversation_context:
+                        logger.log_transition(conversation_context, user_input, category)
+                    
+                    # Proses berdasarkan kategori
+                    if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
+                        # Reset conversation memory untuk K-pop queries
+                        self._clear_user_memory(ctx.author.id)
+                        await self._handle_kpop_query(ctx, category, detected_name)
+                    elif category == "MULTIPLE":
+                        self._clear_user_memory(ctx.author.id)
+                        await self._handle_multiple_matches(ctx, detected_name, multiple_matches)
+                    elif category == "REKOMENDASI":
+                        self._clear_user_memory(ctx.author.id)
+                        await self._handle_recommendation_request(ctx, user_input)
+                    elif category == "OBROLAN":
+                        await self._handle_casual_conversation(ctx, user_input)
+                    else:
+                        await self._handle_general_query(ctx, user_input)
+                        
+                except Exception as e:
+                    # Log error dengan detail lengkap
+                    logger.logger.error(f"❌ Error in _handle_sn_command: {e}")
+                    logger.logger.error(f"   User: {ctx.author} | Input: '{user_input}'")
+                    import traceback
+                    logger.logger.error(f"   Traceback: {traceback.format_exc()}")
+                    
+                    # Send user-friendly error message
+                    await ctx.send("❌ Maaf, terjadi error saat memproses command. Tim teknis sudah diberitahu! 🔧")
+                    
+                    # Log ke analytics untuk monitoring
+                    analytics.log_error("SN_COMMAND_ERROR", str(e), user_input)
         finally:
             # Remove from processing set when done
             self.processing_messages.discard(message_id)
