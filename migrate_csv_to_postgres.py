@@ -3,9 +3,11 @@ Script untuk migrasi CSV K-pop database ke PostgreSQL Railway
 """
 import os
 import pandas as pd
-import psycopg2
-from sqlalchemy import create_engine
 import logging
+import requests
+import re
+from io import StringIO
+from sqlalchemy import create_engine, text
 from datetime import datetime
 
 # Setup logging
@@ -22,21 +24,58 @@ def migrate_csv_to_postgres():
         return False
     
     try:
-        # Baca CSV file - prioritas Google Sheets untuk data terbaru
-        kpop_csv_id = os.getenv("KPOP_CSV_ID")
-        
-        if kpop_csv_id:
-            # Load dari Google Sheets (data terbaru)
-            csv_url = f"https://docs.google.com/spreadsheets/d/{kpop_csv_id}/export?format=csv"
-            logger.info(f"Membaca CSV dari Google Sheets: {kpop_csv_id}")
-            df = pd.read_csv(csv_url)
-            logger.info(f"Google Sheets CSV berhasil dibaca: {len(df)} rows")
-        else:
-            # Fallback ke file lokal jika ada
-            csv_path = "Database/DATABASE_KPOP (1).csv"
-            logger.info(f"Membaca CSV dari file lokal: {csv_path}")
-            df = pd.read_csv(csv_path)
-            logger.info(f"Local CSV berhasil dibaca: {len(df)} rows")
+        # Priority 1: GitHub raw CSV (always latest)
+        try:
+            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE_KPOP%20(1).csv"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(github_url, headers=headers)
+            response.raise_for_status()
+            df = pd.read_csv(StringIO(response.text))
+            logger.info(f"✅ CSV loaded from GitHub: {len(df)} records")
+            
+        except Exception as github_error:
+            logger.warning(f"GitHub CSV failed: {github_error}")
+            
+            # Priority 2: Environment variable source
+            kpop_csv_id = os.getenv("KPOP_CSV_ID")
+            if kpop_csv_id:
+                logger.info(f"Fallback ke environment source: {kpop_csv_id}")
+                try:
+                    # Coba Google Drive
+                    drive_url = f"https://drive.google.com/uc?id={kpop_csv_id}&export=download"
+                    response = requests.get(drive_url, headers=headers)
+                    
+                    # Handle Google Drive virus scan warning
+                    if 'virus scan warning' in response.text.lower():
+                        confirm_token = re.search(r'confirm=([0-9A-Za-z_]+)', response.text)
+                        if confirm_token:
+                            confirm_url = f"{drive_url}&confirm={confirm_token.group(1)}"
+                            response = requests.get(confirm_url, headers=headers)
+                    
+                    response.raise_for_status()
+                    df = pd.read_csv(StringIO(response.text))
+                    logger.info(f"✅ CSV loaded from Google Drive: {len(df)} records")
+                    
+                except Exception as drive_error:
+                    logger.warning(f"Google Drive failed: {drive_error}")
+                    # Fallback ke Google Sheets
+                    try:
+                        csv_url = f"https://docs.google.com/spreadsheets/d/{kpop_csv_id}/export?format=csv&gid=0"
+                        response = requests.get(csv_url, headers=headers)
+                        response.raise_for_status()
+                        df = pd.read_csv(StringIO(response.text))
+                        logger.info(f"✅ CSV loaded from Google Sheets: {len(df)} records")
+                    except Exception as sheets_error:
+                        logger.error(f"Environment sources failed: {sheets_error}")
+                        raise
+            else:
+                # Priority 3: Local file
+                logger.info("Fallback ke file lokal")
+                df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
+                logger.info(f"Local CSV berhasil dibaca: {len(df)} rows")
         
         # Bersihkan data
         df = df.fillna('')  # Replace NaN dengan string kosong
