@@ -314,22 +314,17 @@ class AIHandler:
             logger.logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
             info = info[:max_input_length] + "...[truncated]"
         
-        return f"""
-Rangkum konten berikut menjadi informasi penting tentang member/idol K-pop.
-Format wajib:
+        return f"""Buat info K-pop member berikut:
+Format:
 - Nama: [nama lengkap]
-- Tanggal Lahir: [tanggal lahir]
+- Tanggal Lahir: [tanggal lahir] 
 - Fun Fact: [fakta menarik]
 - Rumor: [rumor atau "Gak ada rumor yang kesebut di sini, aman!"]
-- Social Media: [akun social media, letakkan di bagian terakhir]
+- Social Media: [akun social media]
 
-Gunakan bahasa indonesia santai, natural, dan fun, tambahkan emoticon secukupnya agar lebih emosional.
-**Hanya ringkasan dari konten yang diberikan, jangan menambahkan informasi baru.**
-Gunakan format yang bersih dan mudah dibaca.
+Awali dengan intro singkat natural (contoh: "Ini info tentang [nama]" atau "Berikut data [nama]"), lalu langsung ke format. Natural + emoticon. Hindari intro berlebihan seperti "gaya santai dan fun". Hanya dari konten yang diberikan.
 
-Konten:
-{info}
-"""
+{info}"""
     
     def create_group_summary_prompt(self, info):
         """Generate prompt untuk ringkasan grup K-pop dengan input truncation"""
@@ -339,16 +334,17 @@ Konten:
             logger.logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
             info = info[:max_input_length] + "...[truncated]"
         
-        return f"""
-Rangkum konten berikut menjadi informasi penting tentang grup K-pop.
-Fokus pada: Debut, Nama-nama member, Discography, Prestasi, Fandom.
-Gunakan bahasa indonesia santai, natural, dan fun, tambahkan emoticon secukupnya agar lebih emosional.
-**Hanya ringkasan dari konten yang diberikan, jangan menambahkan informasi baru.**
-Gunakan format yang bersih dan mudah dibaca.
+        return f"""Buat info K-pop grup berikut:
+Format:
+- Debut: [tanggal debut dan agensi]
+- Members: [Nama (1 posisi), contoh: "Jisoo (Visual), Jennie (Rapper)"]
+- Discography: [album dan lagu hits]
+- Prestasi: [penghargaan penting]
+- Fandom: [nama fandom dan facts]
 
-Konten:
-{info}
-"""
+Members: HANYA 1 posisi per nama. Awali dengan intro singkat natural (contoh: "Ini info tentang [nama grup]" atau "Berikut data [nama grup]"), lalu langsung ke format. Natural + emoticon. Hindari intro berlebihan seperti "gaya santai dan fun". Hanya dari konten yang diberikan.
+
+{info}"""
     
     async def generate_kpop_summary(self, category, info):
         """Generate ringkasan K-pop berdasarkan kategori"""
