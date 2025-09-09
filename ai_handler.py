@@ -37,13 +37,44 @@ class AIHandler:
         }
         
         try:
-            response = requests.post(url, headers=headers, json=data)
+            response = requests.post(url, headers=headers, json=data, timeout=30)
             response.raise_for_status()
             result = response.json()
-            return result["candidates"][0]["content"]["parts"][0]["text"].strip()
+            
+            # Validate response structure
+            if "candidates" not in result or not result["candidates"]:
+                logger.logger.error(f"No candidates in API response: {result}")
+                return self._get_fallback_response()
+            
+            candidate = result["candidates"][0]
+            if "content" not in candidate:
+                logger.logger.error(f"No content in candidate: {candidate}")
+                return self._get_fallback_response()
+            
+            content = candidate["content"]
+            if "parts" not in content or not content["parts"]:
+                logger.logger.error(f"No parts in content: {content}")
+                return self._get_fallback_response()
+            
+            text = content["parts"][0].get("text", "")
+            if not text.strip():
+                logger.logger.warning("Empty text response from API")
+                return self._get_fallback_response()
+            
+            return text.strip()
+            
+        except requests.exceptions.Timeout:
+            logger.logger.error("Gemini API timeout")
+            return "Maaf, AI sedang sibuk. Coba lagi sebentar ya! 😅"
+        except requests.exceptions.ConnectionError:
+            logger.logger.error("Gemini API connection error")
+            return "Koneksi bermasalah. Tunggu sebentar ya! 🔄"
+        except KeyError as e:
+            logger.logger.error(f"Gemini API response format error: {e}")
+            return self._get_fallback_response()
         except Exception as e:
-            logger.logger.error(f"Gemini API error: {e}")
-            raise
+            logger.logger.error(f"Gemini API unexpected error: {e}")
+            return self._get_fallback_response()
     
     def create_member_summary_prompt(self, info):
         """Generate prompt untuk ringkasan member K-pop"""
@@ -79,6 +110,16 @@ Konten:
             prompt = self.create_group_summary_prompt(info)
         
         return await self.chat_async(prompt, max_tokens=2000)
+    
+    def _get_fallback_response(self):
+        """Generate fallback response when AI fails"""
+        fallback_messages = [
+            "Maaf, AI sedang istirahat sebentar. Coba lagi ya! 💫",
+            "Lagi ada gangguan teknis nih. Tunggu sebentar ya! 🔧",
+            "AI lagi loading... Coba query lain dulu ya! ⏳"
+        ]
+        import random
+        return random.choice(fallback_messages)
     
     async def handle_general_query(self, user_input):
         """Handle pertanyaan umum non-K-pop"""
