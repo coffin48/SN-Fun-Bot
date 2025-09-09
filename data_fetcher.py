@@ -21,6 +21,8 @@ class DataFetcher:
             {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".entry-content p", "type": "kprofile_group"},
             {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_solo1"},
             {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".entry-content p", "type": "kprofile_solo2"},
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_member"},
+            {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts"},
             {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile"},
             {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki"},
             {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news"},
@@ -51,10 +53,36 @@ class DataFetcher:
             "enhypen": "enhypen",
             "nct": "nct",
             "exo": "exo",
-            "shinee": "shinee",
-            "super junior": "super-junior",
-            "girls generation": "girls-generation-snsd",
-            "snsd": "girls-generation-snsd"
+            "qwer": "qwer",
+            "secret number": "secret-number",
+            "hearts2hearts": "hearts2hearts"
+        }
+        
+        # Mapping untuk member individual format: {member-name}-{group-name}-profile/
+        self.member_group_mappings = {
+            # aespa members
+            "karina": "karina-aespa",
+            "winter": "winter-aespa", 
+            "giselle": "giselle-aespa",
+            "ningning": "ningning-aespa",
+            # QWER members
+            "chodan": "chodan-qwer",
+            "magenta": "magenta-qwer",
+            "siyeon": "siyeon-qwer", 
+            "hina": "hina-qwer",
+            # SECRET NUMBER members
+            "soodam": "soodam-secret-number",
+            "dita": "dita-secret-number",
+            "jinny": "jinny-secret-number",
+            "denise": "denise-secret-number",
+            "lea": "lea-secret-number",
+            "zuu": "zuu-secret-number",
+            # WOOAH members
+            "nana": "nana-wooah",
+            "wooyeon": "wooyeon-wooah",
+            "sora": "sora-wooah",
+            "lucy": "lucy-wooah",
+            "minseo": "minseo-wooah"
         }
         
         # Mapping grup untuk Namu Wiki dengan berbagai format
@@ -124,7 +152,7 @@ class DataFetcher:
         for i, site in enumerate(self.scraping_sites, 1):
             try:
                 # Format URL berdasarkan tipe situs
-                if site.get("type") in ["kprofile_group", "kprofile_solo1", "kprofile_solo2"]:
+                if site.get("type") in ["kprofile_group", "kprofile_solo1", "kprofile_solo2", "kprofile_member", "kprofile_member_facts"]:
                     # Format khusus untuk KProfiles direct: lowercase dan replace space dengan dash
                     formatted_name = query.lower().replace(' ', '-')
                     
@@ -133,6 +161,10 @@ class DataFetcher:
                         # Coba format extended dulu (contoh: bts-bangtan-boys-members-profile)
                         extended_name = self.kprofile_extended_names[formatted_name]
                         url = site["url"].format(extended_name)
+                    elif site.get("type") in ["kprofile_member", "kprofile_member_facts"] and formatted_name in self.member_group_mappings:
+                        # Format member individual: karina-aespa-profile
+                        member_format = self.member_group_mappings[formatted_name]
+                        url = site["url"].format(member_format)
                     else:
                         url = site["url"].format(formatted_name)
                 elif site.get("type") in ["namu_english", "namu_encoded", "namu_hangul"]:
@@ -175,7 +207,7 @@ class DataFetcher:
                 site_type = site.get("type", "default")
                 site_results = []
                 
-                if site_type in ["kprofile_group", "kprofile_solo1", "kprofile_solo2"]:
+                if site_type in ["kprofile_group", "kprofile_solo1", "kprofile_solo2", "kprofile_member", "kprofile_member_facts"]:
                     # KProfiles direct: langsung ambil konten dari halaman profil
                     content_elements = soup.select(site["selector"])[:10]
                     site_results = [
