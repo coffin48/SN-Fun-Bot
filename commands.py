@@ -6,6 +6,7 @@ import redis
 import logger
 import time
 import random
+import discord
 from ai_handler import AIHandler
 from data_fetcher import DataFetcher
 from analytics import analytics
@@ -190,13 +191,16 @@ class CommandsHandler:
         total_time = time.time() - start_time
         analytics.track_response_time("total_response", total_time)
         
-        # Edit loading message with final result instead of deleting
-        if len(summary) <= 1900:  # Single message limit
-            await loading_msg.edit(content=summary)
-        else:
-            # For long messages, edit loading message to show completion then send chunks
-            await loading_msg.edit(content="✅ Informasi K-pop berhasil ditemukan!")
-            await self._send_chunked_message(ctx, summary)
+        # Scrape image untuk embed
+        image_data = None
+        try:
+            await loading_msg.edit(content="🖼️ Mencari foto...")
+            image_data = await self.data_fetcher.scrape_kpop_image(detected_name)
+        except Exception as e:
+            logger.logger.debug(f"Image scraping failed: {e}")
+        
+        # Send dengan embed dan foto (tanpa URL link)
+        await self._send_kpop_embed(ctx, loading_msg, category, detected_name, summary, image_data)
     
     @property
     def data_fetcher(self):
@@ -253,6 +257,50 @@ class CommandsHandler:
         if len(self.processing_messages) > 100:
             logger.logger.info(f"Cleaning up {len(self.processing_messages)} processing messages")
             self.processing_messages.clear()
+    
+    async def _send_kpop_embed(self, ctx, loading_msg, category, detected_name, summary, image_data=None):
+        """Send K-pop info dengan embed dan foto tanpa menampilkan URL"""
+        # Emoji berdasarkan kategori
+        emoji_map = {
+            "MEMBER": "👤",
+            "GROUP": "🎵", 
+            "MEMBER_GROUP": "👥"
+        }
+        
+        # Buat embed dengan warna K-pop theme
+        embed = discord.Embed(
+            title=f"{emoji_map.get(category, '🎤')} {detected_name}",
+            description=summary,
+            color=0xFF1493  # Deep pink untuk K-pop theme
+        )
+        
+        # Footer dengan info bot
+        embed.set_footer(text="SN Fun Bot • K-pop Information", icon_url=None)
+        
+        # Jika ada foto, kirim dengan attachment tanpa URL
+        if image_data:
+            try:
+                # Reset BytesIO position
+                image_data.seek(0)
+                
+                # Buat Discord File object dari BytesIO
+                file = discord.File(image_data, filename="kpop_image.jpg")
+                
+                # Set image di embed menggunakan attachment://
+                embed.set_thumbnail(url="attachment://kpop_image.jpg")
+                
+                # Edit loading message dengan embed + foto
+                await loading_msg.edit(content="", embed=embed, attachments=[file])
+                logger.logger.info(f"✅ Sent embed with image for {detected_name}")
+                
+            except Exception as e:
+                logger.logger.error(f"Failed to send embed with image: {e}")
+                # Fallback: kirim embed tanpa foto
+                await loading_msg.edit(content="", embed=embed)
+        else:
+            # Kirim embed tanpa foto
+            await loading_msg.edit(content="", embed=embed)
+            logger.logger.info(f"✅ Sent embed without image for {detected_name}")
     
     def _add_to_memory(self, user_id, role, message):
         """Tambahkan pesan ke conversation memory"""
