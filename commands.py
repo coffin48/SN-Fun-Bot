@@ -410,55 +410,37 @@ Selamat menggunakan SN Fun Bot! 🎉
             await ctx.send(message)
             return
         
-        # Split berdasarkan paragraf atau kalimat untuk readability
+        # Simple splitting by character count with word boundary respect
         chunks = []
+        words = message.split(' ')
         current_chunk = ""
         
-        # Split by double newlines (paragraphs) first
-        paragraphs = message.split('\n\n')
-        
-        for paragraph in paragraphs:
-            # Jika paragraph + current chunk masih dalam limit
-            if len(current_chunk + '\n\n' + paragraph) <= chunk_size:
-                if current_chunk:
-                    current_chunk += '\n\n' + paragraph
-                else:
-                    current_chunk = paragraph
+        for word in words:
+            # Check if adding this word would exceed limit
+            test_chunk = current_chunk + ' ' + word if current_chunk else word
+            
+            if len(test_chunk) <= chunk_size:
+                current_chunk = test_chunk
             else:
-                # Simpan chunk saat ini jika ada
+                # Save current chunk and start new one
                 if current_chunk:
                     chunks.append(current_chunk)
-                    current_chunk = ""
-                
-                # Jika paragraph terlalu panjang, split by sentences
-                if len(paragraph) > chunk_size:
-                    sentences = paragraph.split('. ')
-                    for sentence in sentences:
-                        sentence = sentence.strip()
-                        if not sentence:
-                            continue
-                        # Add period back if not last sentence
-                        if not sentence.endswith('.') and not sentence.endswith('!') and not sentence.endswith('?'):
-                            sentence += '.'
-                        
-                        if len(current_chunk + ' ' + sentence) <= chunk_size:
-                            if current_chunk:
-                                current_chunk += ' ' + sentence
-                            else:
-                                current_chunk = sentence
-                        else:
-                            if current_chunk:
-                                chunks.append(current_chunk)
-                            current_chunk = sentence
-                else:
-                    current_chunk = paragraph
+                current_chunk = word
         
         # Add remaining chunk
         if current_chunk:
             chunks.append(current_chunk)
         
-        # Send all chunks
+        # Send all chunks with logging
+        logger.logger.info(f"Sending {len(chunks)} chunks to Discord")
         for i, chunk in enumerate(chunks):
-            if i > 0:
-                await asyncio.sleep(0.5)  # Small delay between chunks
-            await ctx.send(chunk)
+            try:
+                if i > 0:
+                    await asyncio.sleep(1.0)  # Longer delay between chunks
+                logger.logger.info(f"Sending chunk {i+1}/{len(chunks)} - {len(chunk)} characters")
+                await ctx.send(chunk)
+                logger.logger.info(f"Successfully sent chunk {i+1}/{len(chunks)}")
+            except Exception as e:
+                logger.logger.error(f"Failed to send chunk {i+1}/{len(chunks)}: {e}")
+                # Try to send remaining chunks
+                continue
