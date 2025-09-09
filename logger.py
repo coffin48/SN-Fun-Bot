@@ -12,7 +12,8 @@ console_handler.setLevel(logging.INFO)
 
 # Deteksi environment untuk format yang tepat
 IS_RAILWAY = os.getenv('RAILWAY_ENVIRONMENT') is not None
-USE_EMOJI = IS_RAILWAY or os.getenv('PYTHONIOENCODING') == 'utf-8'
+IS_PRODUCTION = IS_RAILWAY or os.getenv('PRODUCTION') == 'true'
+USE_EMOJI = IS_PRODUCTION  # Always use emoji in production (Railway handles UTF-8)
 
 # Format log yang lebih rapi dan terstruktur
 class ColoredFormatter(logging.Formatter):
@@ -43,7 +44,7 @@ class ColoredFormatter(logging.Formatter):
         message = record.getMessage()
         
         # Format final yang rapi - emoji untuk Railway, ASCII untuk Windows
-        separator = "│" if USE_EMOJI else "|"
+        separator = "|"  # Always use ASCII separator for compatibility
         return f"{color}[{timestamp}] {level}{reset} {separator} {message}"
 
 formatter = ColoredFormatter()
@@ -54,35 +55,35 @@ logger.addHandler(console_handler)
 def log_csv_loaded(df):
     if df.empty:
         icon = "❌" if USE_EMOJI else "[X]"
-        sep = "│" if USE_EMOJI else "|"
+        sep = "|"
         logger.error(f"{icon} DATABASE {sep} CSV K-pop gagal dimuat atau kosong")
     else:
         groups = df['Group'].nunique()
         members = len(df)
         icon = "📊" if USE_EMOJI else "[+]"
-        sep = "│" if USE_EMOJI else "|"
+        sep = "|"
         logger.info(f"{icon} DATABASE {sep} CSV K-pop dimuat: {members:,} entries | {groups} groups | {members} members")
 
 # ---- Redis Cache ----
 def log_cache_set(category, name):
     icon = "💾" if USE_EMOJI else "[C]"
-    sep = "│" if USE_EMOJI else "|"
+    sep = "|"
     logger.info(f"{icon} CACHE {sep} Saved {category}:{name}")
 
 def log_cache_hit(category, name):
     icon = "⚡" if USE_EMOJI else "[H]"
-    sep = "│" if USE_EMOJI else "|"
+    sep = "|"
     logger.info(f"{icon} CACHE {sep} Retrieved {category}:{name}")
 
 def log_cache_miss(category, name):
     icon = "🔍" if USE_EMOJI else "[M]"
-    sep = "│" if USE_EMOJI else "|"
+    sep = "|"
     logger.info(f"{icon} CACHE {sep} Miss {category}:{name} - generating new")
 
 # ---- Detection System ----
 def log_detection(user_input, category, detected_name=None, confidence=None):
-    sep = "│" if USE_EMOJI else "|"
-    arrow = "→" if USE_EMOJI else "->"
+    sep = "|"
+    arrow = "->"
     
     if category in ["GROUP", "MEMBER", "MEMBER_GROUP"]:
         conf_str = f" ({confidence:.1f}%)" if confidence else ""
@@ -102,49 +103,50 @@ def log_detection(user_input, category, detected_name=None, confidence=None):
         logger.info(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}")
 
 # ---- Command Processing ----
-def log_sn_command(user, input_text, category, detected_name=None):
-    user_display = str(user)[:20] + "..." if len(str(user)) > 20 else str(user)
-    icon = "🤖" if USE_EMOJI else "[B]"
-    sep = "│" if USE_EMOJI else "|"
-    arrow = "→" if USE_EMOJI else "->"
+def log_sn_command(user, user_input, category, detected_name=None):
+    sep = "|"
+    arrow = "->"
+    icon = "🎤" if USE_EMOJI else "[C]"
     
-    if category in ["GROUP", "MEMBER", "MEMBER_GROUP"]:
-        logger.info(f"{icon} COMMAND {sep} {user_display} {arrow} !sn '{input_text}' {arrow} {category}:{detected_name}")
-    elif category == "MULTIPLE":
-        logger.info(f"{icon} COMMAND {sep} {user_display} {arrow} !sn '{input_text}' {arrow} {category}")
-    elif category in ["OBROLAN", "REKOMENDASI"]:
-        logger.info(f"{icon} COMMAND {sep} {user_display} {arrow} !sn '{input_text}' {arrow} {category}")
+    if detected_name:
+        logger.info(f"{icon} COMMAND {sep} {user} {arrow} '{user_input}' {arrow} {category}:{detected_name}")
     else:
-        logger.info(f"{icon} COMMAND {sep} {user_display} {arrow} !sn '{input_text}' {arrow} {category}")
+        logger.info(f"{icon} COMMAND {sep} {user} {arrow} '{user_input}' {arrow} {category}")
 
-# ---- AI Processing ----
-def log_ai_request(category, prompt_length):
-    icon = "🧠" if USE_EMOJI else "[A]"
-    sep = "│" if USE_EMOJI else "|"
-    logger.info(f"{icon} AI {sep} Request {category} (prompt: {prompt_length} chars)")
+# ---- AI Request ----
+def log_ai_request(category, tokens=None):
+    sep = "|"
+    icon = "🤖" if USE_EMOJI else "[A]"
+    
+    if tokens:
+        logger.info(f"{icon} AI {sep} Request {category} ({tokens} tokens)")
+    else:
+        logger.info(f"{icon} AI {sep} Request {category}")
 
-def log_ai_response(category, response_length, duration_ms):
+def log_ai_response(category, response_length, tokens=None):
+    sep = "|"
     icon = "✨" if USE_EMOJI else "[A]"
-    sep = "│" if USE_EMOJI else "|"
-    logger.info(f"{icon} AI {sep} Response {category} ({response_length} chars, {duration_ms}ms)")
+    
+    token_str = f" | {tokens} tokens" if tokens else ""
+    logger.info(f"{icon} AI {sep} Response {category} ({response_length} chars{token_str})")
 
 def log_ai_error(category, error_msg):
-    icon = "❌" if USE_EMOJI else "[X]"
-    sep = "│" if USE_EMOJI else "|"
+    sep = "|"
+    icon = "❌" if USE_EMOJI else "[E]"
     logger.error(f"{icon} AI {sep} Error {category}: {error_msg}")
 
 # ---- Transition Detection ----
 def log_transition(context, user_input, result_category):
     context_short = context[:30] + "..." if len(context) > 30 else context
     icon = "🔄" if USE_EMOJI else "[T]"
-    sep = "│" if USE_EMOJI else "|"
-    arrow = "→" if USE_EMOJI else "->"
+    sep = "|"
+    arrow = "->"
     logger.info(f"{icon} TRANSIT {sep} '{context_short}' + '{user_input}' {arrow} {result_category}")
 
-# ---- Performance Monitoring ----
+# ---- Performance ----
 def log_performance(operation, duration_ms, details=None):
-    sep = "│" if USE_EMOJI else "|"
-    details_str = f" {sep} {details}" if details else ""
+    sep = "|"
+    details_str = f" ({details})" if details else ""
     
     if duration_ms < 1000:
         icon = "⚡" if USE_EMOJI else "[P]"
@@ -158,12 +160,12 @@ def log_performance(operation, duration_ms, details=None):
 
 # ---- Error Handling ----
 def log_error(component, error_msg, user_input=None):
-    sep = "│" if USE_EMOJI else "|"
+    sep = "|"
     input_str = f" {sep} Input: '{user_input}'" if user_input else ""
     icon = "💥" if USE_EMOJI else "[X]"
     logger.error(f"{icon} ERROR {sep} {component}: {error_msg}{input_str}")
 
 def log_warning(component, warning_msg):
     icon = "⚠️" if USE_EMOJI else "[W]"
-    sep = "│" if USE_EMOJI else "|"
+    sep = "|"
     logger.warning(f"{icon} WARNING {sep} {component}: {warning_msg}")
