@@ -31,10 +31,16 @@ class BotCore:
         self.bot = self._create_bot()
     
     def _load_kpop_database(self):
-        """Load K-pop database from CSV"""
+        """Load K-pop database from CSV with timeout optimization"""
         KPOP_CSV_URL = f"https://drive.google.com/uc?export=download&id={self.KPOP_CSV_ID}"
         try:
-            kpop_df = pd.read_csv(KPOP_CSV_URL)
+            import requests
+            # Download with timeout to prevent Railway build hanging
+            response = requests.get(KPOP_CSV_URL, timeout=30)
+            response.raise_for_status()
+            
+            from io import StringIO
+            kpop_df = pd.read_csv(StringIO(response.text))
             logger.log_csv_loaded(kpop_df)
             return kpop_df
         except Exception as e:

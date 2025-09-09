@@ -5,7 +5,7 @@ Bot Discord AI yang cerdas untuk informasi K-pop dengan deteksi otomatis member 
 ## ✨ Fitur Utama
 
 - **Deteksi K-pop Otomatis**: Mendeteksi nama member/grup K-pop dari pesan dengan akurasi tinggi
-- **AI-Powered Responses**: Menggunakan Cerebras AI untuk ringkasan informasi yang natural
+- **AI-Powered Responses**: Menggunakan Google Gemini AI untuk ringkasan informasi yang natural
 - **Multiple Data Sources**: Scraping dari Soompi, AllKPop, KProfiles, Wikipedia, dan lainnya
 - **Redis Caching**: Sistem cache untuk response yang lebih cepat
 - **Modular Architecture**: Kode terorganisir dalam modul-modul terpisah
@@ -16,7 +16,7 @@ Bot Discord AI yang cerdas untuk informasi K-pop dengan deteksi otomatis member 
 Sn Fun Bot/
 ├── main.py              # Entry point utama
 ├── bot_core.py          # Inisialisasi bot dan konfigurasi
-├── ai_handler.py        # Handler untuk Cerebras AI
+├── ai_handler.py        # Handler untuk Google Gemini AI
 ├── data_fetcher.py      # Scraping dan API calls
 ├── commands.py          # Discord commands handler
 ├── logger.py            # Logging system
@@ -36,7 +36,7 @@ Sn Fun Bot/
 - Python 3.8+
 - Redis server
 - Discord Bot Token
-- Cerebras API Key
+- Google Gemini API Key
 
 ### Installation
 
@@ -57,7 +57,7 @@ pip install -r requirements.txt
 DISCORD_TOKEN=your_discord_token
 
 # AI
-CEREBRAS_API_KEY=your_cerebras_key
+GEMINI_API_KEY=your_gemini_api_key
 
 # Database
 KPOP_CSV_ID=your_google_drive_csv_id
@@ -94,7 +94,7 @@ Command utama untuk berinteraksi dengan bot.
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DISCORD_TOKEN` | Token Discord bot | ✅ |
-| `CEREBRAS_API_KEY` | API key Cerebras AI | ✅ |
+| `GEMINI_API_KEY` | API key Google Gemini AI | ✅ |
 | `KPOP_CSV_ID` | Google Drive CSV ID untuk database K-pop | ✅ |
 | `REDIS_URL` | URL Redis server | ✅ |
 | `NEWS_API_KEY` | API key NewsAPI | ❌ |

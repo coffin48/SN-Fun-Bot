@@ -66,9 +66,19 @@ class CommandsHandler:
                     return
                 
                 # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
+                start_time = time.time()
                 conversation_context = self._get_recent_conversation_context(ctx.author.id)
                 category, detected_name, multiple_matches = self.kpop_detector.detect(user_input, conversation_context)
+                detection_time = int((time.time() - start_time) * 1000)
+                
+                # Log dengan format yang rapi
                 logger.log_sn_command(ctx.author, user_input, category, detected_name)
+                logger.log_detection(user_input, category, detected_name)
+                logger.log_performance("Detection", detection_time)
+                
+                # Log transition jika ada context
+                if conversation_context:
+                    logger.log_transition(conversation_context, user_input, category)
                 
                 # Proses berdasarkan kategori
                 if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
@@ -240,12 +250,18 @@ class CommandsHandler:
             cached_response = self.redis_client.get(cache_key)
             
             if cached_response:
-                logger.logger.info(f"Using cached casual response for: {user_input}")
+                logger.log_cache_hit("CASUAL", user_input[:30])
                 await self._send_chunked_message(ctx, cached_response.decode('utf-8'))
                 return
+            else:
+                logger.log_cache_miss("CASUAL", user_input[:30])
             
             # Generate response dengan AI (reduced max_tokens untuk speed)
+            start_time = time.time()
+            logger.log_ai_request("CASUAL", len(user_input))
             summary = await self.ai_handler.chat_async(user_input, max_tokens=800)
+            ai_duration = int((time.time() - start_time) * 1000)
+            logger.log_ai_response("CASUAL", len(summary) if summary else 0, ai_duration)
             
             # Validasi dan sanitasi response
             if not summary or not isinstance(summary, str):
@@ -257,43 +273,47 @@ class CommandsHandler:
             
             # Cache response untuk 1 jam
             self.redis_client.setex(cache_key, 3600, summary)
-            
-            # Simpan ke memory (simplified)
-            self._add_to_memory(user_id, "user", user_input)
-            self._add_to_memory(user_id, "assistant", summary)
+            logger.log_cache_set("CASUAL", user_input[:30])
             
             # Kirim dengan chunked message untuk safety
             await self._send_chunked_message(ctx, summary)
-            logger.logger.info(f"OBROLAN request processed: {user_input}")
+            
         except Exception as e:
-            logger.logger.error(f"Gagal memproses obrolan: {e}")
-            # Safe fallback response
-            try:
-                await ctx.send("Maaf, ada masalah teknis. Coba lagi ya! 🤖")
-            except:
-                logger.logger.error("Failed to send fallback message")
+            logger.log_error("CASUAL_CONV", str(e), user_input)
+            await ctx.send("Maaf, ada masalah teknis. Coba lagi nanti ya! 😅")
     
     async def _handle_recommendation_request(self, ctx, user_input):
         """Handle request rekomendasi - langsung AI tanpa cache"""
         try:
+            start_time = time.time()
+            logger.log_ai_request("RECOMMENDATION", len(user_input))
+            
             # Langsung AI response dengan max_tokens terbatas
             summary = await self.ai_handler.chat_async(user_input, max_tokens=1500)
+            ai_duration = int((time.time() - start_time) * 1000)
+            logger.log_ai_response("RECOMMENDATION", len(summary) if summary else 0, ai_duration)
             
             # Kirim dalam chunks untuk menghindari Discord limit
             await self._send_chunked_message(ctx, summary)
-            logger.logger.info(f"REKOMENDASI request processed: {user_input}")
+            
         except Exception as e:
-            logger.logger.error(f"Gagal memproses rekomendasi: {e}")
-            await ctx.send(f"Maaf, terjadi error: {e}")
+            logger.log_error("RECOMMENDATION", str(e), user_input)
+            await ctx.send("Maaf, ada masalah dalam memberikan rekomendasi. Coba lagi nanti ya! 😅")
     
     async def _handle_general_query(self, ctx, user_input):
         """Handle general queries"""
         try:
+            start_time = time.time()
+            logger.log_ai_request("GENERAL", len(user_input))
+            
             summary = await self.ai_handler.handle_general_query(user_input)
+            ai_duration = int((time.time() - start_time) * 1000)
+            logger.log_ai_response("GENERAL", len(summary) if summary else 0, ai_duration)
+            
             await ctx.send(summary)
-            logger.logger.info(f"General query processed: {user_input}")
+            
         except Exception as e:
-            logger.logger.error(f"Gagal memproses general query: {e}")
+            logger.log_error("GENERAL_QUERY", str(e), user_input)
             await ctx.send(f"Gagal memproses query: {e}")
     
     async def _handle_help_command(self, ctx):
