@@ -9,6 +9,7 @@ import redis
 import logger
 from patch.smart_detector import SmartKPopDetector
 from analytics import analytics
+from database_manager import DatabaseManager
 
 class BotCore:
     def __init__(self):
@@ -21,8 +22,11 @@ class BotCore:
         # Redis connection
         self.redis_client = redis.from_url(self.REDIS_URL)
         
-        # Load K-pop database
-        self.kpop_df = self._load_kpop_database()
+        # Initialize Database Manager (PostgreSQL + CSV fallback)
+        self.db_manager = DatabaseManager()
+        
+        # Load K-pop database (fallback untuk compatibility)
+        self.kpop_df = self._get_legacy_dataframe()
         
         # Initialize K-pop detector
         self.kpop_detector = SmartKPopDetector(self.kpop_df)
@@ -30,22 +34,34 @@ class BotCore:
         # Initialize Discord bot
         self.bot = self._create_bot()
     
-    def _load_kpop_database(self):
-        """Load K-pop database from CSV with timeout optimization"""
-        KPOP_CSV_URL = f"https://drive.google.com/uc?export=download&id={self.KPOP_CSV_ID}"
+    def _get_legacy_dataframe(self):
+        """Get legacy DataFrame format untuk compatibility dengan SmartKPopDetector"""
+        if hasattr(self.db_manager, 'kpop_df') and self.db_manager.kpop_df is not None:
+            return self.db_manager.kpop_df
+        
+        # Jika PostgreSQL, convert ke DataFrame format
         try:
-            import requests
-            # Download with timeout to prevent Railway build hanging
-            response = requests.get(KPOP_CSV_URL, timeout=30)
-            response.raise_for_status()
-            
-            from io import StringIO
-            kpop_df = pd.read_csv(StringIO(response.text))
-            logger.log_csv_loaded(kpop_df)
-            return kpop_df
+            members = self.db_manager.search_members("", limit=10000)  # Get all members
+            if members:
+                df_data = []
+                for member in members:
+                    df_data.append({
+                        'Stage Name': member.get('stage_name', ''),
+                        'Group': member.get('group_name', ''),
+                        'Korean Stage Name': member.get('korean_stage_name', ''),
+                        'Full Name': member.get('full_name', ''),
+                        'Date of Birth': member.get('date_of_birth', ''),
+                        'Instagram': member.get('instagram', '')
+                    })
+                return pd.DataFrame(df_data)
         except Exception as e:
-            logger.logger.error(f"Gagal load CSV K-pop: {e}")
-            return pd.DataFrame()
+            logger.logger.error(f"Error converting PostgreSQL to DataFrame: {e}")
+        
+        return pd.DataFrame()
+    
+    def _load_kpop_database(self):
+        """Legacy method - kept for compatibility"""
+        return self._get_legacy_dataframe()
     
     def _create_bot(self):
         """Create and configure Discord bot"""
@@ -82,9 +98,10 @@ class BotCore:
         # Pilih pesan random
         status_message = random.choice(ready_messages)
         
-        # Log ke Railway
+        # Log ke Railway dengan database stats
+        db_stats = self.db_manager.get_database_stats()
         logger.logger.info(f"🤖 Bot logged in as {self.bot.user}")
-        logger.logger.info(f"📊 Database loaded: {len(self.kpop_df)} K-pop entries")
+        logger.logger.info(f"📊 Database: {db_stats['source']} - {db_stats['total_members']} members, {db_stats['total_groups']} groups")
         logger.logger.info("🟢 Bot is ready and online!")
         
         # Kirim status message ke Discord
