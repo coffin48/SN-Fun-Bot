@@ -9,7 +9,15 @@ import random
 import os
 import requests
 import logger
-from monitor_api_usage import log_api_usage
+
+# Optional monitoring - only import if available
+try:
+    from monitor_api_usage import log_api_usage
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    def log_api_usage(*args, **kwargs):
+        pass  # No-op function if monitoring not available
 
 class AIHandler:
     def __init__(self):
