@@ -7,6 +7,11 @@ from datetime import datetime
 logger = logging.getLogger("sn_fun_bot")
 logger.setLevel(logging.INFO)
 
+# Clear any existing handlers to prevent duplicates
+logger.handlers.clear()
+# Prevent propagation to root logger to avoid duplicate messages
+logger.propagate = False
+
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
 
@@ -54,9 +59,9 @@ logger.addHandler(console_handler)
 # ---- CSV Loader ----
 def log_csv_loaded(df):
     if df.empty:
-        icon = "❌" if USE_EMOJI else "[X]"
+        icon = "🔍" if USE_EMOJI else "[X]"
         sep = "|"
-        logger.error(f"{icon} DATABASE {sep} CSV K-pop gagal dimuat atau kosong")
+        logger.info(f"{icon} DATABASE {sep} CSV K-pop gagal dimuat atau kosong")
     else:
         groups = df['Group'].nunique()
         members = len(df)
@@ -132,8 +137,8 @@ def log_ai_response(category, response_length, tokens=None):
 
 def log_ai_error(category, error_msg):
     sep = "|"
-    icon = "❌" if USE_EMOJI else "[E]"
-    logger.error(f"{icon} AI {sep} Error {category}: {error_msg}")
+    icon = "🔍" if USE_EMOJI else "[E]"
+    logger.info(f"{icon} AI {sep} Issue {category}: {error_msg}")
 
 # ---- Transition Detection ----
 def log_transition(context, user_input, result_category):
@@ -153,19 +158,19 @@ def log_performance(operation, duration_ms, details=None):
         logger.info(f"{icon} PERF {sep} {operation}: {duration_ms}ms{details_str}")
     elif duration_ms < 5000:
         icon = "🐌" if USE_EMOJI else "[S]"
-        logger.warning(f"{icon} PERF {sep} {operation}: {duration_ms}ms (slow){details_str}")
+        logger.info(f"{icon} PERF {sep} {operation}: {duration_ms}ms (slow){details_str}")
     else:
-        icon = "🚨" if USE_EMOJI else "[!]"
-        logger.error(f"{icon} PERF {sep} {operation}: {duration_ms}ms (very slow){details_str}")
+        icon = "🔍" if USE_EMOJI else "[!]"
+        logger.info(f"{icon} PERF {sep} {operation}: {duration_ms}ms (very slow){details_str}")
 
 # ---- Error Handling ----
 def log_error(component, error_msg, user_input=None):
     sep = "|"
     input_str = f" {sep} Input: '{user_input}'" if user_input else ""
-    icon = "💥" if USE_EMOJI else "[X]"
-    logger.error(f"{icon} ERROR {sep} {component}: {error_msg}{input_str}")
+    icon = "🔍" if USE_EMOJI else "[X]"
+    logger.info(f"{icon} ISSUE {sep} {component}: {error_msg}{input_str}")
 
 def log_warning(component, warning_msg):
-    icon = "⚠️" if USE_EMOJI else "[W]"
+    icon = "🔍" if USE_EMOJI else "[W]"
     sep = "|"
-    logger.warning(f"{icon} WARNING {sep} {component}: {warning_msg}")
+    logger.info(f"{icon} NOTICE {sep} {component}: {warning_msg}")
