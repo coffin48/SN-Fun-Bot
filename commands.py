@@ -18,6 +18,7 @@ class CommandsHandler:
         self.kpop_detector = bot_core.kpop_detector
         self.kpop_df = bot_core.kpop_df  # Add access to dataframe
         self.db_manager = bot_core.db_manager  # Add access to DatabaseManager
+        self.social_monitor = bot_core.social_monitor  # Add access to social media monitor
         
         # Initialize handlers
         self.ai_handler = AIHandler()
@@ -38,6 +39,11 @@ class CommandsHandler:
         @self.bot.command(name="sn")
         async def sn_command(ctx, *, user_input: str):
             await self._handle_sn_command(ctx, user_input)
+        
+        @self.bot.command(name="monitor")
+        async def monitor_command(ctx, action: str = None, platform: str = None):
+            """Social media monitoring commands"""
+            await self._handle_monitor_command(ctx, action, platform)
     
     async def _handle_sn_command(self, ctx, user_input: str):
         """Handle command !sn"""
@@ -139,14 +145,18 @@ class CommandsHandler:
         enhanced_query = self._build_enhanced_query(category, detected_name)
         cache_key = f"{category}:{detected_name.lower()}:{hash(enhanced_query)}"
         
+        # Kirim loading message terlebih dahulu
+        loading_msg = await self._send_loading_message(ctx)
+            
         # Cek cache terlebih dahulu
         cached_summary = self.redis_client.get(cache_key)
         if cached_summary:
             summary = cached_summary.decode("utf-8")
             logger.log_cache_hit(category, detected_name)
-        else:
-            loading_msg = await self._send_loading_message(ctx)
             
+            # Update loading message untuk cache hit
+            await loading_msg.edit(content="⚡ Mengambil dari cache...")
+        else:
             # Enhanced query sudah dibuat untuk cache key
             
             # Log scraping start dengan info lengkap
@@ -652,5 +662,99 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
         """Get database performance information"""
         if hasattr(self.db_manager, 'engine') and self.db_manager.engine:
             return "🚀 **Performance**: PostgreSQL optimized queries with indexes"
+        else:
+            return "📊 **Performance**: CSV fallback mode"
+    
+    async def _handle_monitor_command(self, ctx, action: str = None, platform: str = None):
+        """Handle social media monitoring commands"""
+        try:
+            if not action:
+                # Show monitor status
+                embed = discord.Embed(
+                    title="📱 Secret Number Social Media Monitor",
+                    description="Monitor status dan kontrol untuk social media Secret Number",
+                    color=0x00ff00
+                )
+                
+                embed.add_field(
+                    name="📊 Platforms Monitored",
+                    value="• 📸 Instagram (@secretnumber.official)\n• 🐦 Twitter (@5ecretnumber)\n• 📺 YouTube (Secret Number Official)\n• 🎵 TikTok (@secretnumber.official)",
+                    inline=False
+                )
+                
+                embed.add_field(
+                    name="⚙️ Commands",
+                    value="`!monitor start` - Start monitoring\n`!monitor stop` - Stop monitoring\n`!monitor check` - Manual check all\n`!monitor check instagram` - Check specific platform\n`!monitor status` - Show detailed status",
+                    inline=False
+                )
+                
+                await ctx.send(embed=embed)
+                return
+            
+            if action.lower() == "start":
+                # Start monitoring
+                if hasattr(self.social_monitor, 'monitoring_task') and not self.social_monitor.monitoring_task.done():
+                    await ctx.send("⚠️ Monitoring sudah berjalan!")
+                    return
+                
+                # Start monitoring task
+                self.social_monitor.monitoring_task = asyncio.create_task(self.social_monitor.start_monitoring())
+                await ctx.send("✅ Social media monitoring started! Bot akan check update setiap 5 menit.")
+                
+            elif action.lower() == "stop":
+                # Stop monitoring
+                if hasattr(self.social_monitor, 'monitoring_task'):
+                    self.social_monitor.monitoring_task.cancel()
+                    await ctx.send("🛑 Social media monitoring stopped.")
+                else:
+                    await ctx.send("⚠️ Monitoring tidak sedang berjalan.")
+                
+            elif action.lower() == "check":
+                # Manual check
+                await ctx.send("🔍 Checking social media updates...")
+                
+                async with ctx.typing():
+                    result = await self.social_monitor.manual_check(platform)
+                    await ctx.send(f"✅ Manual check completed for {platform or 'all platforms'}")
+                
+            elif action.lower() == "status":
+                # Show detailed status
+                embed = discord.Embed(
+                    title="📊 Monitor Status Detail",
+                    color=0x0099ff
+                )
+                
+                # Check if monitoring is running
+                is_running = hasattr(self.social_monitor, 'monitoring_task') and not self.social_monitor.monitoring_task.done()
+                status = "🟢 Running" if is_running else "🔴 Stopped"
+                
+                embed.add_field(name="Status", value=status, inline=True)
+                embed.add_field(name="Check Interval", value="5 minutes", inline=True)
+                embed.add_field(name="Notification Channel", value=f"<#{self.social_monitor.notification_channel_id}>" if self.social_monitor.notification_channel_id else "Not set", inline=True)
+                
+                # Show last check times from Redis cache
+                if self.redis_client:
+                    cache_info = []
+                    for platform, cache_key in self.social_monitor.cache_keys.items():
+                        last_id = self.redis_client.get(cache_key)
+                        if last_id:
+                            cache_info.append(f"• {platform.title()}: ✅ Cached")
+                        else:
+                            cache_info.append(f"• {platform.title()}: ⚪ No cache")
+                    
+                    embed.add_field(
+                        name="Cache Status", 
+                        value="\n".join(cache_info) if cache_info else "No cache data",
+                        inline=False
+                    )
+                
+                await ctx.send(embed=embed)
+                
+            else:
+                await ctx.send("❌ Unknown action. Use: `start`, `stop`, `check`, `status`")
+                
+        except Exception as e:
+            logger.logger.error(f"Monitor command error: {e}")
+            await ctx.send(f"❌ Error: {e}")
         else:
             return "📁 **Performance**: CSV fallback mode"

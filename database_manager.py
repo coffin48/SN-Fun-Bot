@@ -50,18 +50,102 @@ class DatabaseManager:
     def _load_csv_fallback(self):
         """Load CSV sebagai fallback"""
         try:
-            if self.kpop_csv_id:
-                # Load dari Google Sheets
-                csv_url = f"https://docs.google.com/spreadsheets/d/{self.kpop_csv_id}/export?format=csv"
-                self.kpop_df = pd.read_csv(csv_url)
-            else:
-                # Load dari file lokal
-                self.kpop_df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
+            # Priority 1: GitHub raw CSV (always latest)
+            try:
+                self._load_from_github()
+                return
+            except Exception as github_error:
+                logger.logger.warning(f"GitHub CSV failed: {github_error}")
             
-            logger.logger.info(f"✅ CSV fallback loaded: {len(self.kpop_df)} records")
+            # Priority 2: Environment variable (Google Drive/Sheets)
+            if self.kpop_csv_id:
+                try:
+                    self._load_from_google_drive()
+                    return
+                except Exception as drive_error:
+                    logger.logger.warning(f"Google Drive failed: {drive_error}")
+                    try:
+                        self._load_from_google_sheets()
+                        return
+                    except Exception as sheets_error:
+                        logger.logger.warning(f"Google Sheets failed: {sheets_error}")
+            
+            # Priority 3: Local file
+            self.kpop_df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
+            logger.logger.info(f"✅ Local CSV loaded: {len(self.kpop_df)} records")
+            
         except Exception as e:
-            logger.logger.error(f"❌ Failed to load CSV: {e}")
+            logger.logger.error(f"❌ All CSV sources failed: {e}")
             self.kpop_df = pd.DataFrame()
+    
+    def _load_from_github(self):
+        """Load CSV dari GitHub raw URL"""
+        import requests
+        from io import StringIO
+        
+        # GitHub raw CSV URL
+        github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE_KPOP%20(1).csv"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(github_url, headers=headers)
+        response.raise_for_status()
+        
+        self.kpop_df = pd.read_csv(StringIO(response.text))
+        logger.logger.info(f"✅ CSV from GitHub loaded: {len(self.kpop_df)} records")
+    
+    def _is_google_drive_id(self, file_id: str) -> bool:
+        """Deteksi apakah ID adalah Google Drive file atau Google Sheets"""
+        # ID 15SjsUKHLaYQ5wZHR013Lb38M4uY-tiVE adalah Google Drive file
+        # Coba Google Drive dulu, jika gagal fallback ke Sheets
+        return True
+    
+    def _load_from_google_drive(self):
+        """Load CSV dari Google Drive"""
+        import requests
+        from io import StringIO
+        
+        # Google Drive direct download URL
+        drive_url = f"https://drive.google.com/uc?id={self.kpop_csv_id}&export=download"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(drive_url, headers=headers)
+        
+        # Handle Google Drive virus scan warning untuk file besar
+        if 'virus scan warning' in response.text.lower():
+            # Extract confirm token untuk bypass virus scan
+            import re
+            confirm_token = re.search(r'confirm=([0-9A-Za-z_]+)', response.text)
+            if confirm_token:
+                confirm_url = f"{drive_url}&confirm={confirm_token.group(1)}"
+                response = requests.get(confirm_url, headers=headers)
+        
+        response.raise_for_status()
+        self.kpop_df = pd.read_csv(StringIO(response.text))
+        logger.logger.info(f"✅ CSV from Google Drive loaded: {len(self.kpop_df)} records")
+    
+    def _load_from_google_sheets(self):
+        """Load CSV dari Google Sheets"""
+        import requests
+        from io import StringIO
+        
+        # Google Sheets export URL
+        sheets_url = f"https://docs.google.com/spreadsheets/d/{self.kpop_csv_id}/export?format=csv&gid=0"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(sheets_url, headers=headers)
+        response.raise_for_status()
+        
+        self.kpop_df = pd.read_csv(StringIO(response.text))
+        logger.logger.info(f"✅ CSV from Google Sheets loaded: {len(self.kpop_df)} records")
     
     def search_members(self, query: str, limit: int = 10) -> List[Dict]:
         """Pencarian member dengan PostgreSQL atau CSV fallback"""

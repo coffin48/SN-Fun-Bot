@@ -10,6 +10,7 @@ import logger
 from patch.smart_detector import SmartKPopDetector
 from analytics import analytics
 from database_manager import DatabaseManager
+from social_media_monitor import SocialMediaMonitor
 
 class BotCore:
     def __init__(self):
@@ -33,6 +34,10 @@ class BotCore:
         
         # Initialize Discord bot
         self.bot = self._create_bot()
+        
+        # Initialize Social Media Monitor
+        self.social_monitor = SocialMediaMonitor(self.bot)
+        self.social_monitor.redis_client = self.redis_client
     
     def _get_legacy_dataframe(self):
         """Get legacy DataFrame format untuk compatibility dengan SmartKPopDetector"""
