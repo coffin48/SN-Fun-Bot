@@ -862,24 +862,50 @@ check official music platforms and databases like:
         return content
     
     async def scrape_kpop_image(self, query):
-        """Scrape foto K-pop dari berbagai sumber dan return sebagai BytesIO object"""
+        """Scrape foto K-pop dari berbagai sumber dengan multiple fallback strategies"""
+        # Enhanced image sources dengan lebih banyak fallback
         image_sources = [
-            {"url": "https://kprofiles.com/{}-profile/", "selector": ".wp-image, .entry-content img", "type": "kprofile"},
-            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".wp-image, .entry-content img", "type": "kprofile_group"},
-            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage", "type": "wiki"}
+            # KProfiles - Primary source
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".wp-image, .entry-content img, .profile-image", "type": "kprofile"},
+            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".wp-image, .entry-content img, .group-image", "type": "kprofile_group"},
+            {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".wp-image, .entry-content img", "type": "kprofile_facts"},
+            
+            # Wikipedia - Secondary source
+            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage, .mw-file-element", "type": "wiki"},
+            {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage, .mw-file-element", "type": "wiki_id"},
+            
+            # Google Images via Custom Search (if available)
+            {"type": "google_images"},
+            
+            # Namu Wiki
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-image, .file-wrapper img", "type": "namu"},
+            
+            # AllKPop
+            {"url": "https://www.allkpop.com/search?keyword={}", "selector": ".article-image img, .content img", "type": "allkpop"}
         ]
         
         formatted_query = query.lower().replace(' ', '-')
         
         for source in image_sources:
             try:
+                # Handle Google Images search
+                if source["type"] == "google_images":
+                    image_data = await self._search_google_images(query)
+                    if image_data:
+                        return image_data
+                    continue
+                
                 # Format URL berdasarkan tipe
-                if source["type"] == "kprofile":
+                if source["type"] in ["kprofile", "kprofile_group", "kprofile_facts"]:
                     url = source["url"].format(formatted_query)
-                elif source["type"] == "kprofile_group":
-                    url = source["url"].format(formatted_query)
-                elif source["type"] == "wiki":
+                elif source["type"] in ["wiki", "wiki_id"]:
                     url = source["url"].format(query.replace(' ', '_'))
+                elif source["type"] == "namu":
+                    url = source["url"].format(query.replace(' ', '%20'))
+                elif source["type"] == "allkpop":
+                    url = source["url"].format(query.replace(' ', '+'))
+                else:
+                    continue
                 
                 logger.logger.info(f"🖼️ Scraping image from: {url}")
                 
@@ -926,5 +952,122 @@ check official music platforms and databases like:
                 logger.logger.debug(f"Failed to scrape from {source['type']}: {e}")
                 continue
         
+        # Final fallback: Try alternative name formats
+        alternative_queries = [
+            query.replace(' ', ''),  # "New Jeans" -> "NewJeans"
+            query.replace('-', ' '),  # "new-jeans" -> "new jeans"
+            query.title(),           # "newjeans" -> "Newjeans"
+            query.upper(),           # "txt" -> "TXT"
+        ]
+        
+        for alt_query in alternative_queries:
+            if alt_query != query:  # Skip if same as original
+                logger.logger.info(f"🔄 Trying alternative query: {alt_query}")
+                result = await self._try_basic_sources(alt_query)
+                if result:
+                    return result
+        
         logger.logger.info(f"❌ No suitable image found for: {query}")
+        return None
+    
+    async def _search_google_images(self, query):
+        """Search Google Images using Custom Search API (if configured)"""
+        try:
+            # Check if Google Custom Search is configured
+            google_api_key = os.getenv('GOOGLE_API_KEY')
+            google_cx = os.getenv('GOOGLE_SEARCH_CX')
+            
+            if not google_api_key or not google_cx:
+                logger.logger.debug("Google Custom Search not configured, skipping")
+                return None
+            
+            search_url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                'key': google_api_key,
+                'cx': google_cx,
+                'q': f"{query} kpop idol profile photo",
+                'searchType': 'image',
+                'num': 5,
+                'imgSize': 'medium',
+                'imgType': 'photo',
+                'safe': 'active'
+            }
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.get(search_url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        for item in data.get('items', []):
+                            img_url = item.get('link')
+                            if img_url:
+                                try:
+                                    async with session.get(img_url) as img_response:
+                                        if img_response.status == 200:
+                                            image_data = await img_response.read()
+                                            
+                                            # Validate image size
+                                            if 10000 < len(image_data) < 5000000:
+                                                logger.logger.info(f"✅ Google Images: {len(image_data)} bytes")
+                                                return BytesIO(image_data)
+                                except Exception as e:
+                                    logger.logger.debug(f"Failed Google image download: {e}")
+                                    continue
+                                    
+        except Exception as e:
+            logger.logger.debug(f"Google Images search failed: {e}")
+            
+        return None
+    
+    async def _try_basic_sources(self, query):
+        """Try basic KProfiles and Wikipedia sources with alternative query"""
+        basic_sources = [
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".wp-image, .entry-content img", "type": "kprofile"},
+            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage", "type": "wiki"}
+        ]
+        
+        formatted_query = query.lower().replace(' ', '-')
+        
+        for source in basic_sources:
+            try:
+                if source["type"] == "kprofile":
+                    url = source["url"].format(formatted_query)
+                else:
+                    url = source["url"].format(query.replace(' ', '_'))
+                
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            soup = BeautifulSoup(await response.text(), 'html.parser')
+                            img_tags = soup.select(source["selector"])
+                            
+                            for img in img_tags[:2]:  # Try first 2 images only
+                                img_url = img.get('src') or img.get('data-src')
+                                if not img_url:
+                                    continue
+                                
+                                # Skip unwanted images
+                                if any(skip in img_url.lower() for skip in ['icon', 'logo', 'avatar']):
+                                    continue
+                                
+                                # Make URL absolute
+                                if img_url.startswith('//'):
+                                    img_url = 'https:' + img_url
+                                elif img_url.startswith('/'):
+                                    from urllib.parse import urljoin
+                                    img_url = urljoin(url, img_url)
+                                
+                                try:
+                                    async with session.get(img_url) as img_response:
+                                        if img_response.status == 200:
+                                            image_data = await img_response.read()
+                                            if 10000 < len(image_data) < 5000000:
+                                                logger.logger.info(f"✅ Alternative query success: {query}")
+                                                return BytesIO(image_data)
+                                except Exception:
+                                    continue
+                                    
+            except Exception:
+                continue
+                
         return None
