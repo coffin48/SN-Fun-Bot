@@ -111,7 +111,11 @@ class SmartKPopDetector:
         # Prioritas 3: Quick check untuk K-pop names yang ada di database
         if input_lower in self.priority_kpop_names:
             logging.debug(f"🎯 Found '{input_lower}' in priority K-pop names")
-            # Langsung cek exact member match untuk nama yang ada di database
+            # Cek GROUP dulu, baru MEMBER (grup prioritas lebih tinggi)
+            result = self._check_exact_groups(input_lower)
+            if result:
+                logging.debug(f"✅ Exact group match: {result}")
+                return result
             result = self._check_exact_members(input_lower)
             if result:
                 logging.debug(f"✅ Exact member match: {result}")
