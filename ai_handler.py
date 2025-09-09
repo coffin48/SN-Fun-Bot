@@ -51,6 +51,7 @@ class AIHandler:
         
         # Rate limiting tracking per API key
         self.last_request_times = [0] * len(self.api_keys) if self.api_keys else [0]
+        self.last_request_time = 0  # Global rate limiting fallback
         self.min_request_interval = 1  # Reduced to 1 second with multiple keys
         
         # Category-specific API key assignment for optimal load distribution
