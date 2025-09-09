@@ -439,49 +439,27 @@ class CommandsHandler:
     
     async def _handle_help_command(self, ctx):
         """Handle !sn help command untuk menampilkan daftar commands"""
-        help_message = """
-🤖 **SN Fun Bot - K-pop Discord Bot**
+        help_message = """🤖 **SN Fun Bot - K-pop Info** ✨
 
-**📋 Daftar Commands:**
+**🎯 Cara Pakai:**
+• `!sn [nama]` 🎤 Info K-pop (member/grup)
+• `!sn [member] [grup]` 🎭 Info spesifik
+• `!sn hai` 💬 Chat casual
+• `!sn rekomen lagu` 🎵 Minta rekomendasi
 
-**🎵 K-pop Queries:**
-• `!sn [nama member]` - Info tentang member K-pop
-• `!sn [nama grup]` - Info tentang grup K-pop
-• `!sn [member] [grup]` - Info spesifik member dari grup
-
-**💬 Conversational:**
-• `!sn aku ingin info tentang [nama]` - Query natural
-• `!sn berikan info tentang [nama]` - Query natural
-• `!sn hai/halo` - Obrolan casual
-
-**🎯 Rekomendasi:**
-• `!sn rekomendasikan lagu K-pop` - Minta rekomendasi
-• `!sn kasih saran [topik]` - Minta saran
-
-**⚙️ Utility Commands:**
-• `!sn help` - Tampilkan help ini
-• `!sn analytics` - Lihat statistik bot
-• `!sn clearcache` - Hapus cache Redis
-
-**📝 Contoh Penggunaan:**
+**📝 Contoh:**
 ```
 !sn Jisoo
-!sn BTS
-!sn Jisoo Blackpink
-!sn aku mau info tentang NewJeans
-!sn rekomendasikan lagu ballad K-pop
-!sn analytics
+!sn BTS  
+!sn Hina QWER
+!sn rekomen ballad
 ```
 
-**🔍 Bot akan otomatis mendeteksi:**
-- Member K-pop individual
-- Grup K-pop
-- Percakapan casual
-- Permintaan rekomendasi
-- Multiple matches (nama ambiguous)
+**⚙️ Utility:**
+• `!sn help` 📋 Help ini
+• `!sn analytics` 📊 Statistik bot
 
-Selamat menggunakan SN Fun Bot! 🎉
-"""
+Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
         await self._send_chunked_message(ctx, help_message)
         logger.logger.info("Help command requested")
 
