@@ -408,47 +408,62 @@ class SmartKPopDetector:
     
     def _detect_member_group(self, input_norm):
         """Deteksi kombinasi member + group (contoh: Jisoo Blackpink, Hina QWER)"""
+        input_lower = input_norm.lower()
         words = input_norm.split()
         if len(words) < 2:
             return None
         
-        detected_members = []
-        detected_groups = []
-        
-        # Cek setiap kata untuk member dan group
-        for word in words:
-            word_lower = word.lower()
-            
-            # Cek apakah kata ini adalah member
-            if word_lower in self.member_names:
-                for member_name, idx in self.member_names[word_lower]:
-                    detected_members.append((member_name, idx))
-            
-            # Cek apakah kata ini adalah group
-            if word_lower in self.group_names:
-                for group_name, idx in self.group_names[word_lower]:
-                    detected_groups.append((group_name, idx))
-        
-        # Jika ada member dan group dalam input yang sama
-        if detected_members and detected_groups:
-            # Cari member yang benar-benar dari group yang disebutkan
-            for member_name, member_idx in detected_members:
-                member_row = self.kpop_df.iloc[member_idx]
-                member_group = str(member_row.get('Group', '')).strip()
+        # Coba semua kombinasi kata untuk mencari member + group
+        for i in range(len(words)):
+            # Coba kombinasi 1 kata member + 1 kata group
+            if i < len(words) - 1:
+                member_part = ' '.join(words[:i+1])
+                group_part = ' '.join(words[i+1:])
                 
-                for group_name, group_idx in detected_groups:
-                    if member_group.lower() == group_name.lower():
-                        import logging
-                        logging.debug(f"🎯 MEMBER_GROUP detected: {member_name} from {group_name}")
-                        return "MEMBER", member_name, []
-            
-            # Jika tidak ada yang cocok, ambil yang pertama
-            member_name = detected_members[0][0]
-            group_name = detected_groups[0][0]
-            combined_name = f"{member_name} from {group_name}"
-            import logging
-            logging.debug(f"🎯 MEMBER_GROUP detected (fallback): {combined_name}")
-            return "MEMBER_GROUP", combined_name, []
+                # Cek apakah group_part adalah nama grup yang valid
+                group_matches = []
+                for group_name, group_data in self.group_names.items():
+                    if group_part.lower() == group_name.lower():
+                        group_matches.append((group_data[0][0], group_data[0][1]))  # (group_name, idx)
+                
+                # Jika group_part adalah grup yang valid, cari member-nya
+                if group_matches:
+                    group_name, group_idx = group_matches[0]  # Ambil yang pertama
+                    
+                    # Cari member dengan nama yang cocok
+                    member_matches = []
+                    for member_key, member_data in self.member_names.items():
+                        if member_part.lower() == member_key.lower():
+                            for member_name, idx in member_data:
+                                member_row = self.kpop_df.iloc[idx]
+                                member_group = str(member_row.get('Group', '')).strip()
+                                
+                                # Cek apakah member ini bagian dari grup yang dimaksud
+                                if member_group.lower() == group_name.lower():
+                                    return "MEMBER_GROUP", f"{member_name} from {group_name}", []
+                    
+                    # Jika tidak ditemukan yang cocok, kembalikan sebagai member + group biasa
+                    if member_part.lower() in self.member_names:
+                        member_name = self.member_names[member_part.lower()][0][0]
+                        return "MEMBER_GROUP", f"{member_name} from {group_name}", []
+        
+        # Jika tidak ditemukan kombinasi member + group, coba cek apakah ada member dengan nama lengkap
+        full_name_matches = []
+        for member_key, member_data in self.member_names.items():
+            if member_key in input_lower:
+                for member_name, idx in member_data:
+                    full_name_matches.append((member_name, idx))
+        
+        if full_name_matches:
+            # Ambil yang paling panjang (untuk menghindari partial match)
+            full_name_matches.sort(key=lambda x: len(x[0]), reverse=True)
+            best_match = full_name_matches[0]
+            return "MEMBER", best_match[0], []
+        
+        # Cek apakah ada grup dengan nama yang mirip
+        for group_key, group_data in self.group_names.items():
+            if group_key in input_lower:
+                return "GROUP", group_data[0][0], []
         
         return None
     
