@@ -5,6 +5,7 @@ import asyncio
 import redis
 import logger
 import time
+import random
 from ai_handler import AIHandler
 from data_fetcher import DataFetcher
 from analytics import analytics
@@ -19,7 +20,7 @@ class CommandsHandler:
         
         # Initialize handlers
         self.ai_handler = AIHandler()
-        self.data_fetcher = DataFetcher(bot_core.kpop_df)  # Pass database untuk fallback
+        # DataFetcher will be lazy loaded when needed
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
@@ -104,6 +105,10 @@ class CommandsHandler:
         finally:
             # Remove from processing set when done
             self.processing_messages.discard(message_id)
+            
+            # Cleanup processing messages if too many
+            if len(self.processing_messages) > 50:
+                await self._cleanup_processing_messages()
     
     async def _clear_cache(self, ctx):
         """Clear Redis cache"""
@@ -115,7 +120,9 @@ class CommandsHandler:
         start_time = time.time()
         analytics.track_daily_usage()
         
-        cache_key = f"{category}:{detected_name.lower()}"
+        # Enhanced cache key untuk akurasi lebih tinggi
+        enhanced_query = self._build_enhanced_query(category, detected_name)
+        cache_key = f"{category}:{detected_name.lower()}:{hash(enhanced_query)}"
         
         # Cek cache terlebih dahulu
         cached_summary = self.redis_client.get(cache_key)
@@ -123,27 +130,13 @@ class CommandsHandler:
             summary = cached_summary.decode("utf-8")
             logger.log_cache_hit(category, detected_name)
         else:
-            # Send loading message
-            loading_messages = [
-                "🔍 Mencari informasi K-pop...",
-                "📊 Mengumpulkan data dari berbagai sumber...",
-                "🎵 Sedang scraping info K-pop...",
-                "⏳ Tunggu sebentar, sedang mencari info...",
-                "🚀 Processing query K-pop..."
-            ]
-            import random
-            loading_msg = await ctx.send(random.choice(loading_messages))
+            loading_msg = await self._send_loading_message(ctx)
             
-            # Enhanced query dengan group info untuk scraping yang lebih akurat
-            enhanced_query = self._build_enhanced_query(category, detected_name)
+            # Enhanced query sudah dibuat untuk cache key
             
-            # Log mulai scraping untuk Railway log explorer
-            logger.logger.info(f"🔍 Starting scraping process for {category}: {detected_name}")
-            logger.logger.info(f"🎯 Enhanced query: {enhanced_query}")
-            
-            # Track scraping time
+            # Log scraping start dengan info lengkap
             scraping_start = time.time()
-            logger.logger.info(f"🔍 Starting scraping for {category}: {detected_name}")
+            logger.logger.info(f"🔍 Scraping {category}: {detected_name} | Enhanced: {enhanced_query}")
             
             # Try enhanced query first
             if enhanced_query != detected_name:
@@ -157,9 +150,8 @@ class CommandsHandler:
                     
                     if not info.strip():
                         logger.logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
-                        analytics.track_query_success("enhanced", False, detected_name)
-                        analytics.track_query_success("simple", False, detected_name)
-                        await loading_msg.edit(content="❌ Maaf, info K-pop tidak ditemukan.")
+                        await self._handle_query_error(loading_msg, "not_found")
+                        self._track_failed_query(category, detected_name)
                         return
                     
                     analytics.track_query_success("enhanced", False, detected_name)
@@ -184,13 +176,14 @@ class CommandsHandler:
                 ai_time = time.time() - ai_start
                 analytics.track_response_time("ai_generation", ai_time)
                 
-                # Simpan ke Redis cache
-                self.redis_client.set(cache_key, summary, ex=86400)  # 24 jam
+                # Smart cache duration berdasarkan kategori
+                cache_duration = self._get_cache_duration(category, len(summary))
+                self.redis_client.set(cache_key, summary, ex=cache_duration)
                 logger.log_cache_set(category, detected_name)
                 
             except Exception as e:
                 logger.logger.error(f"Gagal membuat ringkasan: {e}")
-                await loading_msg.edit(content=f"❌ Gagal membuat ringkasan: {e}")
+                await self._handle_query_error(loading_msg, "ai_failed", str(e))
                 return
         
         # Track total response time
@@ -204,6 +197,62 @@ class CommandsHandler:
             # For long messages, edit loading message to show completion then send chunks
             await loading_msg.edit(content="✅ Informasi K-pop berhasil ditemukan!")
             await self._send_chunked_message(ctx, summary)
+    
+    @property
+    def data_fetcher(self):
+        """Lazy initialization of DataFetcher"""
+        if not hasattr(self, '_data_fetcher'):
+            self._data_fetcher = DataFetcher(self.kpop_df)
+            logger.logger.info("DataFetcher initialized lazily")
+        return self._data_fetcher
+    
+    async def _send_loading_message(self, ctx):
+        """Send random loading message and return message object"""
+        messages = [
+            "🔍 Mencari informasi K-pop...",
+            "📊 Mengumpulkan data dari berbagai sumber...",
+            "🎵 Sedang scraping info K-pop...",
+            "⏳ Tunggu sebentar, sedang mencari info...",
+            "🚀 Processing query K-pop..."
+        ]
+        return await ctx.send(random.choice(messages))
+    
+    async def _handle_query_error(self, loading_msg, error_type, error_details=None):
+        """Centralized error handling with consistent messaging"""
+        error_messages = {
+            "not_found": "❌ Maaf, info K-pop tidak ditemukan.",
+            "ai_failed": f"❌ Gagal membuat ringkasan: {error_details}",
+            "scraping_failed": "❌ Gagal mengumpulkan data K-pop.",
+            "network_error": "❌ Koneksi bermasalah, coba lagi nanti.",
+            "timeout": "❌ Request timeout, coba query yang lebih spesifik."
+        }
+        message = error_messages.get(error_type, f"❌ Error: {error_details}")
+        await loading_msg.edit(content=message)
+    
+    def _get_cache_duration(self, category, content_length):
+        """Smart cache duration based on content type and size"""
+        base_durations = {
+            "GROUP": 86400,      # 24h - Group info stable
+            "MEMBER": 43200,     # 12h - Member info semi-stable  
+            "MEMBER_GROUP": 21600 # 6h - Specific queries change more
+        }
+        
+        # Longer cache for comprehensive content
+        if content_length > 3000:
+            return base_durations.get(category, 21600) * 2
+        
+        return base_durations.get(category, 21600)
+    
+    def _track_failed_query(self, category, detected_name):
+        """Track failed queries for analytics"""
+        analytics.track_query_success("enhanced", False, detected_name)
+        analytics.track_query_success("simple", False, detected_name)
+    
+    async def _cleanup_processing_messages(self):
+        """Periodic cleanup of old processing messages"""
+        if len(self.processing_messages) > 100:
+            logger.logger.info(f"Cleaning up {len(self.processing_messages)} processing messages")
+            self.processing_messages.clear()
     
     def _add_to_memory(self, user_id, role, message):
         """Tambahkan pesan ke conversation memory"""
