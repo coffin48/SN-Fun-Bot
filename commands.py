@@ -223,15 +223,28 @@ class CommandsHandler:
             # Generate response dengan konteks
             summary = await self.ai_handler.handle_general_query(conversation_context)
             
+            # Validasi dan sanitasi response
+            if not summary or not isinstance(summary, str):
+                summary = "Maaf, saya tidak bisa memahami pertanyaan itu. Coba tanya yang lain ya! 😅"
+            
+            # Truncate jika terlalu panjang
+            if len(summary) > 1900:
+                summary = summary[:1900] + "..."
+            
             # Simpan ke memory
             self._add_to_memory(user_id, "user", user_input)
             self._add_to_memory(user_id, "assistant", summary)
             
-            await ctx.send(summary)
+            # Kirim dengan chunked message untuk safety
+            await self._send_chunked_message(ctx, summary)
             logger.logger.info(f"OBROLAN request processed with memory: {user_input}")
         except Exception as e:
             logger.logger.error(f"Gagal memproses obrolan: {e}")
-            await ctx.send(f"Maaf, terjadi error: {e}")
+            # Safe fallback response
+            try:
+                await ctx.send("Maaf, ada masalah teknis. Coba lagi ya! 🤖")
+            except:
+                logger.logger.error("Failed to send fallback message")
     
     async def _handle_recommendation_request(self, ctx, user_input):
         """Handle request rekomendasi - langsung AI tanpa cache"""
