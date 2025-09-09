@@ -213,15 +213,21 @@ class CommandsHandler:
         return conversation_context
 
     async def _handle_casual_conversation(self, ctx, user_input):
-        """Handle obrolan casual dengan memory"""
+        """Handle obrolan casual dengan memory dan caching"""
         try:
             user_id = ctx.author.id
             
-            # Dapatkan konteks percakapan
-            conversation_context = self._get_conversation_context(user_id, user_input)
+            # Check cache untuk casual conversation
+            cache_key = f"casual:{hash(user_input.lower())}"
+            cached_response = self.redis_client.get(cache_key)
             
-            # Generate response dengan konteks
-            summary = await self.ai_handler.handle_general_query(conversation_context)
+            if cached_response:
+                logger.logger.info(f"Using cached casual response for: {user_input}")
+                await self._send_chunked_message(ctx, cached_response.decode('utf-8'))
+                return
+            
+            # Generate response dengan AI (reduced max_tokens untuk speed)
+            summary = await self.ai_handler.chat_async(user_input, max_tokens=800)
             
             # Validasi dan sanitasi response
             if not summary or not isinstance(summary, str):
@@ -231,13 +237,16 @@ class CommandsHandler:
             if len(summary) > 1900:
                 summary = summary[:1900] + "..."
             
-            # Simpan ke memory
+            # Cache response untuk 1 jam
+            self.redis_client.setex(cache_key, 3600, summary)
+            
+            # Simpan ke memory (simplified)
             self._add_to_memory(user_id, "user", user_input)
             self._add_to_memory(user_id, "assistant", summary)
             
             # Kirim dengan chunked message untuk safety
             await self._send_chunked_message(ctx, summary)
-            logger.logger.info(f"OBROLAN request processed with memory: {user_input}")
+            logger.logger.info(f"OBROLAN request processed: {user_input}")
         except Exception as e:
             logger.logger.error(f"Gagal memproses obrolan: {e}")
             # Safe fallback response
