@@ -349,7 +349,7 @@ Members: HANYA 1 posisi per nama. Awali dengan intro singkat natural (contoh: "I
     
     async def generate_kpop_summary(self, category, info):
         """Generate ringkasan K-pop berdasarkan kategori"""
-        if category == "MEMBER":
+        if category == "MEMBER" or category == "MEMBER_GROUP":
             prompt = self.create_member_summary_prompt(info)
         else:  # GROUP
             prompt = self.create_group_summary_prompt(info)
