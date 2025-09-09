@@ -341,6 +341,7 @@ Format:
 - Discography: [album dan lagu hits]
 - Prestasi: [penghargaan penting]
 - Fandom: [nama fandom dan facts]
+- Social Media: [akun official grup dengan emoji, contoh: "𝕏 @official_account, 📸 @official_account, 📺 YouTube Channel"]
 
 Members: HANYA 1 posisi per nama. Awali dengan intro singkat natural (contoh: "Ini info tentang [nama grup]" atau "Berikut data [nama grup]"), lalu langsung ke format. Natural + emoticon. Hindari intro berlebihan seperti "gaya santai dan fun". Hanya dari konten yang diberikan.
 
