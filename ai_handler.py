@@ -70,9 +70,9 @@ class AIHandler:
             }],
             "generationConfig": {
                 "maxOutputTokens": max_tokens,
-                "temperature": 0.7,
-                "topP": 0.8,
-                "topK": 40
+                "temperature": 0.5,  # Reduced for faster, more focused responses
+                "topP": 0.7,         # Reduced for faster generation
+                "topK": 20           # Reduced for faster generation
             },
             "safetySettings": [
                 {
@@ -257,5 +257,6 @@ Konten:
         return random.choice(fallback_messages)
     
     async def handle_general_query(self, user_input):
-        """Handle pertanyaan umum non-K-pop"""
-        return await self.chat_async(user_input, max_tokens=2000)
+        """Handle pertanyaan umum non-K-pop dengan optimasi"""
+        # Reduced max_tokens untuk response time yang lebih cepat
+        return await self.chat_async(user_input, max_tokens=800)
