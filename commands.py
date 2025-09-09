@@ -15,6 +15,7 @@ class CommandsHandler:
         self.redis_client = bot_core.redis_client
         self.kpop_detector = bot_core.kpop_detector
         self.kpop_df = bot_core.kpop_df  # Add access to dataframe
+        self.db_manager = bot_core.db_manager  # Add access to DatabaseManager
         
         # Initialize handlers
         self.ai_handler = AIHandler()
@@ -63,6 +64,11 @@ class CommandsHandler:
                 # Analytics command
                 if user_input.lower().startswith("analytics"):
                     await self._handle_analytics_command(ctx)
+                    return
+                
+                # Database status command
+                if user_input.lower().startswith("db status") or user_input.lower().startswith("database"):
+                    await self._handle_database_status(ctx)
                     return
                 
                 # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
@@ -117,6 +123,17 @@ class CommandsHandler:
             summary = cached_summary.decode("utf-8")
             logger.log_cache_hit(category, detected_name)
         else:
+            # Send loading message
+            loading_messages = [
+                "🔍 Mencari informasi K-pop...",
+                "📊 Mengumpulkan data dari berbagai sumber...",
+                "🎵 Sedang scraping info K-pop...",
+                "⏳ Tunggu sebentar, sedang mencari info...",
+                "🚀 Processing query K-pop..."
+            ]
+            import random
+            loading_msg = await ctx.send(random.choice(loading_messages))
+            
             # Enhanced query dengan group info untuk scraping yang lebih akurat
             enhanced_query = self._build_enhanced_query(category, detected_name)
             
@@ -126,36 +143,38 @@ class CommandsHandler:
             
             # Track scraping time
             scraping_start = time.time()
+            logger.logger.info(f"🔍 Starting scraping for {category}: {detected_name}")
             
-            # Fetch info dari berbagai sumber dengan enhanced query
-            info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
-            
-            # Fallback ke simple query jika enhanced query gagal
-            enhanced_success = bool(info.strip())
-            if not enhanced_success:
-                logger.logger.warning(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
-                simple_info = await self.data_fetcher.fetch_kpop_info(detected_name)
-                simple_success = bool(simple_info.strip())
+            # Try enhanced query first
+            if enhanced_query != detected_name:
+                logger.logger.info(f"🎯 Enhanced query: {enhanced_query}")
+                info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
                 
-                if simple_success:
-                    info = simple_info
-                    logger.logger.info(f"✅ Simple query successful: {len(info)} characters")
-                    analytics.track_query_success("simple", True, detected_name)
-                else:
-                    logger.logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
+                if not info.strip():
+                    # Fallback to simple query
+                    logger.logger.info(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
+                    info = await self.data_fetcher.fetch_kpop_info(detected_name)
+                    
+                    if not info.strip():
+                        logger.logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
+                        analytics.track_query_success("enhanced", False, detected_name)
+                        analytics.track_query_success("simple", False, detected_name)
+                        await loading_msg.edit(content="❌ Maaf, info K-pop tidak ditemukan.")
+                        return
+                    
                     analytics.track_query_success("enhanced", False, detected_name)
-                    analytics.track_query_success("simple", False, detected_name)
-                    await ctx.send("Maaf, info K-pop tidak ditemukan.")
-                    return
-                
-                analytics.track_query_success("enhanced", False, detected_name)
+                else:
+                    analytics.track_query_success("enhanced", True, detected_name)
             else:
-                analytics.track_query_success("enhanced", True, detected_name)
+                info = await self.data_fetcher.fetch_kpop_info(detected_name)
             
             scraping_time = time.time() - scraping_start
             analytics.track_response_time("scraping", scraping_time)
             
             logger.logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
+            
+            # Update loading message for AI processing
+            await loading_msg.edit(content="🤖 Membuat ringkasan dengan AI...")
             
             # Generate AI summary
             ai_start = time.time()
@@ -171,15 +190,20 @@ class CommandsHandler:
                 
             except Exception as e:
                 logger.logger.error(f"Gagal membuat ringkasan: {e}")
-                await ctx.send(f"Gagal membuat ringkasan: {e}")
+                await loading_msg.edit(content=f"❌ Gagal membuat ringkasan: {e}")
                 return
         
         # Track total response time
         total_time = time.time() - start_time
         analytics.track_response_time("total_response", total_time)
         
-        # Kirim ke Discord (chunk <=2000 karakter)
-        await self._send_chunked_message(ctx, summary)
+        # Edit loading message with final result instead of deleting
+        if len(summary) <= 1900:  # Single message limit
+            await loading_msg.edit(content=summary)
+        else:
+            # For long messages, edit loading message to show completion then send chunks
+            await loading_msg.edit(content="✅ Informasi K-pop berhasil ditemukan!")
+            await self._send_chunked_message(ctx, summary)
     
     def _add_to_memory(self, user_id, role, message):
         """Tambahkan pesan ke conversation memory"""
@@ -504,3 +528,40 @@ Selamat menggunakan SN Fun Bot! 🎉
                 logger.logger.error(f"Failed to send chunk {i+1}/{len(chunks)}: {e}")
                 # Try to send remaining chunks
                 continue
+    
+    async def _handle_database_status(self, ctx):
+        """Handle database status command"""
+        try:
+            db_stats = self.db_manager.get_database_stats()
+            
+            status_emoji = {
+                'connected': '🟢',
+                'fallback': '🟡', 
+                'error': '🔴'
+            }
+            
+            emoji = status_emoji.get(db_stats['status'], '⚪')
+            
+            status_message = f"""
+{emoji} **Database Status**
+
+📊 **Source**: {db_stats['source']}
+👥 **Total Members**: {db_stats['total_members']:,}
+🎵 **Total Groups**: {db_stats['total_groups']:,}
+⚡ **Status**: {db_stats['status'].title()}
+
+{self._get_database_performance_info()}
+            """.strip()
+            
+            await ctx.send(status_message)
+            
+        except Exception as e:
+            logger.logger.error(f"Database status error: {e}")
+            await ctx.send("❌ Error retrieving database status")
+    
+    def _get_database_performance_info(self):
+        """Get database performance information"""
+        if hasattr(self.db_manager, 'engine') and self.db_manager.engine:
+            return "🚀 **Performance**: PostgreSQL optimized queries with indexes"
+        else:
+            return "📁 **Performance**: CSV fallback mode"
