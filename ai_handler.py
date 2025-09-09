@@ -316,7 +316,13 @@ class AIHandler:
         
         return f"""
 Rangkum konten berikut menjadi informasi penting tentang member/idol K-pop.
-Fokus pada: Profile (Nama, Ultah, Social Media), Fun Fact, Rumor.
+Format wajib:
+- Nama: [nama lengkap]
+- Tanggal Lahir: [tanggal lahir]
+- Fun Fact: [fakta menarik]
+- Rumor: [rumor atau "Gak ada rumor yang kesebut di sini, aman!"]
+- Social Media: [akun social media, letakkan di bagian terakhir]
+
 Gunakan bahasa indonesia santai, natural, dan fun, tambahkan emoticon secukupnya agar lebih emosional.
 **Hanya ringkasan dari konten yang diberikan, jangan menambahkan informasi baru.**
 Jangan pakai tabel, <br>, atau garis.
