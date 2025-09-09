@@ -8,6 +8,12 @@ import re
 import logger
 from analytics import analytics
 import time
+import asyncio
+import aiohttp
+import redis
+from typing import List, Dict, Optional
+import json
+from datetime import datetime, timedelta
 
 class DataFetcher:
     def __init__(self, kpop_df=None):
@@ -16,22 +22,35 @@ class DataFetcher:
         self.CSE_IDS = [os.getenv(f"CSE_ID_{i}") for i in range(1, 4)]
         self.kpop_df = kpop_df  # Database untuk fallback info
         
-        # Daftar situs untuk scraping dengan strategi berbeda
+        # Redis cache setup
+        self.redis_client = None
+        try:
+            redis_url = os.getenv("REDIS_URL")
+            if redis_url:
+                self.redis_client = redis.from_url(redis_url, decode_responses=True)
+        except Exception as e:
+            logger.logger.warning(f"Redis cache not available: {e}")
+        
+        # Performance tracking
+        self.site_performance = {}
+        self.session = None
+        
+        # Site configuration dengan prioritas dan timeout
         self.scraping_sites = [
-            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".entry-content p", "type": "kprofile_group"},
-            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_solo1"},
-            {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".entry-content p", "type": "kprofile_solo2"},
-            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_member"},
-            {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts"},
-            {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile"},
-            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki"},
-            {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki"},
-            {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news"},
-            {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news"},
-            {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database"},
-            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english"},
-            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_encoded"},
-            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_hangul"}
+            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".entry-content p", "type": "kprofile_group", "priority": 0.95, "timeout": 8},
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_solo1", "priority": 0.90, "timeout": 8},
+            {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".entry-content p", "type": "kprofile_solo2", "priority": 0.90, "timeout": 8},
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_member", "priority": 0.88, "timeout": 8},
+            {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts", "priority": 0.88, "timeout": 8},
+            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.85, "timeout": 6},
+            {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.83, "timeout": 6},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english", "priority": 0.75, "timeout": 7},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_encoded", "priority": 0.75, "timeout": 7},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_hangul", "priority": 0.75, "timeout": 7},
+            {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile", "priority": 0.70, "timeout": 6},
+            {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database", "priority": 0.65, "timeout": 5},
+            {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news", "priority": 0.60, "timeout": 5},
+            {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news", "priority": 0.55, "timeout": 5}
         ]
         
         # Mapping grup dengan nama lengkap untuk format extended KProfiles
@@ -157,25 +176,39 @@ class DataFetcher:
         }
     
     async def fetch_kpop_info(self, query):
-        """Fetch comprehensive K-pop information from multiple sources"""
-        logger.logger.info(f"Starting multi-source data fetch for: {query}")
+        """Fetch comprehensive K-pop information with optimized caching and async processing"""
+        logger.logger.info(f"Starting optimized data fetch for: {query}")
         
+        # Check cache first
+        cache_key = f"kpop_info:{query.lower()}"
+        cached_result = self._get_from_cache(cache_key)
+        if cached_result:
+            logger.logger.info(f"Cache hit for query: {query}")
+            return cached_result
+        
+        start_time = time.time()
         all_results = []
         
-        # 1. Scrape websites
-        website_results = await self._scrape_websites(query)
+        # Sort sites by priority (highest first)
+        sorted_sites = sorted(self.scraping_sites, key=lambda x: x.get('priority', 0.5), reverse=True)
+        
+        # 1. Async website scraping with early termination
+        website_results = await self._scrape_websites_async(query, sorted_sites)
         all_results.extend(website_results)
-        logger.logger.info(f"Website scraping completed: {len(website_results)} results")
+        logger.logger.info(f"Async scraping completed: {len(website_results)} results")
         
-        # 2. Google Custom Search
-        cse_results = await self._fetch_from_cse(query)
-        all_results.extend(cse_results)
-        logger.logger.info(f"Google CSE completed: {len(cse_results)} results")
-        
-        # 3. NewsAPI
-        news_results = await self._fetch_from_newsapi(query)
-        all_results.extend(news_results)
-        logger.logger.info(f"NewsAPI completed: {len(news_results)} results")
+        # Check if we have sufficient quality data
+        if self._is_sufficient_data(all_results):
+            logger.logger.info("Sufficient data obtained, skipping additional sources")
+        else:
+            # 2. Google Custom Search (only if needed)
+            cse_results = await self._fetch_from_cse(query)
+            all_results.extend(cse_results)
+            
+            # 3. NewsAPI (only if still needed)
+            if not self._is_sufficient_data(all_results):
+                news_results = await self._fetch_from_newsapi(query)
+                all_results.extend(news_results)
         
         # 4. Database fallback info
         database_info = self._get_database_info(query)
@@ -185,12 +218,295 @@ class DataFetcher:
         
         # Clean and combine results
         final_text = self._clean_text(all_results)
-        logger.logger.info(f"Data cleaning completed: {len(final_text)} characters final")
+        
+        # Cache the result
+        self._save_to_cache(cache_key, final_text)
+        
+        total_time = time.time() - start_time
+        logger.logger.info(f"Optimized fetch completed in {total_time:.2f}s: {len(final_text)} characters")
         
         return final_text
     
+    async def _scrape_websites_async(self, query, sorted_sites):
+        """Optimized async scraping dengan concurrent requests dan early termination"""
+        results = []
+        
+        # Create aiohttp session if not exists
+        if not self.session:
+            connector = aiohttp.TCPConnector(limit=10, limit_per_host=3)
+            timeout = aiohttp.ClientTimeout(total=30)
+            self.session = aiohttp.ClientSession(connector=connector, timeout=timeout)
+        
+        # Create semaphore untuk limit concurrent requests
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
+        
+        # Create tasks for high priority sites first
+        high_priority_sites = [site for site in sorted_sites if site.get('priority', 0) >= 0.8]
+        medium_priority_sites = [site for site in sorted_sites if 0.6 <= site.get('priority', 0) < 0.8]
+        low_priority_sites = [site for site in sorted_sites if site.get('priority', 0) < 0.6]
+        
+        # Process high priority sites first
+        high_priority_results = await self._process_sites_batch(query, high_priority_sites, semaphore)
+        results.extend(high_priority_results)
+        
+        # Check if we have sufficient data from high priority sources
+        if self._is_sufficient_data(results):
+            logger.logger.info(f"Sufficient data from high priority sites: {len(results)} items")
+            return results
+        
+        # Process medium priority sites
+        medium_priority_results = await self._process_sites_batch(query, medium_priority_sites, semaphore)
+        results.extend(medium_priority_results)
+        
+        # Check again
+        if self._is_sufficient_data(results):
+            logger.logger.info(f"Sufficient data after medium priority: {len(results)} items")
+            return results
+        
+        # Process low priority sites only if still needed
+        low_priority_results = await self._process_sites_batch(query, low_priority_sites, semaphore)
+        results.extend(low_priority_results)
+        
+        return results
+    
+    async def _process_sites_batch(self, query, sites, semaphore):
+        """Process a batch of sites concurrently"""
+        tasks = []
+        for site in sites:
+            task = self._scrape_single_site(query, site, semaphore)
+            tasks.append(task)
+        
+        # Execute all tasks concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Filter out exceptions and flatten results
+        valid_results = []
+        for result in results:
+            if isinstance(result, list):
+                valid_results.extend(result)
+            elif isinstance(result, Exception):
+                logger.logger.error(f"Site scraping failed: {result}")
+        
+        return valid_results
+    
+    async def _scrape_single_site(self, query, site, semaphore):
+        """Scrape a single site with async/await"""
+        async with semaphore:
+            try:
+                # Format URL berdasarkan tipe situs
+                url = self._format_site_url(query, site)
+                if not url:
+                    return []
+                
+                site_timeout = site.get('timeout', 5)
+                
+                async with self.session.get(
+                    url, 
+                    timeout=aiohttp.ClientTimeout(total=site_timeout),
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                ) as response:
+                    if response.status != 200:
+                        return []
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, "html.parser")
+                    
+                    # Extract content berdasarkan site type
+                    site_results = self._extract_site_content(soup, site, url, query)
+                    
+                    # Track performance
+                    site_domain = url.split('/')[2]
+                    self._update_site_performance(site_domain, True, len(site_results))
+                    
+                    return site_results
+                    
+            except Exception as e:
+                site_domain = url.split('/')[2] if 'url' in locals() else 'unknown'
+                self._update_site_performance(site_domain, False, 0)
+                logger.logger.error(f"Async scraping failed for {site_domain}: {e}")
+                return []
+    
+    def _format_site_url(self, query, site):
+        """Format URL berdasarkan tipe situs"""
+        try:
+            formatted_query = query.replace(' ', '+')
+            
+            if site.get("type") in ["kprofile_group", "kprofile_solo1", "kprofile_solo2", "kprofile_member", "kprofile_member_facts"]:
+                # Format khusus untuk KProfiles direct
+                formatted_name = query.lower().replace(' ', '-')
+                
+                if site.get("type") == "kprofile_group" and formatted_name in self.kprofile_extended_names:
+                    extended_name = self.kprofile_extended_names[formatted_name]
+                    return site["url"].format(extended_name)
+                elif site.get("type") in ["kprofile_member", "kprofile_member_facts"] and formatted_name in self.member_group_mappings:
+                    member_format = self.member_group_mappings[formatted_name]
+                    return site["url"].format(member_format)
+                else:
+                    return site["url"].format(formatted_name)
+                    
+            elif site.get("type") in ["namu_english", "namu_encoded", "namu_hangul"]:
+                # Format khusus untuk Namu Wiki
+                query_lower = query.lower()
+                
+                if site.get("type") == "namu_english":
+                    formatted_name = query.upper() if len(query) <= 4 else query.replace(' ', '%20')
+                    return site["url"].format(formatted_name)
+                elif site.get("type") == "namu_encoded":
+                    formatted_name = query.replace(' ', '%20')
+                    return site["url"].format(formatted_name)
+                elif site.get("type") == "namu_hangul":
+                    if query_lower in self.namu_wiki_mappings:
+                        formatted_name = self.namu_wiki_mappings[query_lower]
+                        return site["url"].format(formatted_name)
+                    else:
+                        return None  # Skip jika tidak ada mapping
+                        
+            elif "allkpop" in site["url"]:
+                return site["url"].format(query.replace(' ', '-'))
+            else:
+                return site["url"].format(formatted_query)
+                
+        except Exception as e:
+            logger.logger.error(f"URL formatting failed: {e}")
+            return None
+    
+    def _extract_site_content(self, soup, site, url, query):
+        """Extract content dari soup berdasarkan site type"""
+        site_type = site.get("type", "default")
+        site_results = []
+        
+        try:
+            if site_type in ["kprofile_group", "kprofile_solo1", "kprofile_solo2", "kprofile_member", "kprofile_member_facts"]:
+                # KProfiles direct
+                content_elements = soup.select(site["selector"])[:10]
+                site_results = [
+                    el.get_text().strip() 
+                    for el in content_elements 
+                    if el.get_text().strip() and len(el.get_text().strip()) > 30
+                ]
+            
+            elif site_type == "wiki":
+                # Wikipedia dengan URL mapping
+                query_lower = query.lower()
+                is_id_wiki = "id.wikipedia.org" in url
+                
+                # Re-fetch jika ada mapping
+                if not is_id_wiki and query_lower in self.wikipedia_mappings:
+                    # English Wikipedia mapping sudah dihandle di URL formatting
+                    pass
+                elif is_id_wiki and f"{query_lower}_id" in self.wikipedia_mappings:
+                    # Indonesian Wikipedia mapping sudah dihandle di URL formatting  
+                    pass
+                
+                wiki_paragraphs = soup.select(site["selector"])[:5]
+                for p in wiki_paragraphs:
+                    text = p.get_text().strip()
+                    if (text and len(text) > 50 and 
+                        not text.startswith("Coordinates:") and
+                        not text.startswith("From Wikipedia") and
+                        "disambiguation" not in text.lower()):
+                        site_results.append(text)
+            
+            elif site_type == "profile":
+                # KProfiles search
+                profile_links = soup.select(site["selector"])[:2]
+                for link in profile_links:
+                    if link.get('href'):
+                        # Simplified - just get title for now to avoid nested requests
+                        site_results.append(link.get_text().strip())
+            
+            else:
+                # Default extraction
+                elements = soup.select(site["selector"])[:3]
+                site_results = [
+                    el.get_text().strip() 
+                    for el in elements 
+                    if el.get_text().strip()
+                ]
+                
+        except Exception as e:
+            logger.logger.error(f"Content extraction failed for {site_type}: {e}")
+        
+        return site_results
+    
+    def _is_sufficient_data(self, results):
+        """Check if we have sufficient quality data to stop scraping"""
+        if not results:
+            return False
+        
+        combined_text = " ".join(results)
+        text_length = len(combined_text)
+        
+        # Quality thresholds
+        min_length = 2000  # Minimal 2000 characters
+        quality_keywords = ['profile', 'member', 'group', 'debut', 'agency', 'birthday', 'position']
+        
+        # Count quality indicators
+        quality_score = sum(1 for keyword in quality_keywords if keyword.lower() in combined_text.lower())
+        
+        # Sufficient if we have enough content AND quality indicators
+        return text_length >= min_length and quality_score >= 3
+    
+    def _get_from_cache(self, cache_key):
+        """Get data from Redis cache"""
+        if not self.redis_client:
+            return None
+        
+        try:
+            cached_data = self.redis_client.get(cache_key)
+            if cached_data:
+                return cached_data
+        except Exception as e:
+            logger.logger.error(f"Cache read error: {e}")
+        
+        return None
+    
+    def _save_to_cache(self, cache_key, data, ttl=3600):
+        """Save data to Redis cache with TTL"""
+        if not self.redis_client or not data:
+            return
+        
+        try:
+            # Different TTL based on data type
+            if "Database Info:" in data:
+                ttl = 86400  # 24 hours for database info
+            elif "Wikipedia" in data or "KProfiles" in data:
+                ttl = 21600  # 6 hours for reliable sources
+            else:
+                ttl = 3600   # 1 hour for news/other sources
+            
+            self.redis_client.setex(cache_key, ttl, data)
+            logger.logger.debug(f"Cached data for {cache_key} with TTL {ttl}s")
+        except Exception as e:
+            logger.logger.error(f"Cache write error: {e}")
+    
+    def _update_site_performance(self, site_domain, success, result_count):
+        """Track site performance for optimization"""
+        if site_domain not in self.site_performance:
+            self.site_performance[site_domain] = {
+                'success_count': 0,
+                'fail_count': 0,
+                'total_results': 0,
+                'avg_results': 0
+            }
+        
+        stats = self.site_performance[site_domain]
+        
+        if success:
+            stats['success_count'] += 1
+            stats['total_results'] += result_count
+            stats['avg_results'] = stats['total_results'] / stats['success_count']
+        else:
+            stats['fail_count'] += 1
+    
+    async def cleanup(self):
+        """Cleanup resources"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+    
     async def _scrape_websites(self, query):
-        """Scraping dari daftar website K-pop"""
+        """Legacy method - kept for backward compatibility"""
         results = []
         formatted_query = query.replace(' ', '+')
         
