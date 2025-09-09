@@ -438,11 +438,9 @@ class SmartKPopDetector:
                 
                 for group_name, group_idx in detected_groups:
                     if member_group.lower() == group_name.lower():
-                        # Member dan group cocok - return format untuk scraping
-                        combined_name = f"{member_name} from {group_name}"
                         import logging
-                        logging.debug(f"🎯 MEMBER_GROUP detected: {combined_name}")
-                        return "MEMBER_GROUP", combined_name, []
+                        logging.debug(f"🎯 MEMBER_GROUP detected: {member_name} from {group_name}")
+                        return "MEMBER", member_name, []
             
             # Jika tidak ada yang cocok, ambil yang pertama
             member_name = detected_members[0][0]
@@ -452,6 +450,71 @@ class SmartKPopDetector:
             logging.debug(f"🎯 MEMBER_GROUP detected (fallback): {combined_name}")
             return "MEMBER_GROUP", combined_name, []
         
+        return None
+    
+    def _check_aliases(self, input_lower):
+        """Check alias matches"""
+        if input_lower in self.aliases:
+            matches = self.aliases[input_lower]
+            if len(matches) == 1:
+                name, idx, category = matches[0]
+                return category, name, []
+            else:
+                # Multiple aliases
+                return "MULTIPLE", input_lower, [(name, category) for name, idx, category in matches]
+        return None
+
+    def _check_exact_groups(self, input_lower):
+        """Check exact group matches"""
+        if input_lower in self.group_names:
+            matches = self.group_names[input_lower]
+
+            # Deduplikasi berdasarkan nama grup yang sama
+            unique_groups = {}
+            for group_name, idx in matches:
+                if group_name not in unique_groups:
+                    unique_groups[group_name] = (group_name, idx)
+
+            unique_matches = list(unique_groups.values())
+
+            if len(unique_matches) == 1:
+                group_name, idx = unique_matches[0]
+                return "GROUP", group_name, []
+            else:
+                # Multiple groups dengan nama berbeda
+                return "MULTIPLE", input_lower, [(name, "GROUP") for name, idx in unique_matches]
+        return None
+
+def _check_exact_members(self, input_lower):
+    """Check exact member matches"""
+    if input_lower in self.member_names:
+        matches = self.member_names[input_lower]
+        if len(matches) == 1:
+            member_name, idx = matches[0]
+            return "MEMBER", member_name, []
+        else:
+            # Multiple members dengan nama sama (contoh: Siyeon dari Dreamcatcher vs QWER)
+            multiple_matches = []
+            for member_name, idx in matches:
+                row = self.kpop_df.iloc[idx]
+                group = str(row.get("Group", "")).strip()
+                multiple_matches.append((f"{member_name} ({group})", "MEMBER"))
+            return "MULTIPLE", input_lower, multiple_matches
+    return None
+
+    def _fuzzy_match(self, input_norm):
+        """Fuzzy matching dengan confidence scoring - skip blacklisted names dan prevent substring false positives"""
+        best_score = 0
+        best_match = None
+        best_category = None
+
+        input_lower = input_norm.lower()
+
+        # Skip jika input dalam blacklist
+        if input_lower in self.member_name_blacklist:
+            return None
+        
+        # TODO: Implement fuzzy matching logic
         return None
     
     def _check_aliases(self, input_lower):
