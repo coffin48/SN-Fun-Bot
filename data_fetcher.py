@@ -952,13 +952,18 @@ check official music platforms and databases like:
                 logger.logger.debug(f"Failed to scrape from {source['type']}: {e}")
                 continue
         
-        # Final fallback: Try alternative name formats
+        # Final fallback: Try alternative name formats including full names
         alternative_queries = [
             query.replace(' ', ''),  # "New Jeans" -> "NewJeans"
             query.replace('-', ' '),  # "new-jeans" -> "new jeans"
             query.title(),           # "newjeans" -> "Newjeans"
             query.upper(),           # "txt" -> "TXT"
         ]
+        
+        # Add database-based alternatives for ambiguous names
+        ambiguous_names = self._get_ambiguous_name_alternatives(query)
+        if ambiguous_names:
+            alternative_queries.extend(ambiguous_names)
         
         for alt_query in alternative_queries:
             if alt_query != query:  # Skip if same as original
@@ -969,6 +974,64 @@ check official music platforms and databases like:
         
         logger.logger.info(f"❌ No suitable image found for: {query}")
         return None
+    
+    def _get_ambiguous_name_alternatives(self, query):
+        """Generate alternative queries for ambiguous names based on database"""
+        if self.kpop_df is None:
+            return []
+        
+        query_lower = query.lower()
+        alternatives = []
+        
+        # Find all members with same stage name
+        matches = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == query_lower]
+        
+        if len(matches) > 1:  # Multiple members with same name
+            # Sort by group popularity (prioritize well-known groups)
+            popular_groups = ['BLACKPINK', 'IZ*ONE', 'TWICE', 'Red Velvet', 'ITZY', 'aespa', 
+                            'VIVIZ', 'Dreamcatcher', 'MAMAMOO', 'Girls Generation', 'SNSD']
+            
+            # Create alternatives with full names and group context
+            for _, member in matches.iterrows():
+                stage_name = member.get('Stage Name', '')
+                full_name = member.get('Full Name', '')
+                group = member.get('Group', '')
+                
+                if full_name and str(full_name).strip() and full_name != 'N/A':
+                    alternatives.append(full_name)
+                    alternatives.append(full_name.replace(' ', '-'))
+                
+                if group:
+                    alternatives.append(f"{stage_name} {group}")
+                    alternatives.append(f"{stage_name}-{group.lower()}")
+                    alternatives.append(f"{group} {stage_name}")
+                    
+                    # Add specific format for popular groups
+                    if group in popular_groups:
+                        alternatives.insert(0, f"{stage_name} {group}")  # Prioritize popular groups
+        
+        # Also check for real names that might match stage names
+        real_name_matches = self.kpop_df[
+            (self.kpop_df['Full Name'].str.contains(query, case=False, na=False)) |
+            (self.kpop_df['Korean Stage Name'].str.contains(query, case=False, na=False))
+        ]
+        
+        for _, member in real_name_matches.iterrows():
+            stage_name = member.get('Stage Name', '')
+            group = member.get('Group', '')
+            if stage_name and group:
+                alternatives.append(f"{stage_name} {group}")
+                alternatives.append(f"{stage_name}-{group.lower()}")
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_alternatives = []
+        for alt in alternatives:
+            if alt and alt.lower() not in seen:
+                seen.add(alt.lower())
+                unique_alternatives.append(alt)
+        
+        return unique_alternatives[:10]  # Limit to top 10 alternatives
     
     async def _search_google_images(self, query):
         """Search Google Images using Custom Search API (if configured)"""
