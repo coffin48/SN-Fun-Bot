@@ -38,7 +38,8 @@ def check_postgres_has_data():
                     logger.info(f"PostgreSQL table exists with {row_count} records")
                     return row_count > 0
                 except Exception as e:
-                    logger.warning(f"Error checking table data: {e}")
+                    logger.warning(f"Table exists but error checking data: {e}")
+                    # Table exists but has issues, trigger migration
                     return False
             else:
                 logger.info("PostgreSQL table kpop_members does not exist")
