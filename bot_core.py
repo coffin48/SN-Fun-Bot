@@ -82,47 +82,58 @@ class BotCore:
     
     async def _on_bot_ready(self):
         """Handle bot ready event with Discord status message"""
-        import random
-        
-        # Variasi pesan bot ready
-        ready_messages = [
-            "🟢 **Bot Ready!** SN Fun Bot siap melayani K-pop lovers! 🎵",
-            "✅ **Online!** Bot K-pop terfavorit sudah aktif! 🌟",
-            "🚀 **Ready to Rock!** SN Fun Bot siap dengan database K-pop terbaru! 💫",
-            "🎯 **Bot Active!** Siap kasih info K-pop terlengkap! 🔥",
-            "💚 **All Systems Go!** Bot K-pop hybrid sudah standby! ⚡",
-            "🌈 **Bot Online!** Ready untuk adventure K-pop bareng kalian! 🎪",
-            "⭐ **Status: Ready!** SN Fun Bot loaded dengan 5-category detection! 🤖"
-        ]
-        
-        # Pilih pesan random
-        status_message = random.choice(ready_messages)
-        
-        # Log ke Railway dengan database stats
-        db_stats = self.db_manager.get_database_stats()
-        logger.logger.info(f"🤖 Bot logged in as {self.bot.user}")
-        logger.logger.info(f"📊 Database: {db_stats['source']} - {db_stats['total_members']} members, {db_stats['total_groups']} groups")
-        logger.logger.info("🟢 Bot is ready and online!")
-        
-        # Kirim status message ke Discord
         try:
-            if self.STATUS_CHANNEL_ID:
-                # Kirim ke channel yang ditentukan
-                channel = self.bot.get_channel(int(self.STATUS_CHANNEL_ID))
-                if channel:
-                    await channel.send(status_message)
-                    logger.logger.info(f"✅ Status message sent to channel: {channel.name}")
+            import random
+            
+            # Variasi pesan bot ready
+            ready_messages = [
+                "🟢 **Bot Ready!** SN Fun Bot siap melayani K-pop lovers! 🎵",
+                "✅ **Online!** Bot K-pop terfavorit sudah aktif! 🌟",
+                "🚀 **Ready to Rock!** SN Fun Bot siap dengan database K-pop terbaru! 💫",
+                "🎯 **Bot Active!** Siap kasih info K-pop terlengkap! 🔥",
+                "💚 **All Systems Go!** Bot K-pop hybrid sudah standby! ⚡",
+                "🌈 **Bot Online!** Ready untuk adventure K-pop bareng kalian! 🎪",
+                "⭐ **Status: Ready!** SN Fun Bot loaded dengan 5-category detection! 🤖"
+            ]
+            
+            # Pilih pesan random
+            status_message = random.choice(ready_messages)
+            
+            # Log basic ready info first
+            logger.logger.info(f"🤖 Bot logged in as {self.bot.user}")
+            logger.logger.info("🟢 Bot is ready and online!")
+            
+            # Get database stats safely
+            try:
+                db_stats = self.db_manager.get_database_stats()
+                logger.logger.info(f"📊 Database: {db_stats['source']} - {db_stats['total_members']} members, {db_stats['total_groups']} groups")
+            except Exception as db_error:
+                logger.logger.warning(f"⚠️ Could not get database stats: {db_error}")
+                logger.logger.info("📊 Database: Using fallback mode")
+            
+            # Kirim status message ke Discord
+            try:
+                if self.STATUS_CHANNEL_ID:
+                    # Kirim ke channel yang ditentukan
+                    channel = self.bot.get_channel(int(self.STATUS_CHANNEL_ID))
+                    if channel:
+                        await channel.send(status_message)
+                        logger.logger.info(f"✅ Status message sent to channel: {channel.name}")
+                    else:
+                        logger.logger.warning(f"❌ Channel with ID {self.STATUS_CHANNEL_ID} not found")
+                        # Fallback ke auto-detect
+                        await self._send_to_any_channel(status_message)
                 else:
-                    logger.logger.warning(f"❌ Channel with ID {self.STATUS_CHANNEL_ID} not found")
-                    # Fallback ke auto-detect
+                    logger.logger.info("⚠️ No status channel configured, using auto-detect")
                     await self._send_to_any_channel(status_message)
-            else:
-                logger.logger.info("⚠️ No status channel configured, using auto-detect")
-                await self._send_to_any_channel(status_message)
+                    
+            except Exception as discord_error:
+                logger.logger.error(f"❌ Failed to send Discord status message: {discord_error}")
+                print(status_message)  # Fallback ke console
                 
         except Exception as e:
-            logger.logger.error(f"❌ Failed to send status message: {e}")
-            print(status_message)  # Fallback ke console
+            logger.logger.error(f"❌ Critical error in _on_bot_ready: {e}")
+            logger.logger.info("🟢 Bot startup completed despite errors")
     
     async def _send_to_any_channel(self, message):
         """Fallback method to send message to any available channel"""
