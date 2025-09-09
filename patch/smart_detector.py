@@ -413,6 +413,9 @@ class SmartKPopDetector:
         if len(words) < 2:
             return None
         
+        import logging
+        logging.debug(f"🔍 _detect_member_group: Processing '{input_norm}' -> words: {words}")
+        
         # Coba semua kombinasi kata untuk mencari member + group
         for i in range(len(words)):
             # Coba kombinasi 1 kata member + 1 kata group
@@ -420,51 +423,70 @@ class SmartKPopDetector:
                 member_part = ' '.join(words[:i+1])
                 group_part = ' '.join(words[i+1:])
                 
+                logging.debug(f"🔍 Trying: member='{member_part}' + group='{group_part}'")
+                
                 # Cek apakah group_part adalah nama grup yang valid
                 group_matches = []
-                for group_name, group_data in self.group_names.items():
-                    if group_part.lower() == group_name.lower():
+                for group_key, group_data in self.group_names.items():
+                    if group_part.lower() == group_key.lower():
                         group_matches.append((group_data[0][0], group_data[0][1]))  # (group_name, idx)
+                        logging.debug(f"✅ Found group match: {group_data[0][0]}")
                 
                 # Jika group_part adalah grup yang valid, cari member-nya
                 if group_matches:
                     group_name, group_idx = group_matches[0]  # Ambil yang pertama
                     
-                    # Cari member dengan nama yang cocok
-                    member_matches = []
+                    # Cari member dengan nama yang cocok DAN bagian dari grup ini
+                    valid_member_found = False
                     for member_key, member_data in self.member_names.items():
                         if member_part.lower() == member_key.lower():
+                            logging.debug(f"🔍 Found member key match: {member_key}")
                             for member_name, idx in member_data:
                                 member_row = self.kpop_df.iloc[idx]
                                 member_group = str(member_row.get('Group', '')).strip()
                                 
+                                logging.debug(f"🔍 Checking member: {member_name} from {member_group} vs target group: {group_name}")
+                                
                                 # Cek apakah member ini bagian dari grup yang dimaksud
                                 if member_group.lower() == group_name.lower():
+                                    logging.debug(f"✅ PERFECT MATCH: {member_name} from {group_name}")
                                     return "MEMBER_GROUP", f"{member_name} from {group_name}", []
                     
-                    # Jika tidak ditemukan yang cocok, kembalikan sebagai member + group biasa
-                    if member_part.lower() in self.member_names:
-                        member_name = self.member_names[member_part.lower()][0][0]
-                        return "MEMBER_GROUP", f"{member_name} from {group_name}", []
+                    # PENTING: Jika tidak ditemukan member yang valid dari grup tersebut, 
+                    # JANGAN kembalikan fallback - lanjutkan ke kombinasi lain
+                    logging.debug(f"❌ No valid member found for {member_part} in group {group_name}")
         
-        # Jika tidak ditemukan kombinasi member + group, coba cek apakah ada member dengan nama lengkap
-        full_name_matches = []
-        for member_key, member_data in self.member_names.items():
-            if member_key in input_lower:
-                for member_name, idx in member_data:
-                    full_name_matches.append((member_name, idx))
+        # Fallback: Jika tidak ditemukan kombinasi member + group yang valid
+        # Cek apakah ada member dengan nama yang cocok (tanpa grup spesifik)
+        for word in words:
+            word_lower = word.lower()
+            if word_lower in self.member_names:
+                member_data = self.member_names[word_lower]
+                if len(member_data) == 1:
+                    # Hanya satu member dengan nama ini
+                    member_name, idx = member_data[0]
+                    logging.debug(f"✅ Single member fallback: {member_name}")
+                    return "MEMBER", member_name, []
+                else:
+                    # Multiple members dengan nama yang sama
+                    multiple_matches = []
+                    for member_name, idx in member_data:
+                        member_row = self.kpop_df.iloc[idx]
+                        member_group = str(member_row.get('Group', '')).strip()
+                        multiple_matches.append((f"{member_name} ({member_group})", "MEMBER"))
+                    logging.debug(f"✅ Multiple member matches: {multiple_matches}")
+                    return "MULTIPLE", word_lower, multiple_matches
         
-        if full_name_matches:
-            # Ambil yang paling panjang (untuk menghindari partial match)
-            full_name_matches.sort(key=lambda x: len(x[0]), reverse=True)
-            best_match = full_name_matches[0]
-            return "MEMBER", best_match[0], []
+        # Cek apakah ada grup dengan nama yang cocok
+        for word in words:
+            word_lower = word.lower()
+            if word_lower in self.group_names:
+                group_data = self.group_names[word_lower]
+                group_name = group_data[0][0]
+                logging.debug(f"✅ Group fallback: {group_name}")
+                return "GROUP", group_name, []
         
-        # Cek apakah ada grup dengan nama yang mirip
-        for group_key, group_data in self.group_names.items():
-            if group_key in input_lower:
-                return "GROUP", group_data[0][0], []
-        
+        logging.debug("❌ No matches found in _detect_member_group")
         return None
     
     def _check_aliases(self, input_lower):
