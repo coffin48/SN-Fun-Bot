@@ -11,8 +11,8 @@ class SmartKPopDetector:
         # Exception list untuk nama K-pop pendek yang valid
         self.short_name_exceptions = ['iu', 'cl', 'gd', 'top', 'key', 'joy', 'kai', 'jin', 'rm', 'jb', 'hina', 'txt']
         
-        # Blacklist untuk nama yang terlalu umum dan menyebabkan false positive
-        self.member_name_blacklist = ['u']
+        # Blacklist untuk nama member yang terlalu umum atau problematik
+        self.member_name_blacklist = ['u', 'n', 'i']
         
         # Priority K-pop names yang harus dicek dulu sebelum casual conversation
         self.priority_kpop_names = set()
@@ -188,7 +188,9 @@ class SmartKPopDetector:
             r'(saya baik|aku baik|baik-baik saja|baik saja|alhamdulillah baik)',
             r'(terima kasih|makasih|thanks|thank you)',
             r'(kuku kakek|kaku kaku|tongue twister|pantun|puisi)',
-            r'(lagu baru|musik baru|karena lagu)'
+            r'(lagu baru|musik baru|karena lagu)',
+            r'(ingin merokok|mau merokok|pengen merokok|smoking)',
+            r'(aku ingin|aku mau|aku pengen|saya ingin|saya mau)'
         ]
         
         # Question patterns
