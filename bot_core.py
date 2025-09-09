@@ -61,15 +61,41 @@ class BotCore:
         except Exception as e:
             logger.logger.error(f"Error converting PostgreSQL to DataFrame: {e}")
         
-        # Emergency fallback - load CSV directly
+        # Emergency fallback - GitHub CSV
+        try:
+            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE_KPOP%20(1).csv"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            import requests
+            from io import StringIO
+            response = requests.get(github_url, headers=headers)
+            response.raise_for_status()
+            df = pd.read_csv(StringIO(response.text))
+            logger.logger.info(f"Emergency GitHub CSV fallback: {len(df)} records")
+            return df
+        except Exception as e:
+            logger.logger.error(f"Emergency GitHub CSV fallback failed: {e}")
+        
+        # Environment variable fallback
         try:
             if self.KPOP_CSV_ID:
-                csv_url = f"https://docs.google.com/spreadsheets/d/{self.KPOP_CSV_ID}/export?format=csv"
-                df = pd.read_csv(csv_url)
-                logger.logger.info(f"Emergency CSV fallback: {len(df)} records")
+                csv_url = f"https://docs.google.com/spreadsheets/d/{self.KPOP_CSV_ID}/export?format=csv&gid=0"
+                response = requests.get(csv_url, headers=headers)
+                response.raise_for_status()
+                df = pd.read_csv(StringIO(response.text))
+                logger.logger.info(f"Environment CSV fallback: {len(df)} records")
                 return df
         except Exception as e:
-            logger.logger.error(f"Emergency CSV fallback failed: {e}")
+            logger.logger.error(f"Environment CSV fallback failed: {e}")
+        
+        # Final fallback - local CSV file
+        try:
+            df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
+            logger.logger.info(f"Local CSV emergency fallback: {len(df)} records")
+            return df
+        except Exception as e:
+            logger.logger.error(f"Local CSV emergency fallback failed: {e}")
         
         logger.logger.warning("No data source available - using empty DataFrame")
         return pd.DataFrame()
