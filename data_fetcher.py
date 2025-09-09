@@ -38,10 +38,12 @@ class DataFetcher:
         # Site configuration dengan prioritas dan timeout
         self.scraping_sites = [
             {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".entry-content p", "type": "kprofile_group", "priority": 0.95, "timeout": 8},
+            {"url": "https://kprofiles.com/{}-discography/", "selector": ".entry-content", "type": "kprofile_discography", "priority": 0.93, "timeout": 8},
             {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_solo1", "priority": 0.90, "timeout": 8},
             {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".entry-content p", "type": "kprofile_solo2", "priority": 0.90, "timeout": 8},
             {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_member", "priority": 0.88, "timeout": 8},
             {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts", "priority": 0.88, "timeout": 8},
+            {"url": "https://en.wikipedia.org/wiki/{}_discography", "selector": ".mw-parser-output", "type": "wiki_discography", "priority": 0.87, "timeout": 6},
             {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.85, "timeout": 6},
             {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.83, "timeout": 6},
             {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english", "priority": 0.75, "timeout": 7},
@@ -214,6 +216,9 @@ class DataFetcher:
         
         # Clean and combine results
         final_text = self._clean_text(all_results)
+        
+        # Enhance with discography information if needed
+        final_text = self._enhance_discography_content(final_text, query)
         
         # Cache the result
         self._save_to_cache(cache_key, final_text)
@@ -790,64 +795,67 @@ class DataFetcher:
         database_info = []
         query_lower = query.lower()
         
-        # Cari grup yang cocok
+        # Search for group matches with discography enhancement
         group_matches = self.kpop_df[self.kpop_df['Group'].str.lower() == query_lower]
-        
-        if len(group_matches) > 0:
-            # Info grup dari database
+        if not group_matches.empty:
             group_name = group_matches.iloc[0]['Group']
-            agency = group_matches.iloc[0].get('Agency', 'N/A')
+            members = group_matches['Stage Name'].tolist()
             
-            database_info.append(f"Database Info: {group_name} members include:")
+            # Add discography placeholder for groups with emoji pointers
+            group_info = f"""
+Database Info for {group_name}:
+👥 Members: {', '.join(members)}
+👥 Total Members: {len(members)}
+🎵 Discography: Check latest albums and singles from official sources
+🎵 Popular Songs: Search for hit tracks and chart performance
+            """.strip()
             
-            # List semua member dengan info lengkap
-            for idx, member in group_matches.iterrows():
-                stage_name = member.get('Stage Name', 'N/A')
-                full_name = member.get('Full Name', 'N/A')
-                korean_name = member.get('Korean Name', 'N/A')
-                position = member.get('Position', 'N/A')
-                birthday = member.get('Birthday', 'N/A')
-                
-                member_info = f"{stage_name}"
-                if full_name != 'N/A' and str(full_name).strip():
-                    member_info += f" (Full Name: {full_name})"
-                if korean_name != 'N/A' and str(korean_name).strip():
-                    member_info += f" (Korean: {korean_name})"
-                if position != 'N/A' and str(position).strip():
-                    member_info += f" - Position: {position}"
-                if birthday != 'N/A' and str(birthday).strip():
-                    member_info += f" - Birthday: {birthday}"
-                
-                database_info.append(member_info)
-            
-            if agency != 'N/A' and str(agency).strip():
-                database_info.append(f"Agency: {agency}")
+            database_info.append(group_info)
         
-        # Cari member individual
+        # Search for individual member matches
         member_matches = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == query_lower]
+        for idx, member in member_matches.iterrows():
+            stage_name = member.get('Stage Name', '')
+            full_name = member.get('Full Name', '')
+            korean_name = member.get('Korean Stage Name', '')
+            group = member.get('Group', '')
+            
+            member_info = f"👤 {stage_name}"
+            if full_name and str(full_name).strip() and full_name != 'N/A':
+                member_info += f" (Full Name: {full_name})"
+            if korean_name and str(korean_name).strip() and korean_name != 'N/A':
+                member_info += f" (Korean: {korean_name})"
+            if group:
+                member_info += f" from {group}"
+            
+            database_info.append(member_info)
         
-        if len(member_matches) > 0:
-            for idx, member in member_matches.iterrows():
-                stage_name = member.get('Stage Name', 'N/A')
-                full_name = member.get('Full Name', 'N/A')
-                group = member.get('Group', 'N/A')
-                korean_name = member.get('Korean Stage Name', 'N/A')  # Fix: use Korean Stage Name
-                date_of_birth = member.get('Date of Birth', 'N/A')  # Fix: use Date of Birth
-                instagram = member.get('Instagram', 'N/A')
-                
-                # Enhanced member info dengan semua data yang tersedia
-                member_info = f"Database Info: {stage_name}"
-                if full_name != 'N/A' and str(full_name).strip():
-                    member_info += f" (Full Name: {full_name})"
-                if korean_name != 'N/A' and str(korean_name).strip():
-                    member_info += f" (Korean: {korean_name})"
-                if group != 'N/A' and str(group).strip():
-                    member_info += f" from {group}"
-                if date_of_birth != 'N/A' and str(date_of_birth).strip():
-                    member_info += f" - Birthday: {date_of_birth}"
-                if instagram != 'N/A' and str(instagram).strip():
-                    member_info += f" - Instagram: {instagram}"
-                
-                database_info.append(member_info)
+        return '\n\n'.join(database_info)
+    
+    def _enhance_discography_content(self, content, query):
+        """Enhance content with discography-specific information"""
+        discography_keywords = [
+            'album', 'single', 'ep', 'discography', 'track', 'song',
+            'release', 'chart', 'billboard', 'music', 'comeback'
+        ]
         
-        return " ".join(database_info)
+        # Check if content already contains discography info
+        content_lower = content.lower()
+        has_discography = any(keyword in content_lower for keyword in discography_keywords)
+        
+        if not has_discography:
+            # Add discography search suggestion with emoji pointers
+            enhancement = f"""
+
+🎵 Discography Information:
+For complete {query} discography including albums, singles, and chart performance, 
+check official music platforms and databases like:
+🎵 Spotify, Apple Music for streaming
+🎵 MelOn, Genie for Korean charts
+🎵 Billboard for international charts
+🎵 Official artist websites and social media
+            """.strip()
+            
+            content += enhancement
+        
+        return content
