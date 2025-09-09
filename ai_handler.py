@@ -320,7 +320,7 @@ Format:
 - Tanggal Lahir: [tanggal lahir] 
 - Fun Fact: [fakta menarik]
 - Rumor: [rumor atau "Gak ada rumor yang kesebut di sini, aman!"]
-- Social Media: [akun social media]
+- Social Media: [akun social media dengan emoji yang sesuai, contoh: "𝕏 @username, 📸 @username, 📺 YouTube Channel"]
 
 Awali dengan intro singkat natural (contoh: "Ini info tentang [nama]" atau "Berikut data [nama]"), lalu langsung ke format. Natural + emoticon. Hindari intro berlebihan seperti "gaya santai dan fun". Hanya dari konten yang diberikan.
 
