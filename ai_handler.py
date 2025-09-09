@@ -1,64 +1,140 @@
 """
 AI Handler Module - Menangani integrasi dengan Google Gemini AI
 """
-import os
 import asyncio
+import aiohttp
+import json
+import time
+import random
+import os
 import requests
 import logger
-from analytics import analytics
-import time
+from monitor_api_usage import log_api_usage
 
 class AIHandler:
     def __init__(self):
-        # Try to get API key from environment first, then from file
-        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        # Multiple API keys for load balancing
+        self.api_keys = []
+        for i in range(1, 4):  # Support up to 3 API keys
+            key = os.getenv(f"GEMINI_API_KEY_{i}") or os.getenv("GEMINI_API_KEY" if i == 1 else None)
+            if key:
+                self.api_keys.append(key)
         
-        # Only use environment variable for Railway deployment
-        if not self.GEMINI_API_KEY:
-            logger.logger.error("GEMINI_API_KEY environment variable not found")
-            self.GEMINI_API_KEY = None
+        # Fallback to single key if no numbered keys found
+        if not self.api_keys:
+            single_key = os.getenv("GEMINI_API_KEY")
+            if single_key:
+                self.api_keys.append(single_key)
         
-        # Multiple free model options for fallback
+        if not self.api_keys:
+            logger.logger.error("No GEMINI_API_KEY found. Set GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3")
+        else:
+            logger.logger.info(f"Loaded {len(self.api_keys)} Gemini API keys for load balancing")
+        
+        # Multiple model options with Gemini 2.0 Flash as primary
         self.models = [
+            "gemini-2.0-flash-exp",
             "gemini-1.5-flash",
-            "gemini-1.5-flash-8b", 
-            "gemini-1.0-pro"
+            "gemini-1.5-flash-8b"
         ]
         self.current_model_index = 0
+        self.current_key_index = 0
         self.base_url_template = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        
+        # Rate limiting tracking per API key
+        self.last_request_times = [0] * len(self.api_keys) if self.api_keys else [0]
+        self.min_request_interval = 1  # Reduced to 1 second with multiple keys
+        
+        # Category-specific API key assignment for optimal load distribution
+        self.category_api_mapping = {
+            "OBROLAN": 0,      # API Key 1 for casual conversation
+            "KPOP": 1,         # API Key 2 for K-pop info
+            "REKOMENDASI": 2   # API Key 3 for recommendations
+        }
+        
+        # Fallback mapping if fewer than 3 keys available
+        if len(self.api_keys) < 3:
+            self.category_api_mapping = {
+                "OBROLAN": 0 % len(self.api_keys),
+                "KPOP": 1 % len(self.api_keys),
+                "REKOMENDASI": 2 % len(self.api_keys)
+            }
     
-    async def chat_async(self, prompt, model="gemini-1.5-flash", max_tokens=2000):
-        """Async wrapper untuk Gemini chat"""
+    async def chat_async(self, prompt, model="gemini-2.0-flash-exp", max_tokens=2000, category=None):
+        """Async wrapper untuk Gemini chat with category support"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._chat_sync, prompt, model, max_tokens)
+        return await loop.run_in_executor(None, self._chat_sync, prompt, model, max_tokens, category)
     
-    def _chat_sync(self, prompt, model=None, max_tokens=2000):
-        """Synchronous Gemini API call with model fallback"""
-        # Validate API key
-        if not self.GEMINI_API_KEY:
+    def _chat_sync(self, prompt, model=None, max_tokens=2000, category=None):
+        """Synchronous Gemini API call with category-specific API key selection"""
+        # Validate API keys
+        if not self.api_keys:
             logger.logger.error("Gemini API key not found")
             return self._get_fallback_response()
         
-        # Try all available models if current one fails
+        # Determine preferred API key based on category
+        preferred_key_index = None
+        if category and category in self.category_api_mapping:
+            preferred_key_index = self.category_api_mapping[category]
+            if preferred_key_index < len(self.api_keys):
+                logger.logger.info(f"Using dedicated API key #{preferred_key_index + 1} for category: {category}")
+        
+        # Try all available models
         for model_attempt in range(len(self.models)):
             current_model = self.models[(self.current_model_index + model_attempt) % len(self.models)]
-            url = f"{self.base_url_template.format(model=current_model)}?key={self.GEMINI_API_KEY}"
             
-            logger.logger.info(f"Trying model: {current_model}")
+            # If we have a preferred key for this category, try it first
+            if preferred_key_index is not None:
+                current_key = self.api_keys[preferred_key_index]
+                url = f"{self.base_url_template.format(model=current_model)}?key={current_key}"
+                
+                logger.logger.info(f"Trying model: {current_model} with dedicated {category} API key #{preferred_key_index + 1}")
+                
+                result = self._try_model_request(url, prompt, max_tokens, current_model, preferred_key_index, category)
+                
+                if result != "MODEL_FAILED":
+                    # Success with preferred key
+                    self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
+                    return result
             
-            result = self._try_model_request(url, prompt, max_tokens, current_model)
+            # If preferred key failed or not available, try all other keys
+            for key_attempt in range(len(self.api_keys)):
+                current_key_index = (self.current_key_index + key_attempt) % len(self.api_keys)
+                
+                # Skip the preferred key if we already tried it
+                if current_key_index == preferred_key_index:
+                    continue
+                    
+                current_key = self.api_keys[current_key_index]
+                url = f"{self.base_url_template.format(model=current_model)}?key={current_key}"
+                
+                logger.logger.info(f"Trying model: {current_model} with fallback API key #{current_key_index + 1}")
+                
+                result = self._try_model_request(url, prompt, max_tokens, current_model, current_key_index, category)
+                
+                if result != "MODEL_FAILED":
+                    # Success with fallback key
+                    self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
+                    self.current_key_index = current_key_index
+                    return result
             
-            if result != "MODEL_FAILED":
-                # Success with this model, update current model index
-                self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
-                return result
         
-        # All models failed
-        logger.logger.error("All Gemini models failed")
+        # All models and keys failed
+        logger.logger.error("All Gemini models and API keys failed")
         return self._get_fallback_response()
     
-    def _try_model_request(self, url, prompt, max_tokens, model_name):
-        """Try a single model request with retry logic"""
+    def _try_model_request(self, url, prompt, max_tokens, model_name, api_key_index, category=None):
+        """Try a single model request with retry logic and rate limiting"""
+        # Rate limiting - ensure minimum interval between requests
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.min_request_interval:
+            sleep_time = self.min_request_interval - time_since_last
+            logger.logger.info(f"Rate limiting: waiting {sleep_time:.1f}s before request")
+            time.sleep(sleep_time)
+        
+        self.last_request_time = time.time()
+        
         headers = {
             "Content-Type": "application/json"
         }
@@ -69,10 +145,10 @@ class AIHandler:
                 }]
             }],
             "generationConfig": {
-                "maxOutputTokens": max_tokens,
-                "temperature": 0.5,  # Reduced for faster, more focused responses
-                "topP": 0.7,         # Reduced for faster generation
-                "topK": 20           # Reduced for faster generation
+                "maxOutputTokens": min(max_tokens, 800),  # Limit tokens to reduce rate limiting
+                "temperature": 0.3,  # Lower temperature for more predictable responses
+                "topP": 0.8,         # Balanced creativity vs speed
+                "topK": 40           # Balanced diversity vs speed
             },
             "safetySettings": [
                 {
@@ -96,11 +172,18 @@ class AIHandler:
         
         # Retry logic for API calls
         max_retries = 3
+        request_start_time = time.time()
+        
         for attempt in range(max_retries):
             try:
                 response = requests.post(url, headers=headers, json=data, timeout=30)
                 response.raise_for_status()
                 result = response.json()
+                
+                # Log successful API call
+                response_time_ms = int((time.time() - request_start_time) * 1000)
+                log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=True)
+                
                 break  # Success, exit retry loop
                 
             except requests.exceptions.HTTPError as e:
@@ -110,6 +193,12 @@ class AIHandler:
                     logger.logger.warning(f"Gemini API 503 error, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
+                elif e.response.status_code == 429 and attempt < max_retries - 1:
+                    # Rate limit exceeded, wait longer before retry
+                    wait_time = (2 ** (attempt + 2)) + 5  # 9, 21, 37 seconds
+                    logger.logger.warning(f"Gemini API rate limit (429), retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
                 elif e.response.status_code == 404:
                     # Model not found - try next model
                     logger.logger.warning(f"Model {model_name} not found (404), trying next model")
@@ -117,6 +206,9 @@ class AIHandler:
                 else:
                     # Final attempt failed or other HTTP error
                     logger.logger.error(f"Gemini API HTTP error for {model_name}: {e}")
+                    # Log failed API call
+                    response_time_ms = int((time.time() - request_start_time) * 1000)
+                    log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=False)
                     return "MODEL_FAILED"
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -126,10 +218,16 @@ class AIHandler:
                     continue
                 else:
                     logger.logger.error(f"Gemini API final error for {model_name}: {e}")
+                    # Log failed API call
+                    response_time_ms = int((time.time() - request_start_time) * 1000)
+                    log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=False)
                     return "MODEL_FAILED"
         else:
             # All retries failed for this model
             logger.logger.error(f"All retry attempts failed for model {model_name}")
+            # Log failed API call
+            response_time_ms = int((time.time() - request_start_time) * 1000)
+            log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=False)
             return "MODEL_FAILED"
         
         try:
@@ -244,7 +342,7 @@ Konten:
         else:  # GROUP
             prompt = self.create_group_summary_prompt(info)
         
-        return await self.chat_async(prompt, max_tokens=2000)
+        return await self.chat_async(prompt, max_tokens=2000, category="KPOP")
     
     def _get_fallback_response(self):
         """Generate fallback response when AI fails"""
@@ -259,4 +357,4 @@ Konten:
     async def handle_general_query(self, user_input):
         """Handle pertanyaan umum non-K-pop dengan optimasi"""
         # Reduced max_tokens untuk response time yang lebih cepat
-        return await self.chat_async(user_input, max_tokens=800)
+        return await self.chat_async(user_input, max_tokens=800, category="OBROLAN")

@@ -259,7 +259,7 @@ class CommandsHandler:
             # Generate response dengan AI (reduced max_tokens untuk speed)
             start_time = time.time()
             logger.log_ai_request("CASUAL", len(user_input))
-            summary = await self.ai_handler.chat_async(user_input, max_tokens=800)
+            summary = await self.ai_handler.chat_async(user_input, max_tokens=800, category="OBROLAN")
             ai_duration = int((time.time() - start_time) * 1000)
             logger.log_ai_response("CASUAL", len(summary) if summary else 0, ai_duration)
             
@@ -289,7 +289,7 @@ class CommandsHandler:
             logger.log_ai_request("RECOMMENDATION", len(user_input))
             
             # Langsung AI response dengan max_tokens terbatas
-            summary = await self.ai_handler.chat_async(user_input, max_tokens=1500)
+            summary = await self.ai_handler.chat_async(user_input, max_tokens=1500, category="REKOMENDASI")
             ai_duration = int((time.time() - start_time) * 1000)
             logger.log_ai_response("RECOMMENDATION", len(summary) if summary else 0, ai_duration)
             
