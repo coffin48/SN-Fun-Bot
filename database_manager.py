@@ -188,26 +188,57 @@ class DatabaseManager:
         if POSTGRES_AVAILABLE and self.engine:
             try:
                 with self.engine.connect() as conn:
-                    total = conn.execute(text("SELECT COUNT(*) FROM kpop_members")).fetchone()[0]
-                    groups = conn.execute(text("SELECT COUNT(DISTINCT group_name) FROM kpop_members")).fetchone()[0]
+                    # Check if table exists first
+                    table_check = conn.execute(text("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_name = 'kpop_members'
+                        )
+                    """)).fetchone()[0]
                     
-                return {
-                    'source': 'PostgreSQL',
-                    'total_members': total,
-                    'total_groups': groups,
-                    'status': 'connected'
-                }
+                    if not table_check:
+                        logger.logger.warning("Table kpop_members does not exist in PostgreSQL")
+                        # Fall through to CSV fallback
+                    else:
+                        total = conn.execute(text("SELECT COUNT(*) FROM kpop_members")).fetchone()[0]
+                        groups = conn.execute(text("SELECT COUNT(DISTINCT group_name) FROM kpop_members")).fetchone()[0]
+                        
+                        return {
+                            'source': 'PostgreSQL',
+                            'total_members': total,
+                            'total_groups': groups,
+                            'status': 'connected'
+                        }
             except Exception as e:
-                logger.logger.error(f"Stats error: {e}")
+                logger.logger.error(f"PostgreSQL stats error: {e}")
+                # Fall through to CSV fallback
         
         # CSV fallback stats
-        if self.kpop_df is not None:
-            return {
-                'source': 'CSV',
-                'total_members': len(self.kpop_df),
-                'total_groups': self.kpop_df['Group'].nunique(),
-                'status': 'fallback'
-            }
+        if self.kpop_df is not None and not self.kpop_df.empty:
+            try:
+                # Handle different possible column names
+                group_column = None
+                if 'Group' in self.kpop_df.columns:
+                    group_column = 'Group'
+                elif 'group_name' in self.kpop_df.columns:
+                    group_column = 'group_name'
+                
+                total_groups = self.kpop_df[group_column].nunique() if group_column else 0
+                
+                return {
+                    'source': 'CSV',
+                    'total_members': len(self.kpop_df),
+                    'total_groups': total_groups,
+                    'status': 'fallback'
+                }
+            except Exception as e:
+                logger.logger.error(f"Error getting CSV stats: {e}")
+                return {
+                    'source': 'CSV',
+                    'total_members': len(self.kpop_df) if self.kpop_df is not None else 0,
+                    'total_groups': 0,
+                    'status': 'error'
+                }
         
         return {
             'source': 'none',
