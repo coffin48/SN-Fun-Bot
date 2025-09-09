@@ -325,7 +325,7 @@ Format wajib:
 
 Gunakan bahasa indonesia santai, natural, dan fun, tambahkan emoticon secukupnya agar lebih emosional.
 **Hanya ringkasan dari konten yang diberikan, jangan menambahkan informasi baru.**
-Jangan pakai tabel, <br>, atau garis.
+Gunakan format yang bersih dan mudah dibaca.
 
 Konten:
 {info}
@@ -344,7 +344,7 @@ Rangkum konten berikut menjadi informasi penting tentang grup K-pop.
 Fokus pada: Debut, Nama-nama member, Discography, Prestasi, Fandom.
 Gunakan bahasa indonesia santai, natural, dan fun, tambahkan emoticon secukupnya agar lebih emosional.
 **Hanya ringkasan dari konten yang diberikan, jangan menambahkan informasi baru.**
-Jangan pakai tabel, <br>, atau garis.
+Gunakan format yang bersih dan mudah dibaca.
 
 Konten:
 {info}
