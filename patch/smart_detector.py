@@ -97,9 +97,9 @@ class SmartKPopDetector:
                 # Tambahkan ke priority names
                 self.priority_kpop_names.add(korean_name_lower)
     
-    def detect(self, user_input):
+    def detect(self, user_input, conversation_context=None):
         """
-        Deteksi K-pop dengan kategorisasi spesifik
+        Deteksi K-pop dengan kategorisasi spesifik dan context-aware transitions
         Returns: (category, detected_name, multiple_matches)
         Categories: MEMBER, GROUP, MEMBER_GROUP, OBROLAN, REKOMENDASI, MULTIPLE
         """
@@ -110,6 +110,12 @@ class SmartKPopDetector:
         import logging
         logging.debug(f"🔍 Detecting: '{input_norm}' (lower: '{input_lower}')")
         logging.debug(f"📊 Priority names contains '{input_lower}': {input_lower in self.priority_kpop_names}")
+        
+        # Context-aware transition detection
+        if conversation_context:
+            transition_result = self._detect_context_transition(input_lower, conversation_context)
+            if transition_result:
+                return transition_result
         
         # Prioritas 1: Deteksi REKOMENDASI
         if self._is_recommendation_request(input_lower):
@@ -172,6 +178,178 @@ class SmartKPopDetector:
         
         # Default: OBROLAN untuk input yang tidak terdeteksi
         return "OBROLAN", input_norm, []
+    
+    def _detect_context_transition(self, input_lower, conversation_context):
+        """Detect smooth transitions between categories based on conversation context"""
+        
+        # Transition patterns untuk OBROLAN → KPOP
+        kpop_transition_patterns = [
+            # Direct mention dengan context
+            r'(iya|ya|betul|benar).*(blackpink|twice|bts|newjeans|ive|aespa)',
+            r'(gimana|bagaimana).*(tentang|soal|dengan).*(blackpink|twice|bts)',
+            r'(kalau|kalo).*(blackpink|twice|bts|newjeans)',
+            r'(suka|demen|seneng).*(blackpink|twice|bts|newjeans)',
+            
+            # Follow-up questions
+            r'(siapa|apa).*(member|anggota|personil)',
+            r'(kapan|when).*(debut|mulai)',
+            r'(lagu|song).*(favorit|bagus|hits)',
+            
+            # Comparison patterns
+            r'(lebih|more).*(bagus|baik|keren|suka)',
+            r'(atau|or|vs)',
+            r'(dibanding|compared|versus)'
+        ]
+        
+        # Transition patterns untuk KPOP → REKOMENDASI  
+        recommendation_transition_patterns = [
+            r'(ada|punya).*(rekomendasi|saran|suggest)',
+            r'(yang lain|lainnya|other)',
+            r'(mirip|similar|seperti|kayak)',
+            r'(genre|style|tipe).*(sama|similar)',
+            r'(selain|besides|except)',
+            r'(recommend|rekomen|saranin)'
+        ]
+        
+        # Check for K-pop names in context
+        for pattern in kpop_transition_patterns:
+            if re.search(pattern, input_lower):
+                # Extract K-pop name from input
+                extracted_name = self._extract_kpop_from_transition(input_lower)
+                if extracted_name:
+                    return extracted_name
+        
+        # Check for recommendation transition
+        for pattern in recommendation_transition_patterns:
+            if re.search(pattern, input_lower):
+                return "REKOMENDASI", input_lower, []
+        
+        # Context-based K-pop detection
+        if self._has_kpop_context_transition(input_lower, conversation_context):
+            context_result = self._extract_kpop_from_context(input_lower, conversation_context)
+            if context_result[0] != "NON-KPOP":
+                return context_result
+        
+        return None
+    
+    def _extract_kpop_from_transition(self, input_lower):
+        """Extract K-pop name from transition patterns with priority: GROUP > MEMBER"""
+        
+        # Strategy 1: Exact group matches - prioritize longer matches
+        best_group_match = None
+        best_group_length = 0
+        
+        for group_key, group_data in self.group_names.items():
+            if group_key in input_lower and len(group_key) > best_group_length:
+                best_group_match = ("GROUP", group_data[0][0], [])
+                best_group_length = len(group_key)
+        
+        if best_group_match:
+            return best_group_match
+        
+        # Strategy 2: Exact member matches - prioritize longer matches
+        best_member_match = None
+        best_member_length = 0
+        
+        for member_key, member_data in self.member_names.items():
+            if member_key in input_lower and len(member_key) > best_member_length:
+                best_member_match = ("MEMBER", member_data[0][0], [])
+                best_member_length = len(member_key)
+        
+        if best_member_match:
+            return best_member_match
+        
+        # Strategy 3: Fuzzy matching - Groups first
+        words = input_lower.split()
+        for word in words:
+            if len(word) > 2:  # Skip very short words
+                # Check groups with fuzzy matching
+                for group_key, group_data in self.group_names.items():
+                    if fuzz.ratio(word, group_key) >= 85:  # Higher threshold for better accuracy
+                        return "GROUP", group_data[0][0], []
+        
+        # Strategy 4: Fuzzy matching - Members second
+        for word in words:
+            if len(word) > 2:
+                # Check members with fuzzy matching
+                for member_key, member_data in self.member_names.items():
+                    if fuzz.ratio(word, member_key) >= 85:
+                        return "MEMBER", member_data[0][0], []
+        
+        return None
+    
+    def _has_kpop_context_transition(self, input_lower, conversation_context):
+        """Check if input has K-pop context for smooth transition"""
+        if not conversation_context:
+            return False
+            
+        # Context indicators for pronoun references
+        pronoun_indicators = [
+            'mereka', 'dia', 'itu', 'tersebut', 'yang tadi', 'sebelumnya',
+            'grup itu', 'member itu', 'lagu itu', 'album itu'
+        ]
+        
+        # Question indicators that suggest K-pop context
+        question_indicators = [
+            'debut kapan', 'kapan debut', 'mulai kapan', 'kapan mulai',
+            'member siapa', 'siapa member', 'anggota siapa', 'siapa anggota',
+            'lagu apa', 'apa lagu', 'album apa', 'apa album',
+            'mereka debut', 'debut mereka'
+        ]
+        
+        # Check if recent context mentioned K-pop
+        recent_context = conversation_context.lower()
+        has_kpop_in_context = any(name in recent_context for name in self.priority_kpop_names)
+        
+        # Also check group names directly in context
+        if not has_kpop_in_context:
+            has_kpop_in_context = any(group_key in recent_context for group_key in self.group_names.keys())
+        
+        # Also check member names in context
+        if not has_kpop_in_context:
+            has_kpop_in_context = any(member_key in recent_context for member_key in self.member_names.keys())
+        
+        # Check for pronoun references
+        has_pronoun_reference = any(indicator in input_lower for indicator in pronoun_indicators)
+        
+        # Check for K-pop related questions
+        has_kpop_question = any(indicator in input_lower for indicator in question_indicators)
+        
+        return has_kpop_in_context and (has_pronoun_reference or has_kpop_question)
+    
+    def _extract_kpop_from_context(self, input_lower, conversation_context=None):
+        """Extract K-pop information from context when pronoun references are used"""
+        # For context-based queries with pronouns, we need to maintain the context
+        # but classify it appropriately based on the question type
+        
+        # Check if it's asking about group information (debut, members, etc.)
+        group_question_patterns = [
+            'debut kapan', 'kapan debut', 'mulai kapan', 'kapan mulai',
+            'member siapa', 'siapa member', 'anggota siapa', 'siapa anggota',
+            'berapa member', 'jumlah member', 'ada berapa',
+            'mereka debut', 'debut mereka'
+        ]
+        
+        # Check if it's asking about member information
+        member_question_patterns = [
+            'dia main drama', 'main drama', 'acting', 'akting',
+            'umur berapa', 'berapa umur', 'lahir kapan', 'kapan lahir'
+        ]
+        
+        # Determine the type based on question pattern
+        for pattern in group_question_patterns:
+            if pattern in input_lower:
+                # This is a group-related question, return GROUP category
+                # The actual group name will be handled by the AI with context
+                return "GROUP", input_lower, []
+        
+        for pattern in member_question_patterns:
+            if pattern in input_lower:
+                # This is a member-related question, return MEMBER category
+                return "MEMBER", input_lower, []
+        
+        # Default to OBROLAN for other context-based queries
+        return "OBROLAN", input_lower, []
     
     def _is_recommendation_request(self, input_lower):
         """Deteksi request rekomendasi"""
@@ -393,72 +571,3 @@ class SmartKPopDetector:
         input_lower = user_input.lower()
         return any(indicator in input_lower for indicator in kpop_indicators)
     
-    def _extract_kpop_from_context(self, user_input):
-        """Extract K-pop name from mixed context"""
-        words = user_input.split()
-        
-        # Filter kata-kata umum yang bukan K-pop names
-        common_words = {'aku', 'saya', 'kamu', 'dia', 'info', 'tentang', 'soal', 'dari', 'untuk', 'dengan', 'yang', 'ini', 'itu', 'dan', 'atau', 'beri', 'kasih', 'minta', 'ingin', 'mau', 'pengen', 'baik', 'saja', 'juga', 'lagi', 'apa', 'dong', 'nih'}
-        
-        # Cek setiap kata untuk K-pop names - prioritas grup dulu
-        for word in words:
-            word_clean = re.sub(r'[^\w]', '', word).strip()
-            word_lower = word_clean.lower()
-            
-            # Skip kata-kata umum
-            if word_lower in common_words or len(word_clean) <= 1:
-                continue
-                
-            # Try exact match grup dulu (prioritas tinggi)
-            result = self._check_exact_groups(word_lower)
-            if result:
-                return result
-        
-        # Kemudian cek member jika tidak ada grup yang cocok
-        for word in words:
-            word_clean = re.sub(r'[^\w]', '', word).strip()
-            word_lower = word_clean.lower()
-            
-            # Skip kata-kata umum
-            if word_lower in common_words or len(word_clean) <= 1:
-                continue
-                
-            result = self._check_exact_members(word_lower)
-            if result:
-                return result
-        
-        # Jika tidak ada exact match, coba fuzzy matching - prioritas grup dulu
-        for word in words:
-            word_clean = re.sub(r'[^\w]', '', word).strip()
-            word_lower = word_clean.lower()
-            
-            # Skip kata-kata umum dan pendek
-            if word_lower in common_words or len(word_clean) <= 2:
-                continue
-                
-            # Fuzzy match untuk groups dulu
-            for _, row in self.kpop_df.iterrows():
-                group_name = str(row.get("Group", "")).strip()
-                if group_name:
-                    score = fuzz.ratio(word_lower, group_name.lower())
-                    if score >= 85:  # High threshold untuk context extraction
-                        return "GROUP", group_name, []
-        
-        # Kemudian fuzzy match untuk members
-        for word in words:
-            word_clean = re.sub(r'[^\w]', '', word).strip()
-            word_lower = word_clean.lower()
-            
-            # Skip kata-kata umum, pendek, dan blacklisted
-            if word_lower in common_words or len(word_clean) <= 2 or word_lower in self.member_name_blacklist:
-                continue
-                
-            for _, row in self.kpop_df.iterrows():
-                for col in ["Stage Name", "Korean Stage Name", "Full Name"]:
-                    member_name = str(row.get(col, "")).strip()
-                    if member_name and member_name.lower() not in self.member_name_blacklist:
-                        score = fuzz.ratio(word_lower, member_name.lower())
-                        if score >= 85:  # High threshold untuk context extraction
-                            return "MEMBER", member_name, []
-        
-        return "NON-KPOP", None, []
