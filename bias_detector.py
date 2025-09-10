@@ -1,9 +1,8 @@
 """
-Bias Detector Module - AI-powered love match & fortune teller untuk Secret Number
+Bias Detector - AI-powered K-pop bias detection and love matching
 """
 import discord
 import random
-import asyncio
 from datetime import datetime
 from logger import logger
 from ai_handler import AIHandler
@@ -283,7 +282,7 @@ class BiasDetector:
             logger.warning(f"Using fallback member: {fallback}")
             return fallback
     
-    def love_match(self, user_id: str, member_name: str, force_direct_match: bool = False):
+    async def love_match(self, user_id: str, member_name: str, force_direct_match: bool = False):
         """Generate love match result for user and member"""
         logger.info(f"love_match called: user_id={user_id}, member_name='{member_name}', force_direct_match={force_direct_match}")
         
@@ -359,7 +358,7 @@ class BiasDetector:
         
         # Get AI response
         try:
-            ai_response = self.ai_handler.get_ai_response(prompt)
+            ai_response = await self.ai_handler.get_ai_response(prompt)
         except:
             ai_response = "AI analysis unavailable"
         
