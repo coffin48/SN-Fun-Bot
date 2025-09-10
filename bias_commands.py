@@ -87,24 +87,30 @@ class BiasCommandsHandler:
         loading_message = await ctx.send(embed=loading_embed)
         
         try:
+            logger.info(f"🔍 Starting bias detection for user {user_id}")
+            
             # Get user preferences
             preferences = self.user_preferences.get(user_id, {})
+            logger.info(f"User preferences: {preferences}")
             
             # Detect bias using AI
+            logger.info("Calling bias_detector.bias_detect...")
             bias_result = await self.bias_detector.bias_detect(user_id, preferences)
+            logger.info(f"✅ Bias detection completed. Result type: {type(bias_result)}")
+            logger.info(f"Bias result: {bias_result}")
             
             # Check if there's an error
             if isinstance(bias_result, dict) and bias_result.get('error'):
+                logger.error(f"Bias detection returned error: {bias_result['error']}")
                 await loading_message.edit(embed=self._create_error_embed(bias_result['error']))
                 return
             
             # Extract member info from bias result
             member_name = bias_result.get('member_name')
-            member_data = self.bias_detector.get_member_info(member_name)
+            logger.info(f"Extracted member name: {member_name}")
             
-            # Debug logging
-            logger.info(f"Bias result: {bias_result}")
-            logger.info(f"Member data: {member_data}")
+            member_data = self.bias_detector.get_member_info(member_name)
+            logger.info(f"Member data retrieved: {member_data}")
             
             if not member_data:
                 logger.error(f"No member data found for: {member_name}")
@@ -150,10 +156,14 @@ class BiasCommandsHandler:
             
             result_embed.set_footer(text="K-pop Bias Detector • Dibuat dengan cinta 💕")
             
+            logger.info("📤 Sending result embed to Discord...")
             await loading_message.edit(embed=result_embed)
+            logger.info("✅ Result embed sent successfully!")
             
         except Exception as e:
-            logger.error(f"Bias detect error: {e}")
+            logger.error(f"❌ Bias detect error: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             await loading_message.edit(embed=self._create_error_embed("Bias detection gagal"))
     
     async def _handle_love_match(self, ctx, user_id: str, args):
