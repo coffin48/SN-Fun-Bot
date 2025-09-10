@@ -280,12 +280,32 @@ class BiasDetector:
             score_seed = f"{user_id}_bias_detect_{selected_key}"
             compatibility_score = 75 + (hash(score_seed) % 25)  # 75-99%
             
-            # Generate AI analysis
-            ai_prompt = f"""
-            Analisis singkat mengapa {member_data['name']} cocok sebagai bias.
-            Skor: {compatibility_score}%
+            # Generate personality-based AI analysis for bias detection
+            personality_traits = [
+                "kreatif dan imajinatif", "loyal dan setia", "energik dan ceria", "tenang dan bijaksana",
+                "spontan dan fun", "perfeksionis", "empati tinggi", "leadership natural",
+                "artistic soul", "adventurous spirit", "caring dan nurturing", "confident dan bold"
+            ]
             
-            Buat analisis fun dalam bahasa Indonesia yang cute. Maksimal 2-3 kalimat pendek.
+            user_trait = personality_traits[hash(f"{user_id}_trait") % len(personality_traits)]
+            member_trait = personality_traits[hash(f"{selected_key}_trait") % len(personality_traits)]
+            
+            ai_prompt = f"""
+            BIAS DETECTOR ANALYSIS 🎯
+            
+            Kamu adalah AI personality analyzer yang ahli dalam MBTI dan astrologi K-pop!
+            
+            User personality: {user_trait}
+            {member_data['name']} personality: {member_trait}
+            Compatibility score: {compatibility_score}%
+            
+            Analisis mengapa {member_data['name']} dari {member_data.get('group', 'Secret Number')} cocok jadi bias kamu berdasarkan:
+            1. Kecocokan personality traits
+            2. Vibe dan energy yang match
+            3. Alasan psikologis kenapa kalian klop
+            
+            Gunakan bahasa Indonesia yang fun, analytical tapi tetap cute. 3-4 kalimat.
+            Fokus pada ANALISIS KEPRIBADIAN, bukan ramalan!
             """
             
             ai_analysis = await self.ai_handler.get_ai_response(ai_prompt)
@@ -585,20 +605,38 @@ class BiasDetector:
             fortune_colors = [0xFF69B4, 0x87CEEB, 0x98FB98, 0xDDA0DD, 0xF0E68C, 0xFFB6C1]
             lucky_color = fortune_colors[hash(fortune_seed + "_color") % len(fortune_colors)]
             
-            # Generate fortune based on type
+            # Generate mystical fortune elements
+            zodiac_signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", 
+                           "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+            tarot_cards = ["The Star", "The Sun", "The Moon", "The Lovers", "The Empress", 
+                          "The Magician", "Wheel of Fortune", "The World", "The Fool"]
+            
+            cosmic_sign = zodiac_signs[hash(f"{user_id}_zodiac") % len(zodiac_signs)]
+            tarot_card = tarot_cards[hash(f"{user_id}_tarot") % len(tarot_cards)]
+            
+            # Generate fortune based on type with mystical elements
             fortune_prompts = {
-                'love': f"Ramalan cinta untuk hari ini. {guide_member['name']} lagi bantuin ramalin nasib cinta kamu!",
-                'career': f"Ramalan karir dan kesuksesan. {guide_member['name']} punya insight tentang masa depan kamu!",
-                'friendship': f"Ramalan persahabatan dan hubungan sosial. {guide_member['name']} tau gimana cara bikin friendship kamu makin solid!",
-                'general': f"Ramalan umum untuk hari ini. {guide_member['name']} punya pesan kosmik buat kamu!"
+                'love': f"🌹 RAMALAN CINTA KOSMIK 🌹\n\n{guide_member['name']} sebagai spiritual guide kamu melihat energi cinta di sekitar kamu! Kartu tarot: {tarot_card}, Pengaruh: {cosmic_sign}",
+                'career': f"💼 RAMALAN KARIR & KESUKSESAN 💼\n\n{guide_member['name']} membaca aura kesuksesan kamu! Kartu tarot: {tarot_card}, Energi: {cosmic_sign}",
+                'friendship': f"👥 RAMALAN PERSAHABATAN 👥\n\n{guide_member['name']} merasakan getaran sosial di sekitar kamu! Kartu tarot: {tarot_card}, Vibe: {cosmic_sign}",
+                'general': f"✨ RAMALAN KOSMIK HARIAN ✨\n\n{guide_member['name']} menerima pesan dari alam semesta buat kamu! Kartu tarot: {tarot_card}, Energi: {cosmic_sign}"
             }
             
             ai_prompt = f"""
+            FORTUNE TELLER MYSTICAL READING 🔮
+            
+            Kamu adalah peramal kosmik K-pop yang bisa melihat masa depan!
+            
             {fortune_prompts.get(fortune_type, fortune_prompts['general'])}
             Angka hoki: {lucky_number}
             
-            Buat ramalan yang positif, fun, dan encouraging dalam bahasa Indonesia yang cute dan optimis.
-            Panjang sekitar 2-3 kalimat.
+            Buat PREDIKSI MASA DEPAN yang spesifik untuk {fortune_type}:
+            1. Apa yang akan terjadi dalam 1-2 minggu ke depan
+            2. Peluang dan tantangan yang akan dihadapi
+            3. Saran mystical untuk memaksimalkan keberuntungan
+            
+            Gunakan bahasa Indonesia yang mystical, prophetic, tapi tetap fun dan optimis. 4-5 kalimat.
+            Fokus pada PREDIKSI MASA DEPAN, bukan analisis personality!
             """
             
             fortune_text = await self.ai_handler.get_ai_response(ai_prompt)
@@ -621,6 +659,89 @@ class BiasDetector:
             logger.error(f"❌ Fortune reading error for user {user_id}: {e}")
             return {
                 'error': 'Fortune reading gagal, coba lagi ya! 🔮'
+            }
+    
+    async def ramalan_tradisional(self, user_id: str, ramalan_type: str = 'umum'):
+        """Generate traditional Indonesian fortune telling"""
+        logger.info(f"🌙 Starting ramalan tradisional for user {user_id}, type: {ramalan_type}")
+        
+        try:
+            # Get random dukun member (traditional fortune teller)
+            if self.members:
+                available_members = list(self.members.keys())
+                dukun_key = random.choice(available_members)
+                dukun_member = self.members[dukun_key]
+            else:
+                available_members = list(self.sn_members.keys())
+                dukun_key = random.choice(available_members)
+                dukun_member = self.sn_members[dukun_key]
+            
+            # Generate traditional Indonesian fortune elements
+            ramalan_seed = f"{user_id}_ramalan_{ramalan_type}"
+            
+            # Traditional Indonesian fortune elements
+            hari_baik = ["Senin Kliwon", "Selasa Pahing", "Rabu Wage", "Kamis Pon", "Jumat Legi", "Sabtu Kliwon", "Minggu Pahing"]
+            weton_baik = ["Manis", "Pahing", "Pon", "Wage", "Kliwon"]
+            rejeki_arah = ["Utara", "Selatan", "Timur", "Barat", "Tenggara", "Barat Daya", "Timur Laut", "Barat Laut"]
+            
+            hari_hoki = hari_baik[hash(ramalan_seed + "_hari") % len(hari_baik)]
+            weton_hoki = weton_baik[hash(ramalan_seed + "_weton") % len(weton_baik)]
+            arah_rejeki = rejeki_arah[hash(ramalan_seed + "_arah") % len(rejeki_arah)]
+            angka_jawa = 1 + (hash(ramalan_seed + "_angka") % 9)  # 1-9 traditional Javanese numbers
+            
+            # Traditional colors
+            ramalan_colors = [0x8B4513, 0x228B22, 0x800080, 0xFF8C00, 0x4B0082, 0x2F4F4F]
+            warna_hoki = ramalan_colors[hash(ramalan_seed + "_warna") % len(ramalan_colors)]
+            
+            # Generate ramalan based on type with traditional elements
+            ramalan_prompts = {
+                'cinta': f"🌺 RAMALAN CINTA TRADISIONAL 🌺\n\n{dukun_member['name']} sebagai dukun cinta melihat garis tangan dan membaca daun lontar tentang nasib asmara kamu! Hari baik: {hari_hoki}, Weton: {weton_hoki}",
+                'rejeki': f"💰 RAMALAN REJEKI & KEKAYAAN 💰\n\n{dukun_member['name']} membaca primbon dan melihat garis rejeki di telapak tangan kamu! Arah rejeki: {arah_rejeki}, Weton: {weton_hoki}",
+                'kesehatan': f"🌿 RAMALAN KESEHATAN & KESELAMATAN 🌿\n\n{dukun_member['name']} melihat aura kesehatan dari rasi bintang Jawa! Hari baik: {hari_hoki}, Weton: {weton_hoki}",
+                'umum': f"🌙 RAMALAN NASIB TRADISIONAL 🌙\n\n{dukun_member['name']} membaca kitab primbon dan melihat nasib kamu dari perhitungan Jawa kuno! Weton: {weton_hoki}, Arah baik: {arah_rejeki}"
+            }
+            
+            ai_prompt = f"""
+            RAMALAN TRADISIONAL INDONESIA 🌙
+            
+            Kamu adalah dukun/peramal tradisional Indonesia yang ahli primbon, weton, dan perhitungan Jawa!
+            
+            {ramalan_prompts.get(ramalan_type, ramalan_prompts['umum'])}
+            Angka Jawa: {angka_jawa}
+            
+            Buat RAMALAN TRADISIONAL INDONESIA yang berisi:
+            1. Analisis berdasarkan weton dan hari baik
+            2. Petunjuk dari primbon Jawa
+            3. Saran tradisional untuk menghindari sial dan meningkatkan hoki
+            4. Pantangan dan anjuran berdasarkan perhitungan Jawa
+            
+            Gunakan bahasa Indonesia dengan nuansa tradisional, bijaksana, tapi tetap modern dan fun. 4-5 kalimat.
+            Fokus pada TRADISI INDONESIA dan PRIMBON, bukan astrologi barat!
+            """
+            
+            ramalan_text = await self.ai_handler.get_ai_response(ai_prompt)
+            
+            ramalan_result = {
+                'ramalan': ramalan_text,
+                'dukun_member': {
+                    'name': dukun_member['name'],
+                    'emoji': dukun_member.get('emoji', '🌙')
+                },
+                'hari_baik': hari_hoki,
+                'weton_hoki': weton_hoki,
+                'arah_rejeki': arah_rejeki,
+                'angka_jawa': angka_jawa,
+                'warna_hoki': warna_hoki,
+                'ramalan_type': ramalan_type
+            }
+            
+            logger.info(f"✅ Ramalan tradisional completed for user {user_id}")
+            return ramalan_result
+            
+        except Exception as e:
+            logger.error(f"❌ Ramalan tradisional error for user {user_id}: {e}")
+            return {
+                'error': 'Ramalan tradisional gagal, coba lagi ya! 🌙'
             }
     
     def get_member_info(self, member_name: str):
