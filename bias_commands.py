@@ -150,35 +150,11 @@ class BiasCommandsHandler:
         
         # Check if first argument is just a number (invalid input)
         if len(args) == 1 and args[0].isdigit():
-            await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member>` atau `!sn match <nama_member> <nomor>`")
+            await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member>` atau `!sn match <nama_member> <grup>`")
             return
         
-        # Check if user is selecting by number (e.g., "jisoo 2")
-        if len(args) >= 2 and args[1].isdigit():
-            member_name = args[0].lower()
-            selection_number = int(args[1])
-            
-            logger.info(f"Processing member selection: member_name='{member_name}', selection_number={selection_number}")
-            
-            # Validate member name is not just a number
-            if member_name.isdigit():
-                await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member> <nomor>`")
-                return
-            
-            # Handle member selection by number
-            selected_member = self.bias_detector.handle_member_selection(user_id, member_name, selection_number)
-            logger.info(f"handle_member_selection returned: '{selected_member}' (type: {type(selected_member)})")
-            
-            if not selected_member:
-                await ctx.send(f"❌ Nomor pilihan tidak valid! Coba lagi dengan nomor yang benar.")
-                return
-            
-            member_name = selected_member
-            force_direct = True  # Selected member is already a specific member key
-            logger.info(f"User {user_id} selected member: '{member_name}' from selection, proceeding with this member_name")
-        
         # Check if user specified member with group (e.g., "jisoo blackpink")
-        elif len(args) >= 2:
+        if len(args) >= 2:
             member_name_input = args[0].lower()
             group_name_input = ' '.join(args[1:]).lower()
             
@@ -219,15 +195,16 @@ class BiasCommandsHandler:
             match_result = self.bias_detector.love_match(user_id, member_name, force_direct_match=force_direct)
             logger.info(f"love_match returned: {type(match_result)} - {match_result.get('is_selection_prompt', 'not selection prompt')}")
             
-            # Check if it's a selection prompt
+            # Check if it's a selection prompt (just show info, don't wait for selection)
             if isinstance(match_result, dict) and match_result.get('is_selection_prompt'):
-                # Create selection embed
-                selection_embed = discord.Embed(
-                    title="🔍 Multiple Members Found",
+                # Create informational embed showing available members
+                info_embed = discord.Embed(
+                    title="🔍 Ditemukan Beberapa Member",
                     description=match_result['selection_text'],
                     color=0xFF69B4
                 )
-                await loading_message.edit(embed=selection_embed)
+                info_embed.set_footer(text="💡 Gunakan format: !sn match <nama> <grup> untuk analisis langsung")
+                await loading_message.edit(embed=info_embed)
                 return
             
             member_name_display = match_result['member_name']
