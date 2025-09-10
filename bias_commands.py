@@ -37,11 +37,16 @@ class BiasCommandsHandler:
             parts = user_input.split()
             args = parts[1:] if len(parts) > 1 else []
             await self._handle_love_match(ctx, str(ctx.author.id), args)
-        elif input_lower.startswith(("fortune", "ramalan")):
+        elif input_lower.startswith("fortune"):
             # Parse fortune type from input
             parts = user_input.split()
             fortune_type = parts[1] if len(parts) > 1 else 'general'
             await self._handle_fortune(ctx, str(ctx.author.id), [fortune_type])
+        elif input_lower.startswith("ramalan"):
+            # Parse ramalan type from input
+            parts = user_input.split()
+            ramalan_type = parts[1] if len(parts) > 1 else 'umum'
+            await self._handle_ramalan(ctx, str(ctx.author.id), [ramalan_type])
         else:
             await ctx.send("❌ Command tidak dikenal. Gunakan: bias, match, fortune, atau ramalan")
     
@@ -362,8 +367,89 @@ class BiasCommandsHandler:
             await loading_message.edit(embed=fortune_embed)
             
         except Exception as e:
-            logger.error(f"Fortune error: {e}")
+            logger.error(f"Fortune command error: {e}")
             await loading_message.edit(embed=self._create_error_embed("Fortune reading gagal"))
+    
+    async def _handle_ramalan(self, ctx, user_id: str, args):
+        """Handle !sn ramalan command"""
+        ramalan_type = args[0].lower() if args else 'umum'
+        valid_types = ['cinta', 'rejeki', 'kesehatan', 'umum']
+        
+        if ramalan_type not in valid_types:
+            ramalan_type = 'umum'
+        
+        # Show loading embed
+        loading_embed = discord.Embed(
+            title="🌙 Sedang Membaca Primbon...",
+            description="Dukun sedang melihat garis tangan dan membaca daun lontar...",
+            color=0x8B4513
+        )
+        loading_message = await ctx.send(embed=loading_embed)
+        
+        try:
+            # Get ramalan tradisional
+            ramalan_result = await self.bias_detector.ramalan_tradisional(user_id, ramalan_type)
+            dukun_member = ramalan_result['dukun_member']
+            
+            # Create ramalan embed
+            ramalan_embed = discord.Embed(
+                title=f"🌙 Ramalan {ramalan_type.title()} Tradisional",
+                description=ramalan_result['ramalan'],
+                color=ramalan_result['warna_hoki']
+            )
+            
+            ramalan_embed.add_field(
+                name=f"{dukun_member['emoji']} Dukun Spiritual",
+                value=f"**{dukun_member['name']}** sebagai dukun yang membaca primbon kamu! 🙏",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="📅 Hari Baik",
+                value=f"**{ramalan_result['hari_baik']}** - Hari terbaik buat kamu! 🌟",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🔢 Angka Jawa",
+                value=f"**{ramalan_result['angka_jawa']}** - Angka keberuntungan Jawa! 🎯",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🧭 Arah Rejeki",
+                value=f"**{ramalan_result['arah_rejeki']}** - Arah keberuntungan kamu! 💰",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="📿 Weton Hoki",
+                value=f"**{ramalan_result['weton_hoki']}** - Weton keberuntungan! ✨",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🌿 Pesan Tradisional",
+                value="Ikuti petunjuk primbon dan jaga keseimbangan hidup ya! 🙏💕",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🔄 Mau Ramalan Lain?",
+                value="`!sn ramalan cinta` • `!sn ramalan rejeki` • `!sn ramalan kesehatan`",
+                inline=False
+            )
+            
+            ramalan_embed.set_footer(
+                text=f"Ramalan tradisional untuk @{ctx.author.display_name} • Berdasarkan primbon Jawa",
+                icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+            )
+            
+            await loading_message.edit(embed=ramalan_embed)
+            
+        except Exception as e:
+            logger.error(f"Ramalan command error: {e}")
+            await loading_message.edit(embed=self._create_error_embed("Ramalan tradisional gagal"))
     
     async def _handle_member_profile(self, ctx, args):
         """Handle !sn bias profile command"""
