@@ -402,6 +402,26 @@ class BiasDetector:
         logger.warning(f"❌ No direct match found for '{member_name}' from '{group_name}'")
         return None
     
+    def _find_similar_members(self, search_name: str):
+        """Find members with similar names"""
+        search_name = search_name.lower().strip()
+        similar_members = []
+        
+        for member_key, member_data in self.members.items():
+            stage_name = member_data['name'].lower()
+            korean_name = member_data.get('korean_name', '').lower()
+            
+            # Check various matching criteria
+            if (search_name == stage_name or 
+                stage_name.startswith(search_name) or
+                search_name in stage_name or
+                (korean_name and (search_name == korean_name or korean_name.startswith(search_name))) or
+                search_name == member_key.lower()):
+                similar_members.append(member_key)
+        
+        logger.debug(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
+        return similar_members
+    
     def _create_member_selection_prompt(self, similar_members: list, search_name: str, user_id: str):
         """Create selection prompt when multiple members found"""
         selection_text = f"🔍 Ditemukan beberapa member dengan nama '{search_name}':\n\n"
