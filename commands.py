@@ -180,7 +180,8 @@ class CommandsHandler:
             cached_summary = self.redis_client.get(cache_key)
             if cached_summary:
                 summary = cached_summary.decode("utf-8")
-                logger.log_cache_hit(category, detected_name)
+                from logger import log_cache_hit
+                log_cache_hit(category, detected_name)
                 
                 # Update loading message untuk cache hit
                 await loading_msg.edit(content="⚡ Mengambil dari cache...")
@@ -266,7 +267,8 @@ class CommandsHandler:
             try:
                 cache_duration = self._get_cache_duration(category, len(str(summary)))
                 self.redis_client.set(cache_key, summary, ex=cache_duration)
-                logger.log_cache_set(category, detected_name)
+                from logger import log_cache_set
+                log_cache_set(category, detected_name)
             except Exception as cache_error:
                 logger.error(f"Gagal menyimpan ke cache: {cache_error}")
                 
@@ -482,18 +484,22 @@ class CommandsHandler:
             cached_response = self.redis_client.get(cache_key)
             
             if cached_response:
-                logger.log_cache_hit("CASUAL", user_input[:30])
+                from logger import log_cache_hit
+                log_cache_hit("CASUAL", user_input[:30])
                 await self._send_chunked_message(ctx, cached_response.decode('utf-8'))
                 return
             else:
-                logger.log_cache_miss("CASUAL", user_input[:30])
+                from logger import log_cache_miss
+                log_cache_miss("CASUAL", user_input[:30])
             
             # Generate response dengan AI (reduced max_tokens untuk speed)
             start_time = time.time()
-            logger.log_ai_request("CASUAL", len(user_input))
+            from logger import log_ai_request
+            log_ai_request("CASUAL", len(user_input))
             summary = await self.ai_handler.chat_async(user_input, max_tokens=800, category="OBROLAN")
             ai_duration = int((time.time() - start_time) * 1000)
-            logger.log_ai_response("CASUAL", len(summary) if summary else 0, ai_duration)
+            from logger import log_ai_response
+            log_ai_response("CASUAL", len(summary) if summary else 0, ai_duration)
             
             # Validasi dan sanitasi response
             if not summary or not isinstance(summary, str):
@@ -505,7 +511,8 @@ class CommandsHandler:
             
             # Cache response untuk 1 jam
             self.redis_client.setex(cache_key, 3600, summary)
-            logger.log_cache_set("CASUAL", user_input[:30])
+            from logger import log_cache_set
+            log_cache_set("CASUAL", user_input[:30])
             
             # Kirim dengan chunked message untuk safety
             await self._send_chunked_message(ctx, summary)
@@ -518,7 +525,8 @@ class CommandsHandler:
         """Handle request rekomendasi - langsung AI tanpa cache"""
         try:
             start_time = time.time()
-            logger.log_ai_request("RECOMMENDATION", len(user_input))
+            from logger import log_ai_request
+            log_ai_request("RECOMMENDATION", len(user_input))
             
             # Langsung AI response dengan max_tokens terbatas
             summary = await self.ai_handler.chat_async(user_input, max_tokens=1500, category="REKOMENDASI")
@@ -536,7 +544,8 @@ class CommandsHandler:
         """Handle general queries"""
         try:
             start_time = time.time()
-            logger.log_ai_request("GENERAL", len(user_input))
+            from logger import log_ai_request
+            log_ai_request("GENERAL", len(user_input))
             
             summary = await self.ai_handler.handle_general_query(user_input)
             ai_duration = int((time.time() - start_time) * 1000)
