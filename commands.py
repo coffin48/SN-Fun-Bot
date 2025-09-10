@@ -686,14 +686,110 @@ class CommandsHandler:
             await ctx.send(help_message)
 
     async def _handle_analytics_command(self, ctx):
-        """Handle !analytics command untuk view statistics"""
+        """Handle !sn analytics command dengan Discord embed"""
         try:
-            summary = analytics.get_analytics_summary()
-            await self._send_chunked_message(ctx, summary)
-            logger.info("Analytics summary requested")
+            # Get analytics data
+            stats = analytics.data["query_stats"]
+            
+            # Create analytics embed
+            embed = discord.Embed(
+                title="📊 Bot Analytics Dashboard",
+                description="Statistik penggunaan dan performa SN Fun Bot",
+                color=0x00FF7F  # Green color
+            )
+            
+            # Query Statistics
+            enhanced_total = stats["enhanced_success"] + stats["enhanced_failed"]
+            simple_total = stats["simple_success"] + stats["simple_failed"]
+            enhanced_rate = (stats["enhanced_success"] / enhanced_total * 100) if enhanced_total > 0 else 0
+            simple_rate = (stats["simple_success"] / simple_total * 100) if simple_total > 0 else 0
+            
+            query_stats = f"""✅ Enhanced: {enhanced_rate:.1f}% ({stats['enhanced_success']}/{enhanced_total})
+✅ Simple: {simple_rate:.1f}% ({stats['simple_success']}/{simple_total})
+📈 Total Queries: {stats['total_queries']}"""
+            
+            embed.add_field(
+                name="🎯 Query Success Rate",
+                value=query_stats,
+                inline=True
+            )
+            
+            # Response Times
+            avg_scraping = sum(analytics.data["response_times"]["scraping"]) / len(analytics.data["response_times"]["scraping"]) if analytics.data["response_times"]["scraping"] else 0
+            avg_ai = sum(analytics.data["response_times"]["ai_generation"]) / len(analytics.data["response_times"]["ai_generation"]) if analytics.data["response_times"]["ai_generation"] else 0
+            avg_total = sum(analytics.data["response_times"]["total_response"]) / len(analytics.data["response_times"]["total_response"]) if analytics.data["response_times"]["total_response"] else 0
+            
+            response_times = f"""⚡ Scraping: {avg_scraping:.2f}s
+🤖 AI Generation: {avg_ai:.2f}s
+🚀 Total Response: {avg_total:.2f}s"""
+            
+            embed.add_field(
+                name="⏱️ Average Response Times",
+                value=response_times,
+                inline=True
+            )
+            
+            # Top Popular Queries
+            top_queries = sorted(analytics.data["popular_queries"].items(), 
+                               key=lambda x: x[1], reverse=True)[:5]
+            
+            if top_queries:
+                popular_list = ""
+                for i, (query, count) in enumerate(top_queries, 1):
+                    popular_list += f"{i}. **{query}**: {count}x\n"
+            else:
+                popular_list = "Belum ada data query"
+            
+            embed.add_field(
+                name="🔥 Top 5 Popular Queries",
+                value=popular_list,
+                inline=False
+            )
+            
+            # Source Performance (top 3 best performing)
+            source_perf = []
+            for source, perf in analytics.data["source_performance"].items():
+                total = perf["success"] + perf["failed"]
+                if total > 0:
+                    success_rate = perf["success"] / total * 100
+                    source_perf.append((source, success_rate, perf['avg_time']))
+            
+            # Sort by success rate
+            source_perf.sort(key=lambda x: x[1], reverse=True)
+            
+            if source_perf:
+                source_list = ""
+                for source, rate, avg_time in source_perf[:3]:
+                    source_list += f"• **{source}**: {rate:.1f}% ({avg_time:.2f}s)\n"
+            else:
+                source_list = "Belum ada data source"
+            
+            embed.add_field(
+                name="🌐 Top Source Performance",
+                value=source_list,
+                inline=False
+            )
+            
+            # Footer with timestamp
+            from datetime import datetime
+            embed.set_footer(
+                text=f"Data diupdate: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                icon_url="https://cdn.discordapp.com/emojis/📊.png"
+            )
+            
+            await ctx.send(embed=embed)
+            logger.info("Analytics embed command requested")
+            
         except Exception as e:
-            logger.error(f"Error getting analytics: {e}")
-            await ctx.send(f"Error getting analytics: {e}")
+            logger.error(f"Error creating analytics embed: {e}")
+            # Fallback to text summary
+            try:
+                summary = analytics.get_analytics_summary()
+                await self._send_chunked_message(ctx, summary)
+                logger.info("Analytics fallback text sent")
+            except Exception as fallback_error:
+                logger.error(f"Analytics fallback also failed: {fallback_error}")
+                await ctx.send("❌ Error mengambil data analytics. Silakan coba lagi nanti.")
     
     async def _handle_multiple_matches(self, ctx, detected_name, multiple_matches):
         """Handle multiple matches untuk nama ambiguous"""
