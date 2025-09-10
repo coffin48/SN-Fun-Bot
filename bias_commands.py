@@ -91,40 +91,54 @@ class BiasCommandsHandler:
             preferences = self.user_preferences.get(user_id, {})
             
             # Detect bias using AI
-            recommended_member = await self.bias_detector.detect_bias(user_id, preferences)
-            member_data = self.bias_detector.get_member_info(recommended_member)
+            bias_result = await self.bias_detector.bias_detect(user_id, preferences)
+            
+            # Check if there's an error
+            if isinstance(bias_result, dict) and bias_result.get('error'):
+                await loading_message.edit(embed=self._create_error_embed(bias_result['error']))
+                return
+            
+            # Extract member info from bias result
+            member_name = bias_result.get('member_name')
+            member_data = self.bias_detector.get_member_info(member_name)
             
             # Debug logging
-            logger.info(f"Recommended member: {recommended_member}")
+            logger.info(f"Bias result: {bias_result}")
             logger.info(f"Member data: {member_data}")
             
             if not member_data:
-                logger.error(f"No member data found for: {recommended_member}")
+                logger.error(f"No member data found for: {member_name}")
                 await loading_message.edit(embed=self._create_error_embed("Member data tidak ditemukan"))
                 return
             
             # Create result embed
             result_embed = discord.Embed(
                 title=f"🎯 Bias Kamu Ketemu Nih: {member_data['name']}! 💕",
-                description=f"Yeay! AI udah nemuin jodoh hati kamu: **{member_data['name']}** dari **{member_data.get('group', 'Unknown Group')}**! 🥰✨",
-                color=member_data['color']
+                description=f"Yeay! AI udah nemuin jodoh hati kamu: **{member_data['name']}** dari **{bias_result.get('group_name', 'Unknown Group')}**! 🥰✨",
+                color=member_data.get('color', 0xFF69B4)
             )
             
             result_embed.add_field(
-                name=f"{member_data['emoji']} Info Si Doi",
-                value=f"**Grup:** {member_data.get('group', 'Unknown')}\n**Posisi:** {member_data['position']}\n**Ultah:** {member_data['birthday']}",
+                name=f"{member_data.get('emoji', '✨')} Info Si Doi",
+                value=f"**Grup:** {bias_result.get('group_name', 'Unknown')}\n**Posisi:** {member_data.get('position', 'Unknown')}\n**Ultah:** {member_data.get('birthday', 'Unknown')}",
                 inline=True
             )
             
             result_embed.add_field(
-                name="✨ Kenapa Cocok Banget?",
-                value=member_data['personality'],
+                name="🎯 Compatibility Score",
+                value=f"**{bias_result.get('compatibility_score', 85)}%** - {bias_result.get('reason', 'Perfect match!')}",
                 inline=True
             )
             
             result_embed.add_field(
-                name="🎪 Vibes Kalian Sama!",
-                value=f"Kepribadian: {', '.join(member_data['traits'][:3])} - perfect match! 💯",
+                name="✨ AI Analysis",
+                value=bias_result.get('ai_analysis', 'Kalian cocok banget! 💕'),
+                inline=False
+            )
+            
+            result_embed.add_field(
+                name="🎪 Member Traits",
+                value=f"Kepribadian: {', '.join(bias_result.get('member_traits', ['charming', 'talented'])[:3])} - amazing! 💯",
                 inline=False
             )
             
