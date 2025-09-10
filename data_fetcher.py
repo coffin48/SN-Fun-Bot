@@ -5,7 +5,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import re
-import logger
+from logger import logger
 from analytics import analytics
 import time
 import asyncio
@@ -30,7 +30,7 @@ class DataFetcher:
             if redis_url:
                 self.redis_client = redis.from_url(redis_url, decode_responses=True)
         except Exception as e:
-            logger.logger.warning(f"Redis cache not available: {e}")
+            logger.warning(f"Redis cache not available: {e}")
         
         # Performance tracking
         self.site_performance = {}
@@ -180,13 +180,13 @@ class DataFetcher:
     
     async def fetch_kpop_info(self, query):
         """Fetch comprehensive K-pop information with optimized caching and async processing"""
-        logger.logger.info(f"Starting optimized data fetch for: {query}")
+        logger.info(f"Starting optimized data fetch for: {query}")
         
         # Check cache first
         cache_key = f"kpop_info:{query.lower()}"
         cached_result = self._get_from_cache(cache_key)
         if cached_result:
-            logger.logger.info(f"Cache hit for query: {query}")
+            logger.info(f"Cache hit for query: {query}")
             return cached_result
         
         start_time = time.time()
@@ -198,7 +198,7 @@ class DataFetcher:
         # 1. Async website scraping with early termination
         website_results = await self._scrape_websites_async(query, sorted_sites)
         all_results.extend(website_results)
-        logger.logger.info(f"Async scraping completed: {len(website_results)} results")
+        logger.info(f"Async scraping completed: {len(website_results)} results")
         
         # Always try to get more sources untuk akurasi maksimal
         # 2. Google Custom Search
@@ -213,7 +213,7 @@ class DataFetcher:
         database_info = self._get_database_info(query)
         if database_info:
             all_results.append(database_info)
-            logger.logger.info(f"Database fallback added: {len(database_info)} characters")
+            logger.info(f"Database fallback added: {len(database_info)} characters")
         
         # Clean and combine results
         final_text = self._clean_text(all_results)
@@ -225,7 +225,7 @@ class DataFetcher:
         self._save_to_cache(cache_key, final_text)
         
         total_time = time.time() - start_time
-        logger.logger.info(f"Optimized fetch completed in {total_time:.2f}s: {len(final_text)} characters")
+        logger.info(f"Optimized fetch completed in {total_time:.2f}s: {len(final_text)} characters")
         
         return final_text
     
@@ -253,7 +253,7 @@ class DataFetcher:
         
         # Check if we have sufficient data from high priority sources
         if self._is_sufficient_data(results):
-            logger.logger.info(f"Sufficient data from high priority sites: {len(results)} items")
+            logger.info(f"Sufficient data from high priority sites: {len(results)} items")
             return results
         
         # Process medium priority sites
@@ -262,7 +262,7 @@ class DataFetcher:
         
         # Check again
         if self._is_sufficient_data(results):
-            logger.logger.info(f"Sufficient data after medium priority: {len(results)} items")
+            logger.info(f"Sufficient data after medium priority: {len(results)} items")
             return results
         
         # Process low priority sites only if still needed
@@ -287,7 +287,7 @@ class DataFetcher:
             if isinstance(result, list):
                 valid_results.extend(result)
             elif isinstance(result, Exception):
-                logger.logger.error(f"Site scraping failed: {result}")
+                logger.error(f"Site scraping failed: {result}")
         
         return valid_results
     
@@ -325,7 +325,7 @@ class DataFetcher:
             except Exception as e:
                 site_domain = url.split('/')[2] if 'url' in locals() else 'unknown'
                 self._update_site_performance(site_domain, False, 0)
-                logger.logger.error(f"Async scraping failed for {site_domain}: {e}")
+                logger.error(f"Async scraping failed for {site_domain}: {e}")
                 return []
     
     def _format_site_url(self, query, site):
@@ -369,7 +369,7 @@ class DataFetcher:
                 return site["url"].format(formatted_query)
                 
         except Exception as e:
-            logger.logger.error(f"URL formatting failed: {e}")
+            logger.error(f"URL formatting failed: {e}")
             return None
     
     def _extract_site_content(self, soup, site, url, query):
@@ -427,7 +427,7 @@ class DataFetcher:
                 ]
                 
         except Exception as e:
-            logger.logger.error(f"Content extraction failed for {site_type}: {e}")
+            logger.error(f"Content extraction failed for {site_type}: {e}")
         
         return site_results
     
@@ -471,7 +471,7 @@ class DataFetcher:
             if cached_data:
                 return cached_data
         except Exception as e:
-            logger.logger.error(f"Cache read error: {e}")
+            logger.error(f"Cache read error: {e}")
         
         return None
     
@@ -490,9 +490,9 @@ class DataFetcher:
                 ttl = 3600   # 1 hour for news/other sources
             
             self.redis_client.setex(cache_key, ttl, data)
-            logger.logger.debug(f"Cached data for {cache_key} with TTL {ttl}s")
+            logger.debug(f"Cached data for {cache_key} with TTL {ttl}s")
         except Exception as e:
-            logger.logger.error(f"Cache write error: {e}")
+            logger.error(f"Cache write error: {e}")
     
     def _update_site_performance(self, site_domain, success, result_count):
         """Track site performance for optimization"""
@@ -567,7 +567,7 @@ class DataFetcher:
                 else:
                     url = site["url"].format(formatted_query)
                 
-                logger.logger.info(f"Scraping site {i}/11: {url.split('/')[2]}")
+                logger.info(f"Scraping site {i}/11: {url.split('/')[2]}")
                 
                 response = requests.get(
                     url, 
@@ -687,10 +687,10 @@ class DataFetcher:
                 
                 results.extend(site_results)
                 
-                logger.logger.info(f"Site {i}/7 completed: {len(site_results)} results from {url.split('/')[2]}")
+                logger.info(f"Site {i}/7 completed: {len(site_results)} results from {url.split('/')[2]}")
                 
             except Exception as e:
-                logger.logger.error(f"Scraping failed for site {i}/7 ({url.split('/')[2]}): {e}")
+                logger.error(f"Scraping failed for site {i}/7 ({url.split('/')[2]}): {e}")
         
         return results
     
@@ -700,11 +700,11 @@ class DataFetcher:
         
         for i, (key, cse_id) in enumerate(zip(self.CSE_API_KEYS, self.CSE_IDS), 1):
             if not key or not cse_id:
-                logger.logger.debug(f"CSE API {i}: Keys not configured, skipping")
+                logger.debug(f"CSE API {i}: Keys not configured, skipping")
                 continue
             
             try:
-                logger.logger.info(f"Calling Google CSE API {i}/3 for: {query}")
+                logger.info(f"Calling Google CSE API {i}/3 for: {query}")
                 cse_start = time.time()
                 
                 url = f"https://www.googleapis.com/customsearch/v1?key={key}&cx={cse_id}&q={query}"
@@ -723,7 +723,7 @@ class DataFetcher:
                 cse_time = time.time() - cse_start
                 analytics.track_source_performance("google_cse", True, cse_time)
                 
-                logger.logger.info(f"CSE API {i}/3 completed: {len(cse_results)} results")
+                logger.info(f"CSE API {i}/3 completed: {len(cse_results)} results")
                 break  # Success, exit loop
                 
             except requests.exceptions.HTTPError as e:
@@ -731,14 +731,14 @@ class DataFetcher:
                 analytics.track_source_performance("google_cse", False, cse_time)
                 
                 if e.response.status_code == 429:
-                    logger.logger.warning(f"CSE API {i}/3 rate limited (429), trying next key...")
+                    logger.warning(f"CSE API {i}/3 rate limited (429), trying next key...")
                     continue  # Try next API key
                 else:
-                    logger.logger.error(f"CSE API {i}/3 HTTP error: {e}")
+                    logger.error(f"CSE API {i}/3 HTTP error: {e}")
             except Exception as e:
                 cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
                 analytics.track_source_performance("google_cse", False, cse_time)
-                logger.logger.error(f"CSE API {i}/3 failed: {e}")
+                logger.error(f"CSE API {i}/3 failed: {e}")
         
         return results
     
@@ -747,11 +747,11 @@ class DataFetcher:
         results = []
         
         if not self.NEWS_API_KEY:
-            logger.logger.debug("NewsAPI: Key not configured, skipping")
+            logger.debug("NewsAPI: Key not configured, skipping")
             return results
             
         try:
-            logger.logger.info(f"Calling NewsAPI for: {query}")
+            logger.info(f"Calling NewsAPI for: {query}")
             url = f"https://newsapi.org/v2/everything?q={query}+kpop&apiKey={self.NEWS_API_KEY}&pageSize=3"
             response = requests.get(url, timeout=5)
             response.raise_for_status()
@@ -766,10 +766,10 @@ class DataFetcher:
             ]
             results.extend(news_results)
             
-            logger.logger.info(f"NewsAPI completed: {len(news_results)} articles")
+            logger.info(f"NewsAPI completed: {len(news_results)} articles")
             
         except Exception as e:
-            logger.logger.error(f"NewsAPI failed: {e}")
+            logger.error(f"NewsAPI failed: {e}")
         
         return results
     
@@ -907,7 +907,7 @@ check official music platforms and databases like:
                 else:
                     continue
                 
-                logger.logger.info(f"🖼️ Scraping image from: {url}")
+                logger.info(f"🖼️ Scraping image from: {url}")
                 
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
                     async with session.get(url) as response:
@@ -947,15 +947,15 @@ check official music platforms and databases like:
                                             
                                             # Check if image is valid size (> 10KB, < 5MB)
                                             if 10000 < len(image_data) < 5000000:
-                                                logger.logger.info(f"✅ Image found: {len(image_data)} bytes from {source['type']}")
+                                                logger.info(f"✅ Image found: {len(image_data)} bytes from {source['type']}")
                                                 return BytesIO(image_data)
                                                 
                                 except Exception as e:
-                                    logger.logger.debug(f"Failed to download image {img_url}: {e}")
+                                    logger.debug(f"Failed to download image {img_url}: {e}")
                                     continue
                                     
             except Exception as e:
-                logger.logger.debug(f"Failed to scrape from {source['type']}: {e}")
+                logger.debug(f"Failed to scrape from {source['type']}: {e}")
                 continue
         
         # Final fallback: Try alternative name formats including full names
@@ -980,12 +980,12 @@ check official music platforms and databases like:
         
         for alt_query in alternative_queries:
             if alt_query != query:  # Skip if same as original
-                logger.logger.info(f"🔄 Trying alternative query: {alt_query}")
+                logger.info(f"🔄 Trying alternative query: {alt_query}")
                 result = await self._try_basic_sources(alt_query)
                 if result:
                     return result
         
-        logger.logger.info(f"❌ No suitable image found for: {query}")
+        logger.info(f"❌ No suitable image found for: {query}")
         return None
     
     def _get_ambiguous_name_alternatives(self, query):
@@ -1126,7 +1126,7 @@ check official music platforms and databases like:
             google_cx = os.getenv('GOOGLE_SEARCH_CX')
             
             if not google_api_key or not google_cx:
-                logger.logger.debug("Google Custom Search not configured, skipping")
+                logger.debug("Google Custom Search not configured, skipping")
                 return None
             
             search_url = "https://www.googleapis.com/customsearch/v1"
@@ -1156,14 +1156,14 @@ check official music platforms and databases like:
                                             
                                             # Validate image size
                                             if 10000 < len(image_data) < 5000000:
-                                                logger.logger.info(f"✅ Google Images: {len(image_data)} bytes")
+                                                logger.info(f"✅ Google Images: {len(image_data)} bytes")
                                                 return BytesIO(image_data)
                                 except Exception as e:
-                                    logger.logger.debug(f"Failed Google image download: {e}")
+                                    logger.debug(f"Failed Google image download: {e}")
                                     continue
                                     
         except Exception as e:
-            logger.logger.debug(f"Google Images search failed: {e}")
+            logger.debug(f"Google Images search failed: {e}")
             
         return None
     
@@ -1210,7 +1210,7 @@ check official music platforms and databases like:
                                         if img_response.status == 200:
                                             image_data = await img_response.read()
                                             if 10000 < len(image_data) < 5000000:
-                                                logger.logger.info(f"✅ Alternative query success: {query}")
+                                                logger.info(f"✅ Alternative query success: {query}")
                                                 return BytesIO(image_data)
                                 except Exception:
                                     continue

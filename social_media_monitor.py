@@ -8,7 +8,7 @@ import time
 import os
 from datetime import datetime, timedelta
 import hashlib
-import logger
+from logger import logger
 import discord
 
 class SocialMediaMonitor:
@@ -54,18 +54,18 @@ class SocialMediaMonitor:
             'tiktok': 'sn_monitor:tiktok:last_post'
         }
         
-        logger.logger.info("🔍 Social Media Monitor initialized for Secret Number")
+        logger.info("🔍 Social Media Monitor initialized for Secret Number")
     
     async def start_monitoring(self):
         """Start continuous monitoring loop"""
-        logger.logger.info("🚀 Starting Secret Number social media monitoring...")
+        logger.info("🚀 Starting Secret Number social media monitoring...")
         
         while True:
             try:
                 await self.check_all_platforms()
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
-                logger.logger.error(f"❌ Monitoring error: {e}")
+                logger.error(f"❌ Monitoring error: {e}")
                 await asyncio.sleep(60)  # Wait 1 minute on error
     
     async def check_all_platforms(self):
@@ -105,10 +105,10 @@ class SocialMediaMonitor:
                         data = await response.json()
                         await self.process_instagram_data(data)
                     else:
-                        logger.logger.info(f"🔍 Instagram check status: {response.status}")
+                        logger.info(f"🔍 Instagram check status: {response.status}")
                         
         except Exception as e:
-            logger.logger.error(f"Instagram monitoring error: {e}")
+            logger.error(f"Instagram monitoring error: {e}")
     
     async def check_twitter(self):
         """Monitor Twitter/X for new tweets"""
@@ -128,10 +128,10 @@ class SocialMediaMonitor:
                         content = await response.text()
                         await self.process_twitter_rss(content)
                     else:
-                        logger.logger.info(f"🔍 Twitter check status: {response.status}")
+                        logger.info(f"🔍 Twitter check status: {response.status}")
                         
         except Exception as e:
-            logger.logger.error(f"Twitter monitoring error: {e}")
+            logger.error(f"Twitter monitoring error: {e}")
     
     async def check_youtube(self):
         """Monitor YouTube for new videos"""
@@ -156,10 +156,10 @@ class SocialMediaMonitor:
                         data = await response.json()
                         await self.process_youtube_data(data)
                     else:
-                        logger.logger.info(f"🔍 YouTube check status: {response.status}")
+                        logger.info(f"🔍 YouTube check status: {response.status}")
                         
         except Exception as e:
-            logger.logger.error(f"YouTube monitoring error: {e}")
+            logger.error(f"YouTube monitoring error: {e}")
     
     async def check_tiktok(self):
         """Monitor TikTok for new posts"""
@@ -178,10 +178,10 @@ class SocialMediaMonitor:
                         content = await response.text()
                         await self.process_tiktok_data(content)
                     else:
-                        logger.logger.info(f"🔍 TikTok check status: {response.status}")
+                        logger.info(f"🔍 TikTok check status: {response.status}")
                         
         except Exception as e:
-            logger.logger.error(f"TikTok monitoring error: {e}")
+            logger.error(f"TikTok monitoring error: {e}")
     
     # New methods for getting latest content (for commands)
     async def get_latest_twitter_post(self):
@@ -208,20 +208,20 @@ class SocialMediaMonitor:
                                 content = await response.text()
                                 result = await self.parse_twitter_rss_for_latest(content)
                                 if result:
-                                    logger.logger.info(f"✅ Twitter data retrieved from {url}")
+                                    logger.info(f"✅ Twitter data retrieved from {url}")
                                     return result
                             else:
-                                logger.logger.warning(f"❌ {url} returned status {response.status}")
+                                logger.warning(f"❌ {url} returned status {response.status}")
                     except Exception as alt_error:
-                        logger.logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
+                        logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
                         continue
                 
                 # If all alternatives fail, try direct Twitter API approach
-                logger.logger.warning("⚠️ All Nitter instances failed, trying direct approach")
+                logger.warning("⚠️ All Nitter instances failed, trying direct approach")
                 return await self._try_direct_twitter_approach(session, headers)
                         
         except Exception as e:
-            logger.logger.error(f"Get latest Twitter error: {e}")
+            logger.error(f"Get latest Twitter error: {e}")
             return None
     
     async def _try_direct_twitter_approach(self, session, headers):
@@ -250,7 +250,7 @@ class SocialMediaMonitor:
                         }
                         
         except Exception as e:
-            logger.logger.error(f"Direct Twitter approach failed: {e}")
+            logger.error(f"Direct Twitter approach failed: {e}")
         
         # Final fallback - return mock data indicating the issue
         return {
@@ -287,7 +287,7 @@ class SocialMediaMonitor:
                     return None
                         
         except Exception as e:
-            logger.logger.error(f"Get latest YouTube error: {e}")
+            logger.error(f"Get latest YouTube error: {e}")
             return None
     
     async def get_latest_tiktok_post(self):
@@ -308,7 +308,7 @@ class SocialMediaMonitor:
                         return None
                         
         except Exception as e:
-            logger.logger.error(f"Get latest TikTok error: {e}")
+            logger.error(f"Get latest TikTok error: {e}")
             return None
     
     async def get_latest_instagram_post(self):
@@ -350,20 +350,20 @@ class SocialMediaMonitor:
                                     result = await self.parse_instagram_data_for_latest(data)
                                 
                                 if result:
-                                    logger.logger.info(f"✅ Instagram data retrieved from {url}")
+                                    logger.info(f"✅ Instagram data retrieved from {url}")
                                     return result
                             else:
-                                logger.logger.warning(f"❌ {url} returned status {response.status}")
+                                logger.warning(f"❌ {url} returned status {response.status}")
                     except Exception as alt_error:
-                        logger.logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
+                        logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
                         continue
                 
                 # Final fallback
-                logger.logger.warning("⚠️ All Instagram sources failed")
+                logger.warning("⚠️ All Instagram sources failed")
                 return await self._create_instagram_fallback()
                         
         except Exception as e:
-            logger.logger.error(f"Get latest Instagram error: {e}")
+            logger.error(f"Get latest Instagram error: {e}")
             return await self._create_instagram_fallback()
     
     async def parse_instagram_rss(self, rss_content):
@@ -391,7 +391,7 @@ class SocialMediaMonitor:
             return None
             
         except Exception as e:
-            logger.logger.error(f"Instagram RSS parsing error: {e}")
+            logger.error(f"Instagram RSS parsing error: {e}")
             return None
     
     async def parse_instagram_html(self, html_content):
@@ -420,7 +420,7 @@ class SocialMediaMonitor:
             return None
             
         except Exception as e:
-            logger.logger.error(f"Instagram HTML parsing error: {e}")
+            logger.error(f"Instagram HTML parsing error: {e}")
             return None
     
     async def _create_instagram_fallback(self):
@@ -480,18 +480,18 @@ class SocialMediaMonitor:
                     try:
                         async with session.get(simple_url, timeout=15) as response:
                             if response.status == 200:
-                                logger.logger.info(f"✅ Screenshot captured from s-shot.ru for {platform}")
+                                logger.info(f"✅ Screenshot captured from s-shot.ru for {platform}")
                                 return simple_url
                     except Exception as e:
-                        logger.logger.warning(f"Free screenshot service failed: {e}")
+                        logger.warning(f"Free screenshot service failed: {e}")
                 else:
-                    logger.logger.warning(f"⚠️ Screenshot blocked for non-whitelisted URL: {target_url}")
+                    logger.warning(f"⚠️ Screenshot blocked for non-whitelisted URL: {target_url}")
             
             # Return None if all services fail
             return None
             
         except Exception as e:
-            logger.logger.error(f"Screenshot capture error: {e}")
+            logger.error(f"Screenshot capture error: {e}")
             return None
     
     # Helper methods for parsing content data
@@ -503,7 +503,7 @@ class SocialMediaMonitor:
             
             # Check if RSS content is valid
             if not rss_content or len(rss_content) < 100:
-                logger.logger.warning("⚠️ RSS content too short or empty")
+                logger.warning("⚠️ RSS content too short or empty")
                 return None
             
             # Extract tweet data from RSS with more robust patterns
@@ -517,7 +517,7 @@ class SocialMediaMonitor:
             dates = re.findall(pubdate_pattern, rss_content)
             descriptions = re.findall(description_pattern, rss_content, re.DOTALL)
             
-            logger.logger.info(f"📊 RSS parsing results: {len(titles)} titles, {len(links)} links, {len(dates)} dates")
+            logger.info(f"📊 RSS parsing results: {len(titles)} titles, {len(links)} links, {len(dates)} dates")
             
             # Skip the first item (usually channel title) and get actual tweets
             if len(titles) > 1 and len(links) > 1:
@@ -540,12 +540,12 @@ class SocialMediaMonitor:
                     time_diff = now - tweet_datetime
                     
                     if time_diff.days > 1:
-                        logger.logger.info(f"⏰ Tweet is {time_diff.days} days old")
+                        logger.info(f"⏰ Tweet is {time_diff.days} days old")
                     else:
-                        logger.logger.info(f"⏰ Tweet is {time_diff.seconds // 3600} hours old")
+                        logger.info(f"⏰ Tweet is {time_diff.seconds // 3600} hours old")
                         
                 except Exception as date_error:
-                    logger.logger.warning(f"⚠️ Date parsing error: {date_error}")
+                    logger.warning(f"⚠️ Date parsing error: {date_error}")
                 
                 result = {
                     'text': tweet_text[:500],  # Limit length
@@ -555,14 +555,14 @@ class SocialMediaMonitor:
                     'retweets': 0
                 }
                 
-                logger.logger.info(f"✅ Parsed tweet: {tweet_text[:100]}...")
+                logger.info(f"✅ Parsed tweet: {tweet_text[:100]}...")
                 return result
             
-            logger.logger.warning("⚠️ No valid tweets found in RSS")
+            logger.warning("⚠️ No valid tweets found in RSS")
             return None
             
         except Exception as e:
-            logger.logger.error(f"Twitter RSS parsing error: {e}")
+            logger.error(f"Twitter RSS parsing error: {e}")
             return None
     
     async def format_youtube_data(self, video_data):
@@ -581,7 +581,7 @@ class SocialMediaMonitor:
             }
             
         except Exception as e:
-            logger.logger.error(f"YouTube data formatting error: {e}")
+            logger.error(f"YouTube data formatting error: {e}")
             return None
     
     async def parse_tiktok_html_for_latest(self, html_content):
@@ -607,7 +607,7 @@ class SocialMediaMonitor:
             return None
             
         except Exception as e:
-            logger.logger.error(f"TikTok HTML parsing error: {e}")
+            logger.error(f"TikTok HTML parsing error: {e}")
             return None
     
     async def parse_instagram_data_for_latest(self, data):
@@ -638,7 +638,7 @@ class SocialMediaMonitor:
             return None
             
         except Exception as e:
-            logger.logger.error(f"Instagram data parsing error: {e}")
+            logger.error(f"Instagram data parsing error: {e}")
             return None
     
     async def process_instagram_data(self, data):
@@ -658,7 +658,7 @@ class SocialMediaMonitor:
                             await self.send_instagram_notification(latest_post)
                             
         except Exception as e:
-            logger.logger.error(f"Instagram data processing error: {e}")
+            logger.error(f"Instagram data processing error: {e}")
     
     async def process_twitter_rss(self, rss_content):
         """Process Twitter RSS feed"""
@@ -678,7 +678,7 @@ class SocialMediaMonitor:
                     await self.send_twitter_notification(latest_tweet_id, rss_content)
                     
         except Exception as e:
-            logger.logger.error(f"Twitter RSS processing error: {e}")
+            logger.error(f"Twitter RSS processing error: {e}")
     
     async def process_youtube_data(self, data):
         """Process YouTube API response"""
@@ -691,7 +691,7 @@ class SocialMediaMonitor:
                     await self.send_youtube_notification(latest_video)
                     
         except Exception as e:
-            logger.logger.error(f"YouTube data processing error: {e}")
+            logger.error(f"YouTube data processing error: {e}")
     
     async def process_tiktok_data(self, html_content):
         """Process TikTok HTML content"""
@@ -710,7 +710,7 @@ class SocialMediaMonitor:
                     await self.send_tiktok_notification(latest_video_id)
                     
         except Exception as e:
-            logger.logger.error(f"TikTok data processing error: {e}")
+            logger.error(f"TikTok data processing error: {e}")
     
     async def is_new_content(self, platform, content_id):
         """Check if content is new by comparing with cached ID"""
@@ -748,10 +748,10 @@ class SocialMediaMonitor:
             }
             
             await self.send_notification(embed)
-            logger.logger.info("📸 Sent Instagram notification")
+            logger.info("📸 Sent Instagram notification")
             
         except Exception as e:
-            logger.logger.error(f"Instagram notification error: {e}")
+            logger.error(f"Instagram notification error: {e}")
     
     async def send_twitter_notification(self, tweet_id, rss_content):
         """Send Discord notification for new Twitter post"""
@@ -766,10 +766,10 @@ class SocialMediaMonitor:
             }
             
             await self.send_notification(embed)
-            logger.logger.info("🐦 Sent Twitter notification")
+            logger.info("🐦 Sent Twitter notification")
             
         except Exception as e:
-            logger.logger.error(f"Twitter notification error: {e}")
+            logger.error(f"Twitter notification error: {e}")
     
     async def send_youtube_notification(self, video_data):
         """Send Discord notification for new YouTube video"""
@@ -787,10 +787,10 @@ class SocialMediaMonitor:
             }
             
             await self.send_notification(embed)
-            logger.logger.info("📺 Sent YouTube notification")
+            logger.info("📺 Sent YouTube notification")
             
         except Exception as e:
-            logger.logger.error(f"YouTube notification error: {e}")
+            logger.error(f"YouTube notification error: {e}")
     
     async def send_tiktok_notification(self, video_id):
         """Send Discord notification for new TikTok video"""
@@ -805,27 +805,27 @@ class SocialMediaMonitor:
             }
             
             await self.send_notification(embed)
-            logger.logger.info("🎵 Sent TikTok notification")
+            logger.info("🎵 Sent TikTok notification")
             
         except Exception as e:
-            logger.logger.error(f"TikTok notification error: {e}")
+            logger.error(f"TikTok notification error: {e}")
     
     async def send_notification(self, embed):
         """Send notification to Discord channel"""
         try:
             if not self.notification_channel_id:
-                logger.logger.info("🔍 No SECRET_NUMBER_CHANNEL_ID set for notifications")
+                logger.info("🔍 No SECRET_NUMBER_CHANNEL_ID set for notifications")
                 return
             
             channel = self.bot.get_channel(int(self.notification_channel_id))
             if not channel:
-                logger.logger.error(f"Channel {self.notification_channel_id} not found")
+                logger.error(f"Channel {self.notification_channel_id} not found")
                 return
             
             await channel.send(embed=discord.Embed.from_dict(embed))
             
         except Exception as e:
-            logger.logger.error(f"Discord notification error: {e}")
+            logger.error(f"Discord notification error: {e}")
     
     async def manual_check(self, platform=None):
         """Manually trigger check for specific platform or all platforms"""

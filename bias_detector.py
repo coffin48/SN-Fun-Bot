@@ -13,10 +13,6 @@ class BiasDetector:
         self.ai_handler = ai_handler
         self.kpop_df = kpop_df
         
-        # Load members from database or fallback to Secret Number
-        self.members = {}
-        self.load_members_from_database()
-        
         # Secret Number member data (fallback)
         self.sn_members = {
             'lea': {
@@ -97,12 +93,21 @@ class BiasDetector:
                 'traits': ['mysterious', 'unique', 'artistic', 'charming', 'creative']
             }
         }
+        
+        # Load members from database or fallback to Secret Number
+        self.members = {}
+        try:
+            self.load_members_from_database()
+        except Exception as e:
+            logger.error(f"Error loading members from database: {e}")
+            # Use Secret Number fallback if database loading fails
+            self.members = self.sn_members.copy()
     
     def load_members_from_database(self):
         """Load all K-pop members from database"""
         try:
             if self.kpop_df is not None and not self.kpop_df.empty:
-                logger.logger.info(f"Loading {len(self.kpop_df)} members from K-pop database")
+                logger.info(f"Loading {len(self.kpop_df)} members from K-pop database")
                 
                 # Process each member from database
                 for _, row in self.kpop_df.iterrows():
@@ -126,14 +131,14 @@ class BiasDetector:
                         'instagram': row.get('Instagram', '')
                     }
                 
-                logger.logger.info(f"✅ Loaded {len(self.members)} members from database")
+                logger.info(f"✅ Loaded {len(self.members)} members from database")
             else:
-                logger.logger.warning("⚠️ No K-pop database available, using Secret Number fallback")
+                logger.warning("⚠️ No K-pop database available, using Secret Number fallback")
                 self.members = self.sn_members.copy()
                 
         except Exception as e:
-            logger.logger.error(f"Error loading members from database: {e}")
-            logger.logger.info("Using Secret Number fallback members")
+            logger.error(f"Error loading members from database: {e}")
+            logger.info("Using Secret Number fallback members")
             self.members = self.sn_members.copy()
     
     def _create_member_key(self, stage_name, group):
@@ -253,7 +258,7 @@ class BiasDetector:
             return recommended_member
             
         except Exception as e:
-            logger.logger.error(f"Bias detection error: {e}")
+            logger.error(f"Bias detection error: {e}")
             # Fallback to random selection
             return random.choice(list(self.members.keys()))
     
@@ -286,7 +291,7 @@ class BiasDetector:
             }
             
         except Exception as e:
-            logger.logger.error(f"Love match error: {e}")
+            logger.error(f"Love match error: {e}")
             return self._fallback_love_match(member_name)
     
     async def fortune_teller(self, user_id: str, question_type: str = 'general'):
@@ -310,7 +315,7 @@ class BiasDetector:
             }
             
         except Exception as e:
-            logger.logger.error(f"Fortune teller error: {e}")
+            logger.error(f"Fortune teller error: {e}")
             return self._fallback_fortune(question_type)
     
     def _create_bias_detection_prompt(self, user_id: str, preferences: dict):

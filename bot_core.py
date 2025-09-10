@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 import pandas as pd
 import redis
-import logger
+from logger import logger
 from patch.smart_detector import SmartKPopDetector
 from analytics import analytics
 from database_manager import DatabaseManager
@@ -43,7 +43,7 @@ class BotCore:
         """Get legacy DataFrame format untuk compatibility dengan SmartKPopDetector"""
         # Prioritas: CSV fallback dari DatabaseManager
         if hasattr(self.db_manager, 'kpop_df') and self.db_manager.kpop_df is not None and not self.db_manager.kpop_df.empty:
-            logger.logger.info(f"Using CSV DataFrame: {len(self.db_manager.kpop_df)} records")
+            logger.info(f"Using CSV DataFrame: {len(self.db_manager.kpop_df)} records")
             return self.db_manager.kpop_df
         
         # Jika PostgreSQL, convert ke DataFrame format
@@ -61,10 +61,10 @@ class BotCore:
                         'Instagram': member.get('instagram', '')
                     })
                 df = pd.DataFrame(df_data)
-                logger.logger.info(f"Converted PostgreSQL to DataFrame: {len(df)} records")
+                logger.info(f"Converted PostgreSQL to DataFrame: {len(df)} records")
                 return df
         except Exception as e:
-            logger.logger.error(f"Error converting PostgreSQL to DataFrame: {e}")
+            logger.error(f"Error converting PostgreSQL to DataFrame: {e}")
         
         # Emergency fallback - GitHub CSV
         try:
@@ -77,10 +77,10 @@ class BotCore:
             response = requests.get(github_url, headers=headers)
             response.raise_for_status()
             df = pd.read_csv(StringIO(response.text))
-            logger.logger.info(f"Emergency GitHub CSV fallback: {len(df)} records")
+            logger.info(f"Emergency GitHub CSV fallback: {len(df)} records")
             return df
         except Exception as e:
-            logger.logger.error(f"Emergency GitHub CSV fallback failed: {e}")
+            logger.error(f"Emergency GitHub CSV fallback failed: {e}")
         
         # Environment variable fallback
         try:
@@ -89,20 +89,20 @@ class BotCore:
                 response = requests.get(csv_url, headers=headers)
                 response.raise_for_status()
                 df = pd.read_csv(StringIO(response.text))
-                logger.logger.info(f"Environment CSV fallback: {len(df)} records")
+                logger.info(f"Environment CSV fallback: {len(df)} records")
                 return df
         except Exception as e:
-            logger.logger.error(f"Environment CSV fallback failed: {e}")
+            logger.error(f"Environment CSV fallback failed: {e}")
         
         # Final fallback - local CSV file
         try:
             df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
-            logger.logger.info(f"Local CSV emergency fallback: {len(df)} records")
+            logger.info(f"Local CSV emergency fallback: {len(df)} records")
             return df
         except Exception as e:
-            logger.logger.error(f"Local CSV emergency fallback failed: {e}")
+            logger.error(f"Local CSV emergency fallback failed: {e}")
         
-        logger.logger.warning("No data source available - using empty DataFrame")
+        logger.warning("No data source available - using empty DataFrame")
         return pd.DataFrame()
     
     def _load_kpop_database(self):
@@ -146,16 +146,16 @@ class BotCore:
             status_message = random.choice(ready_messages)
             
             # Log basic ready info first
-            logger.logger.info(f"🤖 Bot logged in as {self.bot.user}")
-            logger.logger.info("🟢 Bot is ready and online!")
+            logger.info(f"🤖 Bot logged in as {self.bot.user}")
+            logger.info("🟢 Bot is ready and online!")
             
             # Get database stats safely
             try:
                 db_stats = self.db_manager.get_database_stats()
-                logger.logger.info(f"📊 Database: {db_stats['source']} - {db_stats['total_members']} members, {db_stats['total_groups']} groups")
+                logger.info(f"📊 Database: {db_stats['source']} - {db_stats['total_members']} members, {db_stats['total_groups']} groups")
             except Exception as db_error:
-                logger.logger.warning(f"⚠️ Could not get database stats: {db_error}")
-                logger.logger.info("📊 Database: Using fallback mode")
+                logger.warning(f"⚠️ Could not get database stats: {db_error}")
+                logger.info("📊 Database: Using fallback mode")
             
             # Kirim status message ke Discord
             try:
@@ -164,22 +164,22 @@ class BotCore:
                     channel = self.bot.get_channel(int(self.STATUS_CHANNEL_ID))
                     if channel:
                         await channel.send(status_message)
-                        logger.logger.info(f"✅ Status message sent to channel: {channel.name}")
+                        logger.info(f"✅ Status message sent to channel: {channel.name}")
                     else:
-                        logger.logger.warning(f"❌ Channel with ID {self.STATUS_CHANNEL_ID} not found")
+                        logger.warning(f"❌ Channel with ID {self.STATUS_CHANNEL_ID} not found")
                         # Fallback ke auto-detect
                         await self._send_to_any_channel(status_message)
                 else:
-                    logger.logger.info("⚠️ No status channel configured, using auto-detect")
+                    logger.info("⚠️ No status channel configured, using auto-detect")
                     await self._send_to_any_channel(status_message)
                     
             except Exception as discord_error:
-                logger.logger.error(f"❌ Failed to send Discord status message: {discord_error}")
+                logger.error(f"❌ Failed to send Discord status message: {discord_error}")
                 print(status_message)  # Fallback ke console
                 
         except Exception as e:
-            logger.logger.error(f"❌ Critical error in _on_bot_ready: {e}")
-            logger.logger.info("🟢 Bot startup completed despite errors")
+            logger.error(f"❌ Critical error in _on_bot_ready: {e}")
+            logger.info("🟢 Bot startup completed despite errors")
     
     async def _send_to_any_channel(self, message):
         """Fallback method to send message to any available channel"""
@@ -187,7 +187,7 @@ class BotCore:
             for channel in guild.text_channels:
                 if channel.permissions_for(guild.me).send_messages:
                     await channel.send(message)
-                    logger.logger.info(f"✅ Status message sent to {guild.name}#{channel.name}")
+                    logger.info(f"✅ Status message sent to {guild.name}#{channel.name}")
                     return
             else:
                 continue

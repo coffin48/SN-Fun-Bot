@@ -88,7 +88,7 @@ class SocialMediaCommandsHandler:
                 await loading_message.edit(embed=error_embed)
                 
         except Exception as e:
-            logger.logger.error(f"Social media command error ({platform}): {e}")
+            logger.error(f"Social media command error ({platform}): {e}")
             await ctx.send(f"❌ Error: {e}")
     
     async def _call_platform_check(self, platform: str):

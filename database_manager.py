@@ -3,7 +3,7 @@ Database Manager - Menangani koneksi PostgreSQL dan fallback ke CSV
 """
 import os
 import pandas as pd
-import logger
+from logger import logger
 from typing import Optional, List, Dict
 
 # Optional PostgreSQL imports dengan graceful fallback
@@ -13,7 +13,7 @@ try:
     POSTGRES_AVAILABLE = True
 except ImportError:
     POSTGRES_AVAILABLE = False
-    logger.logger.warning("PostgreSQL dependencies not available - using CSV fallback only")
+    logger.warning("PostgreSQL dependencies not available - using CSV fallback only")
 
 class DatabaseManager:
     def __init__(self):
@@ -32,10 +32,10 @@ class DatabaseManager:
             if POSTGRES_AVAILABLE and self.database_url:
                 self.engine = create_engine(self.database_url)
                 self._test_postgres_connection()
-                logger.logger.info("✅ PostgreSQL connection established")
+                logger.info("✅ PostgreSQL connection established")
                 return
         except Exception as e:
-            logger.logger.warning(f"PostgreSQL unavailable: {e}")
+            logger.warning(f"PostgreSQL unavailable: {e}")
         
         # Fallback ke CSV jika PostgreSQL gagal atau tidak tersedia
         self._load_csv_fallback()
@@ -45,7 +45,7 @@ class DatabaseManager:
         with self.engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM kpop_members"))
             count = result.fetchone()[0]
-            logger.logger.info(f"PostgreSQL ready: {count} K-pop members")
+            logger.info(f"PostgreSQL ready: {count} K-pop members")
     
     def _load_csv_fallback(self):
         """Load CSV sebagai fallback"""
@@ -55,7 +55,7 @@ class DatabaseManager:
                 self._load_from_github()
                 return
             except Exception as github_error:
-                logger.logger.warning(f"GitHub CSV failed: {github_error}")
+                logger.warning(f"GitHub CSV failed: {github_error}")
             
             # Priority 2: Environment variable (Google Drive/Sheets)
             if self.kpop_csv_id:
@@ -63,19 +63,19 @@ class DatabaseManager:
                     self._load_from_google_drive()
                     return
                 except Exception as drive_error:
-                    logger.logger.warning(f"Google Drive failed: {drive_error}")
+                    logger.warning(f"Google Drive failed: {drive_error}")
                     try:
                         self._load_from_google_sheets()
                         return
                     except Exception as sheets_error:
-                        logger.logger.warning(f"Google Sheets failed: {sheets_error}")
+                        logger.warning(f"Google Sheets failed: {sheets_error}")
             
             # Priority 3: Local file
             self.kpop_df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
-            logger.logger.info(f"✅ Local CSV loaded: {len(self.kpop_df)} records")
+            logger.info(f"✅ Local CSV loaded: {len(self.kpop_df)} records")
             
         except Exception as e:
-            logger.logger.error(f"❌ All CSV sources failed: {e}")
+            logger.error(f"❌ All CSV sources failed: {e}")
             self.kpop_df = pd.DataFrame()
     
     def _load_from_github(self):
@@ -94,7 +94,7 @@ class DatabaseManager:
         response.raise_for_status()
         
         self.kpop_df = pd.read_csv(StringIO(response.text))
-        logger.logger.info(f"✅ CSV from GitHub loaded: {len(self.kpop_df)} records")
+        logger.info(f"✅ CSV from GitHub loaded: {len(self.kpop_df)} records")
     
     def _is_google_drive_id(self, file_id: str) -> bool:
         """Deteksi apakah ID adalah Google Drive file atau Google Sheets"""
@@ -127,7 +127,7 @@ class DatabaseManager:
         
         response.raise_for_status()
         self.kpop_df = pd.read_csv(StringIO(response.text))
-        logger.logger.info(f"✅ CSV from Google Drive loaded: {len(self.kpop_df)} records")
+        logger.info(f"✅ CSV from Google Drive loaded: {len(self.kpop_df)} records")
     
     def _load_from_google_sheets(self):
         """Load CSV dari Google Sheets"""
@@ -145,7 +145,7 @@ class DatabaseManager:
         response.raise_for_status()
         
         self.kpop_df = pd.read_csv(StringIO(response.text))
-        logger.logger.info(f"✅ CSV from Google Sheets loaded: {len(self.kpop_df)} records")
+        logger.info(f"✅ CSV from Google Sheets loaded: {len(self.kpop_df)} records")
     
     def search_members(self, query: str, limit: int = 10) -> List[Dict]:
         """Pencarian member dengan PostgreSQL atau CSV fallback"""
@@ -191,7 +191,7 @@ class DatabaseManager:
                 return [dict(row._mapping) for row in result]
                 
         except Exception as e:
-            logger.logger.error(f"PostgreSQL search error: {e}")
+            logger.error(f"PostgreSQL search error: {e}")
             return self._search_csv(query, limit)
     
     def _search_csv(self, query: str, limit: int) -> List[Dict]:
@@ -224,7 +224,7 @@ class DatabaseManager:
             } for _, row in results.iterrows()]
             
         except Exception as e:
-            logger.logger.error(f"CSV search error: {e}")
+            logger.error(f"CSV search error: {e}")
             return []
     
     def get_member_by_name(self, stage_name: str) -> Optional[Dict]:
@@ -249,7 +249,7 @@ class DatabaseManager:
                     return [dict(row._mapping) for row in result]
                     
             except Exception as e:
-                logger.logger.error(f"PostgreSQL group search error: {e}")
+                logger.error(f"PostgreSQL group search error: {e}")
         
         # CSV fallback
         if self.kpop_df is not None:
@@ -281,7 +281,7 @@ class DatabaseManager:
                     """)).fetchone()[0]
                     
                     if not table_check:
-                        logger.logger.warning("Table kpop_members does not exist in PostgreSQL")
+                        logger.warning("Table kpop_members does not exist in PostgreSQL")
                         # Fall through to CSV fallback
                     else:
                         total = conn.execute(text("SELECT COUNT(*) FROM kpop_members")).fetchone()[0]
@@ -294,7 +294,7 @@ class DatabaseManager:
                             'status': 'connected'
                         }
             except Exception as e:
-                logger.logger.error(f"PostgreSQL stats error: {e}")
+                logger.error(f"PostgreSQL stats error: {e}")
                 # Fall through to CSV fallback
         
         # CSV fallback stats
@@ -316,7 +316,7 @@ class DatabaseManager:
                     'status': 'fallback'
                 }
             except Exception as e:
-                logger.logger.error(f"Error getting CSV stats: {e}")
+                logger.error(f"Error getting CSV stats: {e}")
                 return {
                     'source': 'CSV',
                     'total_members': len(self.kpop_df) if self.kpop_df is not None else 0,

@@ -40,7 +40,7 @@ class BiasCommandsHandler:
                 await self._show_bias_help(ctx)
                 
         except Exception as e:
-            logger.logger.error(f"Bias command error: {e}")
+            logger.error(f"Bias command error: {e}")
             await self._send_error_embed(ctx, "Terjadi error saat memproses command bias")
     
     async def _handle_bias_detect(self, ctx, user_id: str, args):
@@ -102,7 +102,7 @@ class BiasCommandsHandler:
             await loading_message.edit(embed=result_embed)
             
         except Exception as e:
-            logger.logger.error(f"Bias detect error: {e}")
+            logger.error(f"Bias detect error: {e}")
             await loading_message.edit(embed=self._create_error_embed("Bias detection gagal"))
     
     async def _handle_love_match(self, ctx, user_id: str, args):
@@ -165,7 +165,7 @@ class BiasCommandsHandler:
             await loading_message.edit(embed=compatibility_embed)
             
         except Exception as e:
-            logger.logger.error(f"Love match error: {e}")
+            logger.error(f"Love match error: {e}")
             await loading_message.edit(embed=self._create_error_embed("Love match analysis gagal"))
     
     async def _handle_fortune(self, ctx, user_id: str, args):
@@ -231,7 +231,7 @@ class BiasCommandsHandler:
             await loading_message.edit(embed=fortune_embed)
             
         except Exception as e:
-            logger.logger.error(f"Fortune error: {e}")
+            logger.error(f"Fortune error: {e}")
             await loading_message.edit(embed=self._create_error_embed("Fortune reading gagal"))
     
     async def _handle_member_profile(self, ctx, args):

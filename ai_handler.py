@@ -8,7 +8,7 @@ import time
 import random
 import os
 import requests
-import logger
+from logger import logger
 
 # Optional monitoring - only import if available
 try:
@@ -37,9 +37,9 @@ class AIHandler:
                 self.api_keys.append(single_key)
         
         if not self.api_keys:
-            logger.logger.error("No GEMINI_API_KEY found. Set GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3, GEMINI_API_KEY_4, GEMINI_API_KEY_5")
+            logger.error("No GEMINI_API_KEY found. Set GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3, GEMINI_API_KEY_4, GEMINI_API_KEY_5")
         else:
-            logger.logger.info(f"Loaded {len(self.api_keys)} Gemini API keys for load balancing (including backup keys)")
+            logger.info(f"Loaded {len(self.api_keys)} Gemini API keys for load balancing (including backup keys)")
         
         # Multiple model options with Gemini 2.0 Flash as primary
         self.models = [
@@ -83,7 +83,7 @@ class AIHandler:
         """Synchronous Gemini API call with category-specific API key selection"""
         # Validate API keys
         if not self.api_keys:
-            logger.logger.error("Gemini API key not found")
+            logger.error("Gemini API key not found")
             return self._get_fallback_response()
         
         # Determine preferred API key based on category
@@ -91,7 +91,7 @@ class AIHandler:
         if category and category in self.category_api_mapping:
             preferred_key_index = self.category_api_mapping[category]
             if preferred_key_index < len(self.api_keys):
-                logger.logger.info(f"Using dedicated API key #{preferred_key_index + 1} for category: {category}")
+                logger.info(f"Using dedicated API key #{preferred_key_index + 1} for category: {category}")
         
         # Try all available models
         for model_attempt in range(len(self.models)):
@@ -103,14 +103,14 @@ class AIHandler:
                 url = f"{self.base_url_template.format(model=current_model)}?key={current_key}"
                 
                 key_type = "primary" if preferred_key_index < 3 else "backup"
-                logger.logger.info(f"Trying model: {current_model} with {key_type} {category} API key #{preferred_key_index + 1}")
+                logger.info(f"Trying model: {current_model} with {key_type} {category} API key #{preferred_key_index + 1}")
                 
                 result = self._try_model_request(url, prompt, max_tokens, current_model, preferred_key_index, category)
                 
                 if result != "MODEL_FAILED":
                     # Success with preferred key
                     self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
-                    logger.logger.info(f"✅ Success with {key_type} API key #{preferred_key_index + 1} for {category}")
+                    logger.info(f"✅ Success with {key_type} API key #{preferred_key_index + 1} for {category}")
                     return result
             
             # If preferred key failed or not available, try all other keys
@@ -125,7 +125,7 @@ class AIHandler:
                 url = f"{self.base_url_template.format(model=current_model)}?key={current_key}"
                 
                 key_type = "primary" if current_key_index < 3 else "backup"
-                logger.logger.info(f"Trying model: {current_model} with {key_type} fallback API key #{current_key_index + 1}")
+                logger.info(f"Trying model: {current_model} with {key_type} fallback API key #{current_key_index + 1}")
                 
                 result = self._try_model_request(url, prompt, max_tokens, current_model, current_key_index, category)
                 
@@ -133,12 +133,12 @@ class AIHandler:
                     # Success with fallback key
                     self.current_model_index = (self.current_model_index + model_attempt) % len(self.models)
                     self.current_key_index = current_key_index
-                    logger.logger.info(f"✅ Success with {key_type} fallback API key #{current_key_index + 1} for {category or 'GENERAL'}")
+                    logger.info(f"✅ Success with {key_type} fallback API key #{current_key_index + 1} for {category or 'GENERAL'}")
                     return result
             
         
         # All models and keys failed
-        logger.logger.error("All Gemini models and API keys failed")
+        logger.error("All Gemini models and API keys failed")
         return self._get_fallback_response()
     
     def _try_model_request(self, url, prompt, max_tokens, model_name, api_key_index, category=None):
@@ -148,7 +148,7 @@ class AIHandler:
         time_since_last = current_time - self.last_request_time
         if time_since_last < self.min_request_interval:
             sleep_time = self.min_request_interval - time_since_last
-            logger.logger.info(f"Rate limiting: waiting {sleep_time:.1f}s before request")
+            logger.info(f"Rate limiting: waiting {sleep_time:.1f}s before request")
             time.sleep(sleep_time)
         
         self.last_request_time = time.time()
@@ -208,22 +208,22 @@ class AIHandler:
                 if e.response.status_code == 503 and attempt < max_retries - 1:
                     # Service unavailable, retry with exponential backoff
                     wait_time = (2 ** attempt) + 1  # 2, 5, 9 seconds
-                    logger.logger.warning(f"Gemini API 503 error, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    logger.warning(f"Gemini API 503 error, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 elif e.response.status_code == 429 and attempt < max_retries - 1:
                     # Rate limit exceeded, wait longer before retry
                     wait_time = (2 ** (attempt + 2)) + 5  # 9, 21, 37 seconds
-                    logger.logger.warning(f"Gemini API rate limit (429), retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    logger.warning(f"Gemini API rate limit (429), retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 elif e.response.status_code == 404:
                     # Model not found - try next model
-                    logger.logger.warning(f"Model {model_name} not found (404), trying next model")
+                    logger.warning(f"Model {model_name} not found (404), trying next model")
                     return "MODEL_FAILED"
                 else:
                     # Final attempt failed or other HTTP error
-                    logger.logger.error(f"Gemini API HTTP error for {model_name}: {e}")
+                    logger.error(f"Gemini API HTTP error for {model_name}: {e}")
                     # Log failed API call
                     response_time_ms = int((time.time() - request_start_time) * 1000)
                     log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=False)
@@ -231,18 +231,18 @@ class AIHandler:
             except Exception as e:
                 if attempt < max_retries - 1:
                     wait_time = (2 ** attempt) + 1
-                    logger.logger.warning(f"Gemini API error, retrying in {wait_time}s: {e}")
+                    logger.warning(f"Gemini API error, retrying in {wait_time}s: {e}")
                     time.sleep(wait_time)
                     continue
                 else:
-                    logger.logger.error(f"Gemini API final error for {model_name}: {e}")
+                    logger.error(f"Gemini API final error for {model_name}: {e}")
                     # Log failed API call
                     response_time_ms = int((time.time() - request_start_time) * 1000)
                     log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=False)
                     return "MODEL_FAILED"
         else:
             # All retries failed for this model
-            logger.logger.error(f"All retry attempts failed for model {model_name}")
+            logger.error(f"All retry attempts failed for model {model_name}")
             # Log failed API call
             response_time_ms = int((time.time() - request_start_time) * 1000)
             log_api_usage(category or "GENERAL", api_key_index, response_time_ms, success=False)
@@ -251,16 +251,16 @@ class AIHandler:
         try:
             
             # Debug logging for troubleshooting
-            logger.logger.debug(f"Gemini API full response: {result}")
+            logger.debug(f"Gemini API full response: {result}")
             
             # Validate response structure
             if "candidates" not in result or not result["candidates"]:
-                logger.logger.error(f"No candidates in API response: {result}")
+                logger.error(f"No candidates in API response: {result}")
                 # Check if blocked by safety filters
                 if "promptFeedback" in result:
                     feedback = result["promptFeedback"]
                     if "blockReason" in feedback:
-                        logger.logger.warning(f"Content blocked by safety filter: {feedback['blockReason']}")
+                        logger.warning(f"Content blocked by safety filter: {feedback['blockReason']}")
                         return "Maaf, pertanyaan ini tidak bisa dijawab karena kebijakan keamanan. Coba tanya yang lain ya! 🛡️"
                 return "MODEL_FAILED"
             
@@ -268,11 +268,11 @@ class AIHandler:
             
             # Check if candidate was blocked by safety filters
             if "finishReason" in candidate and candidate["finishReason"] == "SAFETY":
-                logger.logger.warning(f"Response blocked by safety filter: {candidate}")
+                logger.warning(f"Response blocked by safety filter: {candidate}")
                 return "Maaf, respons diblokir karena kebijakan keamanan. Coba pertanyaan lain ya! 🛡️"
             
             if "content" not in candidate:
-                logger.logger.error(f"No content in candidate: {candidate}")
+                logger.error(f"No content in candidate: {candidate}")
                 return "MODEL_FAILED"
             
             content = candidate["content"]
@@ -281,38 +281,38 @@ class AIHandler:
             if "parts" not in content:
                 # Check if content has 'role' only (empty response case)
                 if content.get("role") == "model" and len(content) == 1:
-                    logger.logger.warning(f"Empty model response from Gemini API: {content}")
+                    logger.warning(f"Empty model response from Gemini API: {content}")
                     return "MODEL_FAILED"
                 # Check for alternative response formats
                 elif "text" in content:
                     text = content["text"]
                     if text and text.strip():
                         return text.strip()
-                logger.logger.error(f"No parts in content and no alternative format: {content}")
+                logger.error(f"No parts in content and no alternative format: {content}")
                 return "MODEL_FAILED"
             
             if not content["parts"]:
-                logger.logger.error(f"Empty parts array in content: {content}")
+                logger.error(f"Empty parts array in content: {content}")
                 return "MODEL_FAILED"
             
             text = content["parts"][0].get("text", "")
             if not text.strip():
-                logger.logger.warning("Empty text response from API")
+                logger.warning("Empty text response from API")
                 return "MODEL_FAILED"
             
             return text.strip()
             
         except requests.exceptions.Timeout:
-            logger.logger.error(f"Gemini API timeout for model {model_name}")
+            logger.error(f"Gemini API timeout for model {model_name}")
             return "MODEL_FAILED"
         except requests.exceptions.ConnectionError:
-            logger.logger.error(f"Gemini API connection error for model {model_name}")
+            logger.error(f"Gemini API connection error for model {model_name}")
             return "MODEL_FAILED"
         except KeyError as e:
-            logger.logger.error(f"Gemini API response format error for {model_name}: {e}")
+            logger.error(f"Gemini API response format error for {model_name}: {e}")
             return "MODEL_FAILED"
         except Exception as e:
-            logger.logger.error(f"Gemini API unexpected error for {model_name}: {e}")
+            logger.error(f"Gemini API unexpected error for {model_name}: {e}")
             return "MODEL_FAILED"
     
     def create_member_summary_prompt(self, info):
@@ -320,7 +320,7 @@ class AIHandler:
         # Truncate input jika terlalu panjang (max 8000 karakter untuk safety)
         max_input_length = 8000
         if len(info) > max_input_length:
-            logger.logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
+            logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
             info = info[:max_input_length] + "...[truncated]"
         
         return f"""Buat info K-pop member berikut:
@@ -340,7 +340,7 @@ Awali dengan intro singkat natural (contoh: "Ini info tentang [nama]" atau "Beri
         # Truncate input jika terlalu panjang (max 8000 karakter untuk safety)
         max_input_length = 8000
         if len(info) > max_input_length:
-            logger.logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
+            logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
             info = info[:max_input_length] + "...[truncated]"
         
         return f"""Buat info K-pop grup berikut:
