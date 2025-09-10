@@ -40,17 +40,19 @@ class CommandsHandler:
         self.bias_detector = None
         self.bias_handler = None
         
-        # Force enable bias commands for debugging
+        # Fix circular import by importing BiasDetector first
         try:
             from bias_detector import BiasDetector
-            from bias_commands import BiasCommandsHandler
             self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
-            self.bias_handler = BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
-            logger.info("✅ Bias commands force initialized")
-            print(f"DEBUG: Force init - bias_handler = {self.bias_handler}")
+            
+            # Import BiasCommandsHandler after BiasDetector is initialized
+            import bias_commands
+            self.bias_handler = bias_commands.BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
+            logger.info("✅ Bias commands initialized successfully")
+            print(f"DEBUG: bias_handler = {self.bias_handler}")
         except Exception as e:
-            logger.error(f"Force bias init failed: {e}")
-            print(f"DEBUG: Force init error: {e}")
+            logger.error(f"Bias init failed: {e}")
+            print(f"DEBUG: Bias init error: {e}")
             import traceback
             traceback.print_exc()
             self.bias_detector = None
