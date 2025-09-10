@@ -337,7 +337,46 @@ class BiasDetector:
                 # End of 5-cycle, need to generate new result for next cycle
                 logger.debug(f"End of cycle {current_cycle + 1} for {user_id}-{selected_member}, generating new result")
         
-        # ... (rest of the code remains the same)
+        # Generate new match result
+        logger.debug(f"Cache miss for user {user_id}, member {selected_member} - generating new result")
+        
+        # Get member data
+        member_data = self.members.get(selected_member)
+        if not member_data:
+            logger.error(f"Member data not found for key: {selected_member}")
+            return {
+                'is_selection_prompt': False,
+                'error': f"Data member tidak ditemukan!"
+            }
+        
+        # Generate compatibility score (user-specific but consistent)
+        score_seed = f"{user_id}_{selected_member}_score"
+        score = 60 + (hash(score_seed) % 40)  # 60-99%
+        
+        # Generate match result
+        match_result = {
+            'member_name': member_data['name'],
+            'group_name': member_data.get('group', 'Solo Artist'),
+            'score': score,
+            'ai_analysis': f"Kalian berdua punya chemistry yang luar biasa! Kepribadian kamu yang unik sangat cocok dengan {member_data['name']}.",
+            'match_reasons': [
+                "Kalian punya vibe yang sama",
+                "Chemistry yang natural banget",
+                "Saling melengkapi satu sama lain"
+            ]
+        }
+        
+        # Cache the result
+        if user_id not in self.match_cache:
+            self.match_cache[user_id] = {}
+        
+        self.match_cache[user_id][selected_member] = {
+            'result': match_result,
+            'count': 1
+        }
+        
+        logger.info(f"Generated new match result for {user_id}-{selected_member}: {score}%")
+        return match_result
 
     def clear_match_cache(self, user_id: str = None, member_name: str = None):
         """Clear match cache for specific user/member or all cache"""
