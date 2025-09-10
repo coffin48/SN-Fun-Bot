@@ -189,22 +189,76 @@ class SocialMediaMonitor:
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 }
                 
-                # Use alternative Twitter scraping or RSS feed
-                url = f"https://nitter.net/5ecretnumber/rss"
+                # Try multiple Twitter alternatives
+                alternatives = [
+                    f"https://nitter.net/5ecretnumber/rss",
+                    f"https://nitter.it/5ecretnumber/rss", 
+                    f"https://nitter.privacydev.net/5ecretnumber/rss",
+                    f"https://nitter.fdn.fr/5ecretnumber/rss"
+                ]
                 
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        content = await response.text()
-                        return await self.parse_twitter_rss_for_latest(content)
-                    else:
-                        return None
+                for url in alternatives:
+                    try:
+                        async with session.get(url, headers=headers, timeout=10) as response:
+                            if response.status == 200:
+                                content = await response.text()
+                                result = await self.parse_twitter_rss_for_latest(content)
+                                if result:
+                                    logger.logger.info(f"✅ Twitter data retrieved from {url}")
+                                    return result
+                            else:
+                                logger.logger.warning(f"❌ {url} returned status {response.status}")
+                    except Exception as alt_error:
+                        logger.logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
+                        continue
+                
+                # If all alternatives fail, try direct Twitter API approach
+                logger.logger.warning("⚠️ All Nitter instances failed, trying direct approach")
+                return await self._try_direct_twitter_approach(session, headers)
                         
         except Exception as e:
             logger.logger.error(f"Get latest Twitter error: {e}")
             return None
+    
+    async def _try_direct_twitter_approach(self, session, headers):
+        """Try direct Twitter approach as fallback"""
+        try:
+            # Try Twitter's public API endpoints (limited)
+            url = "https://api.twitter.com/1.1/statuses/user_timeline.json"
+            params = {
+                'screen_name': '5ecretnumber',
+                'count': 1,
+                'include_rts': False,
+                'exclude_replies': True
+            }
+            
+            async with session.get(url, headers=headers, params=params, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data and len(data) > 0:
+                        tweet = data[0]
+                        return {
+                            'text': tweet.get('text', 'No content'),
+                            'url': f"https://twitter.com/5ecretnumber/status/{tweet.get('id_str', '')}",
+                            'created_at': tweet.get('created_at', 'Unknown'),
+                            'likes': tweet.get('favorite_count', 0),
+                            'retweets': tweet.get('retweet_count', 0)
+                        }
+                        
+        except Exception as e:
+            logger.logger.error(f"Direct Twitter approach failed: {e}")
+        
+        # Final fallback - return mock data indicating the issue
+        return {
+            'text': '⚠️ Unable to fetch latest tweets. Twitter API access limited. Please check @5ecretnumber directly.',
+            'url': 'https://x.com/5ecretnumber',
+            'created_at': 'Unknown',
+            'likes': 0,
+            'retweets': 0
+        }
     
     async def get_latest_youtube_video(self):
         """Get latest YouTube video data for command display"""
@@ -282,25 +336,66 @@ class SocialMediaMonitor:
         """Parse Twitter RSS for latest tweet data"""
         try:
             import re
-            from datetime import datetime
+            from datetime import datetime, timedelta
             
-            # Extract tweet data from RSS
+            # Check if RSS content is valid
+            if not rss_content or len(rss_content) < 100:
+                logger.logger.warning("⚠️ RSS content too short or empty")
+                return None
+            
+            # Extract tweet data from RSS with more robust patterns
             title_pattern = r'<title><!\[CDATA\[(.*?)\]\]></title>'
             link_pattern = r'<link>([^<]+)</link>'
             pubdate_pattern = r'<pubDate>([^<]+)</pubDate>'
+            description_pattern = r'<description><!\[CDATA\[(.*?)\]\]></description>'
             
-            titles = re.findall(title_pattern, rss_content)
+            titles = re.findall(title_pattern, rss_content, re.DOTALL)
             links = re.findall(link_pattern, rss_content)
             dates = re.findall(pubdate_pattern, rss_content)
+            descriptions = re.findall(description_pattern, rss_content, re.DOTALL)
             
-            if titles and links:
-                return {
-                    'text': titles[0],
-                    'url': links[0],
-                    'created_at': dates[0] if dates else 'Unknown',
+            logger.logger.info(f"📊 RSS parsing results: {len(titles)} titles, {len(links)} links, {len(dates)} dates")
+            
+            # Skip the first item (usually channel title) and get actual tweets
+            if len(titles) > 1 and len(links) > 1:
+                # Get the first actual tweet (index 1, not 0)
+                tweet_title = titles[1] if len(titles) > 1 else titles[0]
+                tweet_link = links[1] if len(links) > 1 else links[0]
+                tweet_date = dates[1] if len(dates) > 1 else (dates[0] if dates else 'Unknown')
+                tweet_desc = descriptions[1] if len(descriptions) > 1 else (descriptions[0] if descriptions else tweet_title)
+                
+                # Clean up the tweet text
+                tweet_text = tweet_desc if tweet_desc else tweet_title
+                tweet_text = re.sub(r'<[^>]+>', '', tweet_text)  # Remove HTML tags
+                tweet_text = tweet_text.strip()
+                
+                # Parse date to check if it's recent (within 24 hours)
+                try:
+                    from dateutil import parser as date_parser
+                    tweet_datetime = date_parser.parse(tweet_date)
+                    now = datetime.now(tweet_datetime.tzinfo)
+                    time_diff = now - tweet_datetime
+                    
+                    if time_diff.days > 1:
+                        logger.logger.info(f"⏰ Tweet is {time_diff.days} days old")
+                    else:
+                        logger.logger.info(f"⏰ Tweet is {time_diff.seconds // 3600} hours old")
+                        
+                except Exception as date_error:
+                    logger.logger.warning(f"⚠️ Date parsing error: {date_error}")
+                
+                result = {
+                    'text': tweet_text[:500],  # Limit length
+                    'url': tweet_link,
+                    'created_at': tweet_date,
                     'likes': 0,  # RSS doesn't provide stats
                     'retweets': 0
                 }
+                
+                logger.logger.info(f"✅ Parsed tweet: {tweet_text[:100]}...")
+                return result
+            
+            logger.logger.warning("⚠️ No valid tweets found in RSS")
             return None
             
         except Exception as e:
