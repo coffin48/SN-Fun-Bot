@@ -264,17 +264,16 @@ class BiasDetector:
         logger.info(f"🔍 Starting bias detection for user {user_id}")
         
         try:
-            # Get random member from database or fallback to SN members
-            if self.members:
-                # Use full K-pop database
-                available_members = list(self.members.keys())
-                selected_key = random.choice(available_members)
-                member_data = self.members[selected_key]
-            else:
-                # Fallback to Secret Number members
-                available_members = list(self.sn_members.keys())
-                selected_key = random.choice(available_members)
-                member_data = self.sn_members[selected_key]
+            # Get random member from K-pop database
+            if not self.members:
+                logger.error("No K-pop database available for bias detection")
+                return {
+                    'error': 'Database tidak tersedia, coba lagi nanti ya! 🔍'
+                }
+            
+            available_members = list(self.members.keys())
+            selected_key = random.choice(available_members)
+            member_data = self.members[selected_key]
             
             # Generate user-specific compatibility score
             score_seed = f"{user_id}_bias_detect_{selected_key}"
@@ -397,7 +396,7 @@ class BiasDetector:
         
         # Generate compatibility score (user-specific but consistent)
         score_seed = f"{user_id}_{selected_member}_score"
-        score = 60 + (hash(score_seed) % 40)  # 60-99%
+        score = 30 + (hash(score_seed) % 70)  # 30-99%
         
         # Generate match result
         match_result = {
@@ -587,15 +586,16 @@ class BiasDetector:
         logger.info(f"🔮 Starting fortune reading for user {user_id}, type: {fortune_type}")
         
         try:
-            # Get random guide member
-            if self.members:
-                available_members = list(self.members.keys())
-                guide_key = random.choice(available_members)
-                guide_member = self.members[guide_key]
-            else:
-                available_members = list(self.sn_members.keys())
-                guide_key = random.choice(available_members)
-                guide_member = self.sn_members[guide_key]
+            # Get random guide member from K-pop database
+            if not self.members:
+                logger.error("No K-pop database available for fortune telling")
+                return {
+                    'error': 'Database tidak tersedia, coba lagi nanti ya! 🔮'
+                }
+            
+            available_members = list(self.members.keys())
+            guide_key = random.choice(available_members)
+            guide_member = self.members[guide_key]
             
             # Generate user-specific fortune elements
             fortune_seed = f"{user_id}_fortune_{fortune_type}"
@@ -666,9 +666,15 @@ class BiasDetector:
         logger.debug(f"Generating ramalan tradisional for user {user_id}, type: {ramalan_type}")
         
         try:
-            # Select a random Secret Number member as the "dukun"
-            dukun_member_key = random.choice(list(self.sn_members.keys()))
-            dukun_member = self.sn_members[dukun_member_key]
+            # Select a random K-pop member as the "dukun"
+            if not self.members:
+                logger.error("No K-pop database available for ramalan tradisional")
+                return {
+                    'error': 'Database tidak tersedia, coba lagi nanti ya! 🌙'
+                }
+            
+            dukun_member_key = random.choice(list(self.members.keys()))
+            dukun_member = self.members[dukun_member_key]
             
             # Generate user-specific seed for consistent fortune elements
             fortune_seed = f"{user_id}_{ramalan_type}_ramalan"
@@ -726,11 +732,11 @@ class BiasDetector:
         """Analyze probability of getting match score above threshold"""
         logger.debug(f"Analyzing match probability for threshold {threshold}%")
         
-        # Match scores range from 60-99% (40 possible values)
-        total_possible_scores = 40
+        # Match scores range from 30-99% (70 possible values)
+        total_possible_scores = 70
         scores_above_threshold = max(0, 99 - threshold)
         
-        if threshold <= 60:
+        if threshold <= 30:
             probability = 100.0
         else:
             probability = (scores_above_threshold / total_possible_scores) * 100
@@ -748,8 +754,8 @@ class BiasDetector:
         
         thresholds = [20, 50, 70, 80, 90, 95]
         statistics = {
-            'score_range': '60-99%',
-            'total_possible_scores': 40,
+            'score_range': '30-99%',
+            'total_possible_scores': 70,
             'probabilities': {}
         }
         
@@ -772,13 +778,6 @@ class BiasDetector:
                     logger.debug(f"Found member in database: {member_data['name']}")
                     return member_data
         
-        # Fallback to Secret Number members
-        for member_key, member_data in self.sn_members.items():
-            if (member_data['name'].lower() == member_name.lower() or
-                member_data.get('korean_name', '').lower() == member_name.lower() or
-                member_key.lower() == member_name.lower()):
-                logger.debug(f"Found member in SN fallback: {member_data['name']}")
-                return member_data
         
         logger.warning(f"Member not found: {member_name}")
         return None
