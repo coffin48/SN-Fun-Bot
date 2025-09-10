@@ -441,14 +441,15 @@ class SocialMediaMonitor:
     
     async def _get_social_media_screenshot(self, platform: str):
         """Get screenshot of social media page as fallback"""
+        import os
+        import aiohttp
+        
         try:
-            # Use screenshot API services
-            screenshot_apis = [
-                f"https://api.screenshotmachine.com/?key=YOUR_API_KEY&url=",
-                f"https://htmlcsstoimage.com/demo_run?url=",
-                f"https://api.urlbox.io/v1/YOUR_API_KEY/png?url=",
-                f"https://shot.screenshotapi.net/screenshot?token=YOUR_TOKEN&url="
-            ]
+            # Get APIFlash key from environment
+            apiflash_key = os.getenv('APIFLASH_KEY')
+            if not apiflash_key:
+                logger.warning("APIFLASH_KEY not found in environment variables")
+                return await self._fallback_screenshot_service(platform)
             
             platform_urls = {
                 'instagram': 'https://www.instagram.com/secretnumber.official/',
@@ -459,23 +460,43 @@ class SocialMediaMonitor:
             
             target_url = platform_urls.get(platform)
             if not target_url:
+                logger.warning(f"No URL configured for platform: {platform}")
                 return None
             
-            # For now, return a placeholder - you'll need to configure API keys
-            # This is the structure for when you add screenshot APIs
+            # APIFlash screenshot URL
+            screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key={apiflash_key}&url={target_url}&format=png&width=1200&height=800&crop_width=600&crop_height=400&delay=3&wait_until=page_loaded"
             
-            # Alternative: Use a simple webpage screenshot service
-            simple_screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key=YOUR_KEY&url={target_url}&format=png&width=1200&height=800&crop_width=600&crop_height=400"
-            
-            # Try free screenshot services first
-            free_services = [
-                f"https://api.thumbnail.ws/api/YOUR_API_KEY/thumbnail/get?url={target_url}&width=600",
-                f"https://mini.s-shot.ru/1024x768/PNG/1024/Z100/?{target_url}",
-                f"https://www.googleapis.com/pagespeedonline/v5/runPagespeedApi?url={target_url}&screenshot=true"
-            ]
-            
+            # Test if APIFlash is working
             async with aiohttp.ClientSession() as session:
-                # Try simple screenshot service (s-shot.ru is free)
+                async with session.head(screenshot_url, timeout=10) as response:
+                    if response.status == 200:
+                        logger.info(f"✅ APIFlash screenshot ready for {platform}")
+                        return screenshot_url
+                    else:
+                        logger.warning(f"APIFlash returned status {response.status} for {platform}")
+                        return await self._fallback_screenshot_service(platform)
+        except Exception as e:
+            logger.error(f"APIFlash screenshot failed for {platform}: {e}")
+            return await self._fallback_screenshot_service(platform)
+    
+    async def _fallback_screenshot_service(self, platform: str):
+        """Fallback to free screenshot services"""
+        import aiohttp
+        
+        platform_urls = {
+            'instagram': 'https://www.instagram.com/secretnumber.official/',
+            'twitter': 'https://twitter.com/5ecretnumber',
+            'tiktok': 'https://www.tiktok.com/@secretnumber.official',
+            'youtube': 'https://www.youtube.com/@SECRETNUMBER_official'
+        }
+        
+        target_url = platform_urls.get(platform)
+        if not target_url:
+            return None
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Try s-shot.ru (free service)
                 # Security note: Only use for public social media pages
                 if target_url.startswith(('https://www.instagram.com/', 'https://twitter.com/', 'https://www.tiktok.com/', 'https://www.youtube.com/')):
                     simple_url = f"https://mini.s-shot.ru/600x400/PNG/600/Z100/?{target_url}"
@@ -489,11 +510,10 @@ class SocialMediaMonitor:
                 else:
                     logger.warning(f"⚠️ Screenshot blocked for non-whitelisted URL: {target_url}")
             
-            # Return None if all services fail
             return None
             
         except Exception as e:
-            logger.error(f"Screenshot capture error: {e}")
+            logger.error(f"Fallback screenshot service failed: {e}")
             return None
     
     # Helper methods for parsing content data
