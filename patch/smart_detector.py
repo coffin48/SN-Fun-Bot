@@ -37,7 +37,10 @@ class SmartKPopDetector:
             'lesserafim': 'LE SSERAFIM',
             'le_sserafim': 'LE SSERAFIM',
             'nmixx': 'NMIXX',
-            'stayc': 'STAYC'
+            'stayc': 'STAYC',
+            'secret number': 'SECRET NUMBER',
+            'secretnumber': 'SECRET NUMBER',
+            'sn': 'SECRET NUMBER'
         }
         
         # Blacklist untuk nama member yang terlalu umum atau problematik
@@ -56,7 +59,7 @@ class SmartKPopDetector:
         self.aliases = {}
         self.priority_kpop_names = set()
         
-        # First pass: Build group names index
+        # First pass: Build group names index with priority for longer names
         for idx, row in self.kpop_df.iterrows():
             group = str(row.get("Group", "")).strip()
             if group:
@@ -66,6 +69,15 @@ class SmartKPopDetector:
                 self.group_names[group_lower].append((group, idx))
                 # Tambahkan grup ke priority names dengan prioritas tinggi
                 self.priority_kpop_names.add(group_lower)
+                
+                # Tambahkan variasi nama untuk grup dengan spasi
+                if ' ' in group_lower:
+                    # Tambahkan versi tanpa spasi
+                    group_no_space = group_lower.replace(' ', '')
+                    if group_no_space not in self.group_names:
+                        self.group_names[group_no_space] = []
+                    self.group_names[group_no_space].append((group, idx))
+                    self.priority_kpop_names.add(group_no_space)
         
         # Add hardcoded additional groups
         for group_key, group_name in self.additional_groups.items():
@@ -591,7 +603,7 @@ class SmartKPopDetector:
         return None
     
     def _check_exact_groups(self, input_lower):
-        """Check exact group matches"""
+        """Check exact group matches with priority for longer names"""
         if input_lower in self.group_names:
             matches = self.group_names[input_lower]
             
@@ -602,6 +614,17 @@ class SmartKPopDetector:
                     unique_groups[group_name] = (group_name, idx)
             
             unique_matches = list(unique_groups.values())
+            
+            # Prioritas untuk nama grup yang lebih panjang dan spesifik
+            # Contoh: "SECRET NUMBER" lebih prioritas daripada "SECRET"
+            if len(unique_matches) > 1:
+                # Sort berdasarkan panjang nama grup (descending)
+                unique_matches.sort(key=lambda x: len(x[0]), reverse=True)
+                
+                # Jika ada grup dengan nama yang lebih panjang dan mengandung input
+                longest_group = unique_matches[0]
+                if len(longest_group[0]) > len(input_lower):
+                    return "GROUP", longest_group[0], []
             
             if len(unique_matches) == 1:
                 group_name, idx = unique_matches[0]
