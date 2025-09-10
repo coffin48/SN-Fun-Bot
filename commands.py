@@ -2,6 +2,7 @@
 Commands Module - Menangani semua Discord commands
 """
 import asyncio
+import random
 import time
 import discord
 from datetime import datetime
@@ -189,46 +190,55 @@ class CommandsHandler:
         
         # Kirim loading message terlebih dahulu
         loading_msg = await self._send_loading_message(ctx)
-            
+        
         # Cek cache terlebih dahulu
-        cached_summary = self.redis_client.get(cache_key)
-        if cached_summary:
-            summary = cached_summary.decode("utf-8")
-            logger.log_cache_hit(category, detected_name)
+        try:
+            cached_summary = self.redis_client.get(cache_key)
+            if cached_summary:
+                summary = cached_summary.decode("utf-8")
+                from logger import log_cache_hit
+                log_cache_hit(category, detected_name)
+                
+                # Update loading message untuk cache hit
+                await loading_msg.edit(content="⚡ Mengambil dari cache...")
+                return await self._send_kpop_embed(ctx, loading_msg, category, detected_name, summary)
+        except Exception as e:
+            logger.error(f"Error accessing Redis cache: {e}")
+            await loading_msg.edit(content="⚠️ Gagal mengakses cache. Mencoba mengambil data langsung...")
+        
+        # Enhanced query sudah dibuat untuk cache key
+        
+        # Log scraping start dengan info lengkap
+        scraping_start = time.time()
+        logger.info(f"🔍 Scraping {category}: {detected_name} | Enhanced: {enhanced_query}")
+        
+        # Try enhanced query first
+        if enhanced_query != detected_name:
+            logger.info(f"🎯 Enhanced query: {enhanced_query}")
+            info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
             
-            # Update loading message untuk cache hit
-            await loading_msg.edit(content="⚡ Mengambil dari cache...")
-        else:
-            # Enhanced query sudah dibuat untuk cache key
-            
-            # Log scraping start dengan info lengkap
-            scraping_start = time.time()
-            logger.info(f"🔍 Scraping {category}: {detected_name} | Enhanced: {enhanced_query}")
-            
-            # Try enhanced query first
-            if enhanced_query != detected_name:
-                logger.info(f"🎯 Enhanced query: {enhanced_query}")
-                info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
+            if not info.strip():
+                # Fallback to simple query
+                logger.info(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
+                info = await self.data_fetcher.fetch_kpop_info(detected_name)
                 
                 if not info.strip():
-                    # Fallback to simple query
-                    logger.info(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
-                    info = await self.data_fetcher.fetch_kpop_info(detected_name)
-                    
-                    if not info.strip():
-                        logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
-                        await self._handle_query_error(loading_msg, "not_found")
-                        self._track_failed_query(category, detected_name)
-                        return
-                    
-                    analytics.track_query_success("enhanced", False, detected_name)
-                else:
-                    analytics.track_query_success("enhanced", True, detected_name)
+                    logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
+                    await self._handle_query_error(loading_msg, "not_found")
+                    self._track_failed_query(category, detected_name)
+                    return
+                
+                # Track as simple query success
+                from logger import log_performance
+                log_performance("QuerySuccess", 0, f"Simple query success: {detected_name}")
             else:
-                info = await self.data_fetcher.fetch_kpop_info(detected_name)
+                # Track as enhanced query success
+                from logger import log_performance
+                log_performance("QuerySuccess", 0, f"Enhanced query success: {detected_name}")
             
-            scraping_time = time.time() - scraping_start
-            analytics.track_response_time("scraping", scraping_time)
+            # Calculate scraping time
+            scraping_time = int((time.time() - scraping_start) * 1000)  # Convert to milliseconds
+            log_performance("ScrapingTime", scraping_time, f"Time to scrape {detected_name}")
             
             logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
             
