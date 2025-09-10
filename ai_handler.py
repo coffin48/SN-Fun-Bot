@@ -379,3 +379,7 @@ Members: HANYA 1 posisi per nama. Awali dengan intro singkat natural (contoh: "I
         """Handle pertanyaan umum non-K-pop dengan optimasi"""
         # Reduced max_tokens untuk response time yang lebih cepat
         return await self.chat_async(user_input, max_tokens=800, category="OBROLAN")
+    
+    async def get_ai_response(self, prompt, max_tokens=1500):
+        """Alias method for bias detector compatibility"""
+        return await self.chat_async(prompt, max_tokens=max_tokens, category="BIAS")
