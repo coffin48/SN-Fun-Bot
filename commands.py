@@ -274,9 +274,21 @@ class CommandsHandler:
                     logger.warning("AI returned empty summary, using fallback")
                     # Fallback to basic info if AI fails
                     summary = f"**{detected_name}**\n\n"
+                    
+                    # Handle different categories
                     if category == "MEMBER":
-                        summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
-                    summary += info.get('description', 'Tidak ada deskripsi tersedia.')
+                        if isinstance(info, dict):
+                            summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
+                            summary += info.get('description', 'Tidak ada deskripsi tersedia.')
+                        else:
+                            summary += f"Informasi member {detected_name} tidak ditemukan."
+                    elif category == "GROUP":
+                        if isinstance(info, str):
+                            summary += info
+                        else:
+                            summary += f"Informasi grup {detected_name} tidak ditemukan."
+                    else:  # MEMBER_GROUP or others
+                        summary += "Informasi tidak tersedia."
                 
                 ai_time = time.time() - ai_start
                 analytics.track_response_time("ai_generation", ai_time)
@@ -292,11 +304,23 @@ class CommandsHandler:
                 
             except Exception as e:
                 logger.error(f"Gagal membuat ringkasan: {e}")
-                # Fallback to basic info on error
+# Fallback to basic info on error
                 summary = f"**{detected_name}**\n\n"
+                
+                # Handle different categories in error case
                 if category == "MEMBER":
-                    summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
-                summary += info.get('description', 'Tidak ada deskripsi tersedia.')
+                    if isinstance(info, dict):
+                        summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
+                        summary += info.get('description', 'Tidak ada deskripsi tersedia.')
+                    else:
+                        summary += f"Informasi member {detected_name} tidak ditemukan."
+                elif category == "GROUP":
+                    if isinstance(info, str):
+                        summary += info
+                    else:
+                        summary += f"Informasi grup {detected_name} tidak ditemukan."
+                else:  # MEMBER_GROUP or others
+                    summary += "Informasi tidak tersedia."
                 
                 # Log the error but continue with fallback content
                 await loading_msg.edit(content="⚠️ Sedang menggunakan data dasar...")
