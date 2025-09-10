@@ -96,6 +96,15 @@ class BiasCommandsHandler:
             recommended_member = await self.bias_detector.detect_bias(user_id, preferences)
             member_data = self.bias_detector.get_member_info(recommended_member)
             
+            # Debug logging
+            logger.info(f"Recommended member: {recommended_member}")
+            logger.info(f"Member data: {member_data}")
+            
+            if not member_data:
+                logger.error(f"No member data found for: {recommended_member}")
+                await loading_message.edit(embed=self._create_error_embed("Member data tidak ditemukan"))
+                return
+            
             # Create result embed
             result_embed = discord.Embed(
                 title=f"🎯 Bias Kamu Ketemu Nih: {member_data['name']}! 💕",
