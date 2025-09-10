@@ -174,6 +174,7 @@ class BiasCommandsHandler:
                 return
             
             member_name = selected_member
+            force_direct = True  # Selected member is already a specific member key
             logger.info(f"User {user_id} selected member: '{member_name}' from selection, proceeding with this member_name")
         
         # Check if user specified member with group (e.g., "jisoo blackpink")
