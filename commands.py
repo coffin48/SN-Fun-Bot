@@ -113,13 +113,14 @@ class CommandsHandler:
                     detection_time = int((time.time() - start_time) * 1000)
                     
                     # Log dengan format yang rapi
-                    logger.log_sn_command(ctx.author, user_input, category, detected_name)
-                    logger.log_detection(user_input, category, detected_name)
-                    logger.log_performance("Detection", detection_time)
+                    from logger import log_sn_command, log_detection, log_performance, log_transition
+                    log_sn_command(ctx.author, user_input, category, detected_name)
+                    log_detection(user_input, category, detected_name)
+                    log_performance("Detection", detection_time)
                     
                     # Log transition jika ada context
                     if conversation_context:
-                        logger.log_transition(conversation_context, user_input, category)
+                        log_transition(conversation_context, user_input, category)
                     
                     # Proses berdasarkan kategori
                     if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
@@ -212,10 +213,12 @@ class CommandsHandler:
                     return
                 
                 # Track as simple query success
-                logger.log_performance("QuerySuccess", 0, f"Simple query success: {detected_name}")
+                from logger import log_performance
+                log_performance("QuerySuccess", 0, f"Simple query success: {detected_name}")
             else:
                 # Track as enhanced query success
-                logger.log_performance("QuerySuccess", 0, f"Enhanced query success: {detected_name}")
+                from logger import log_performance
+                log_performance("QuerySuccess", 0, f"Enhanced query success: {detected_name}")
         else:
             info = await self.data_fetcher.fetch_kpop_info(detected_name)
         
