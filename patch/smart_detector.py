@@ -120,15 +120,18 @@ class SmartKPopDetector:
         """
         # Check additional groups first
         input_lower = user_input.lower().strip()
+        logger.debug(f"🔍 Checking additional_groups for '{input_lower}'")
+        logger.debug(f"📋 Available additional_groups: {list(self.additional_groups.keys())}")
         if input_lower in self.additional_groups:
+            logger.debug(f"✅ Found in additional_groups: {self.additional_groups[input_lower]}")
             return "GROUP", self.additional_groups[input_lower], []
         input_norm = user_input.strip()
         input_lower = input_norm.lower()
         
         # Debug logging
-        import logging
-        logging.debug(f"🔍 Detecting: '{input_norm}' (lower: '{input_lower}')")
-        logging.debug(f"📊 Priority names contains '{input_lower}': {input_lower in self.priority_kpop_names}")
+        from logger import logger
+        logger.debug(f"🔍 Detecting: '{input_norm}' (lower: '{input_lower}')")
+        logger.debug(f"📊 Priority names contains '{input_lower}': {input_lower in self.priority_kpop_names}")
         
         # Context-aware transition detection
         if conversation_context:
@@ -138,7 +141,7 @@ class SmartKPopDetector:
         
         # Prioritas 1: Deteksi REKOMENDASI
         if self._is_recommendation_request(input_lower):
-            logging.debug("✅ Detected as REKOMENDASI")
+            logger.debug("✅ Detected as REKOMENDASI")
             return "REKOMENDASI", input_norm, []
         
         
@@ -149,20 +152,20 @@ class SmartKPopDetector:
         
         # Prioritas 3: Quick check untuk K-pop names yang ada di database
         if input_lower in self.priority_kpop_names:
-            logging.debug(f"🎯 Found '{input_lower}' in priority K-pop names")
+            logger.debug(f"🎯 Found '{input_lower}' in priority K-pop names")
             # Cek GROUP dulu, baru MEMBER (grup prioritas lebih tinggi)
             result = self._check_exact_groups(input_lower)
             if result:
-                logging.debug(f"✅ Exact group match: {result}")
+                logger.debug(f"✅ Exact group match: {result}")
                 return result
             result = self._check_exact_members(input_lower)
             if result:
-                logging.debug(f"✅ Exact member match: {result}")
+                logger.debug(f"✅ Exact member match: {result}")
                 return result
         
         # Prioritas 4: Deteksi OBROLAN (casual conversation) - hanya jika bukan K-pop name
         if input_lower not in self.priority_kpop_names and self._is_casual_conversation(input_lower):
-            logging.debug("✅ Detected as OBROLAN (casual conversation)")
+            logger.debug("✅ Detected as OBROLAN (casual conversation)")
             return "OBROLAN", input_norm, []
         
         # Length filter dengan exception untuk nama K-pop valid
@@ -375,7 +378,9 @@ class SmartKPopDetector:
         recommendation_keywords = [
             'rekomendasikan', 'rekomendasi', 'sarankan', 'saran', 'suggest',
             'recommend', 'kasih tau', 'kasih tahu', 'beri tau', 'beri tahu',
-            'minta saran', 'minta rekomendasi', 'tolong kasih', 'tolong beri'
+            'minta saran', 'minta rekomendasi', 'tolong kasih', 'tolong beri',
+            'rekomen', 'rekomen lagu', 'lagu bagus', 'lagu baru', 'musik bagus',
+            'musik baru', 'apa lagu', 'lagu apa', 'musik apa', 'apa musik'
         ]
         
         return any(keyword in input_lower for keyword in recommendation_keywords)
@@ -432,8 +437,8 @@ class SmartKPopDetector:
         if len(words) < 2:
             return None
         
-        import logging
-        logging.debug(f"🔍 _detect_member_group: Processing '{input_norm}' -> words: {words}")
+        from logger import logger
+        logger.debug(f"🔍 _detect_member_group: Processing '{input_norm}' -> words: {words}")
         
         # Coba semua kombinasi kata untuk mencari member + group
         for i in range(len(words)):
@@ -442,14 +447,14 @@ class SmartKPopDetector:
                 member_part = ' '.join(words[:i+1])
                 group_part = ' '.join(words[i+1:])
                 
-                logging.debug(f"🔍 Trying: member='{member_part}' + group='{group_part}'")
+                logger.debug(f"🔍 Trying: member='{member_part}' + group='{group_part}'")
                 
                 # Cek apakah group_part adalah nama grup yang valid
                 group_matches = []
                 for group_key, group_data in self.group_names.items():
                     if group_part.lower() == group_key.lower():
                         group_matches.append((group_data[0][0], group_data[0][1]))  # (group_name, idx)
-                        logging.debug(f"✅ Found group match: {group_data[0][0]}")
+                        logger.debug(f"✅ Found group match: {group_data[0][0]}")
                 
                 # Jika group_part adalah grup yang valid, cari member-nya
                 if group_matches:
@@ -459,21 +464,21 @@ class SmartKPopDetector:
                     valid_member_found = False
                     for member_key, member_data in self.member_names.items():
                         if member_part.lower() == member_key.lower():
-                            logging.debug(f"🔍 Found member key match: {member_key}")
+                            logger.debug(f"🔍 Found member key match: {member_key}")
                             for member_name, idx in member_data:
                                 member_row = self.kpop_df.iloc[idx]
                                 member_group = str(member_row.get('Group', '')).strip()
                                 
-                                logging.debug(f"🔍 Checking member: {member_name} from {member_group} vs target group: {group_name}")
+                                logger.debug(f"🔍 Checking member: {member_name} from {member_group} vs target group: {group_name}")
                                 
                                 # Cek apakah member ini bagian dari grup yang dimaksud
                                 if member_group.lower() == group_name.lower():
-                                    logging.debug(f"✅ PERFECT MATCH: {member_name} from {group_name}")
+                                    logger.debug(f"✅ PERFECT MATCH: {member_name} from {group_name}")
                                     return "MEMBER_GROUP", f"{member_name} from {group_name}", []
                     
                     # PENTING: Jika tidak ditemukan member yang valid dari grup tersebut, 
                     # JANGAN kembalikan fallback - lanjutkan ke kombinasi lain
-                    logging.debug(f"❌ No valid member found for {member_part} in group {group_name}")
+                    logger.debug(f"❌ No valid member found for {member_part} in group {group_name}")
         
         # Fallback: Jika tidak ditemukan kombinasi member + group yang valid
         # Cek apakah ada member dengan nama yang cocok (tanpa grup spesifik)
