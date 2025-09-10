@@ -255,27 +255,21 @@ class CommandsHandler:
             
             # Calculate scraping time
             scraping_time = int((time.time() - scraping_start) * 1000)  # Convert to milliseconds
-            log_performance("ScrapingTime", scraping_time, f"Time to scrape {detected_name}")
-            
-            logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
-            
-            # Update loading message for AI processing
-            await loading_msg.edit(content="🤖 Membuat ringkasan dengan AI...")
-            
-            # Generate AI summary with proper error handling
-            ai_start = time.time()
-            summary = None
-            
-            try:
-                # First try to generate summary with AI
-                summary = await self.ai_handler.generate_kpop_summary(category, info)
+                try:
+                    cache_duration = self._get_cache_duration(category, len(str(summary)))
+                    self.redis_client.set(cache_key, summary, ex=cache_duration)
+                    from logger import log_cache_set
+                    log_cache_set(category, detected_name)
+                except Exception as cache_error:
+                    logger.error(f"Gagal menyimpan ke cache: {cache_error}")
                 
-                if not summary:
-                    logger.warning("AI returned empty summary, using fallback")
-                    # Fallback to basic info if AI fails
-                    summary = f"**{detected_name}**\n\n"
-                    
-                    # Handle different categories
+            except Exception as e:
+                logger.error(f"Gagal membuat ringkasan: {e}")
+                # Fallback to basic info on error
+                summary = f"**{detected_name}**\n\n"
+                
+                # Handle different categories in error case
+                try:
                     if category == "MEMBER":
                         if isinstance(info, dict):
                             summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
@@ -289,38 +283,9 @@ class CommandsHandler:
                             summary += f"Informasi grup {detected_name} tidak ditemukan."
                     else:  # MEMBER_GROUP or others
                         summary += "Informasi tidak tersedia."
-                
-                ai_time = time.time() - ai_start
-                analytics.track_response_time("ai_generation", ai_time)
-                
-                # Cache the result
-                try:
-                    cache_duration = self._get_cache_duration(category, len(str(summary)))
-                    self.redis_client.set(cache_key, summary, ex=cache_duration)
-                    from logger import log_cache_set
-                    log_cache_set(category, detected_name)
-                except Exception as cache_error:
-                    logger.error(f"Gagal menyimpan ke cache: {cache_error}")
-                
-            except Exception as e:
-                logger.error(f"Gagal membuat ringkasan: {e}")
-# Fallback to basic info on error
-                summary = f"**{detected_name}**\n\n"
-                
-                # Handle different categories in error case
-                if category == "MEMBER":
-                    if isinstance(info, dict):
-                        summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
-                        summary += info.get('description', 'Tidak ada deskripsi tersedia.')
-                    else:
-                        summary += f"Informasi member {detected_name} tidak ditemukan."
-                elif category == "GROUP":
-                    if isinstance(info, str):
-                        summary += info
-                    else:
-                        summary += f"Informasi grup {detected_name} tidak ditemukan."
-                else:  # MEMBER_GROUP or others
-                    summary += "Informasi tidak tersedia."
+                except Exception as inner_e:
+                    logger.error(f"Error saat membuat fallback summary: {inner_e}")
+                    summary = f"**{detected_name}**\n\nMaaf, terjadi kesalahan saat memproses permintaan. Silakan coba lagi nanti."
                 
                 # Log the error but continue with fallback content
                 await loading_msg.edit(content="⚠️ Sedang menggunakan data dasar...")
