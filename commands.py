@@ -48,35 +48,18 @@ class CommandsHandler:
         try:
             from bias_detector import BiasDetector
             print("DEBUG: BiasDetector imported successfully")
-            
-            # Check if kpop_df is available
-            if self.kpop_df is None:
-                print("DEBUG: kpop_df is None, bias detector will use fallback data")
-            else:
-                print(f"DEBUG: kpop_df has {len(self.kpop_df)} rows")
-            
             self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
             print(f"DEBUG: BiasDetector created: {self.bias_detector}")
-            
-            # Check if bias_detector has members loaded
-            if hasattr(self.bias_detector, 'members'):
-                print(f"DEBUG: BiasDetector loaded {len(self.bias_detector.members)} members")
             
             # Import BiasCommandsHandler after BiasDetector is initialized
             import bias_commands
             print("DEBUG: bias_commands module imported")
             print(f"DEBUG: BiasCommandsHandler class exists: {hasattr(bias_commands, 'BiasCommandsHandler')}")
-            
             self.bias_handler = bias_commands.BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
             print(f"DEBUG: BiasCommandsHandler created: {self.bias_handler}")
-            
-            # Verify bias_handler is properly initialized
-            if self.bias_handler is not None:
-                print("DEBUG: ✅ bias_handler successfully initialized")
-                logger.info("✅ Bias commands initialized successfully")
-            else:
-                print("DEBUG: ❌ bias_handler is None after creation")
-                
+            logger.info("✅ Bias commands initialized successfully")
+            print(f"DEBUG: Final bias_handler = {self.bias_handler}")
+            print(f"DEBUG: bias_handler type: {type(self.bias_handler)}")
         except Exception as e:
             logger.error(f"Bias init failed: {e}")
             print(f"DEBUG: Bias init error: {e}")
