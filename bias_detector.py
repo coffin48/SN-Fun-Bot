@@ -354,7 +354,7 @@ class BiasDetector:
         sample_members = dict(random.sample(list(self.members.items()), min(50, len(self.members))))
         
         member_info = "\n".join([
-            f"- {data['name']} from {data.get('group', 'Unknown')}: {data.get('position', 'Member')}, {data['personality']}"
+            f"- {data['name']} from {data.get('group', 'Solo Artist' if not data.get('group') else data.get('group'))}: {data.get('position', 'Member')}, {data['personality']}"
             for data in sample_members.values()
         ])
         
@@ -364,19 +364,20 @@ class BiasDetector:
         
         member_keys = list(sample_members.keys())
         
-        return f"""
-        You are a K-pop bias detector AI. Based on K-pop member profiles, recommend the best bias match.
-        
-        Available Members:
-        {member_info}
-        
-        {pref_text}
-        
-        Analyze personality compatibility and recommend ONE member key from this list:
-        {', '.join(member_keys[:10])}...
-        
-        Respond with just the member key (e.g., "hyuna_4minute" or "jimin_bts").
-        """
+        return f"""You are a K-pop bias detector AI. Based on K-pop member profiles, recommend the best bias match.
+
+Available Members:
+{member_info}
+
+{pref_text}
+
+IMPORTANT: You must respond with EXACTLY ONE member key from this list:
+{', '.join(member_keys)}
+
+Choose the best match and respond with ONLY the member key, nothing else.
+Example valid responses: "iu", "jimin_bts", "taeyeon_girls_generation"
+
+Your response:"""
     
     def _create_love_match_prompt(self, user_id: str, member_data: dict, compatibility_score: int):
         """Create AI prompt for love compatibility based on score"""
@@ -473,15 +474,30 @@ class BiasDetector:
         logger.info(f"AI Response for bias detection: {ai_response}")
         logger.info(f"Available members: {list(self.members.keys())[:10]}...")
         
-        # Check if any member name is in the response
+        # Clean up AI response - remove quotes, extra text
+        cleaned_response = ai_response.replace('"', '').replace("'", "").strip()
+        
+        # Try exact match first
+        if cleaned_response in self.members:
+            logger.info(f"Found exact member match: {cleaned_response}")
+            return cleaned_response
+        
+        # Try partial match - check if any member key is contained in response
         for member_name in self.members.keys():
-            if member_name in ai_response:
-                logger.info(f"Found member match: {member_name}")
+            if member_name in cleaned_response or cleaned_response in member_name:
+                logger.info(f"Found partial member match: {member_name}")
                 return member_name
+        
+        # Try matching just the stage name part (before underscore)
+        for member_key in self.members.keys():
+            stage_name = member_key.split('_')[0] if '_' in member_key else member_key
+            if stage_name in cleaned_response or cleaned_response in stage_name:
+                logger.info(f"Found stage name match: {member_key}")
+                return member_key
         
         # Fallback to random
         fallback_member = random.choice(list(self.members.keys()))
-        logger.warning(f"No member found in AI response, using fallback: {fallback_member}")
+        logger.warning(f"No member found in AI response '{cleaned_response}', using fallback: {fallback_member}")
         return fallback_member
     
     def _generate_match_reasons(self, member_data: dict, score: int):
