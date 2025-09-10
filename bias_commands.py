@@ -175,6 +175,24 @@ class BiasCommandsHandler:
             
             member_name = selected_member
             logger.info(f"User {user_id} selected member: '{member_name}' from selection, proceeding with this member_name")
+        
+        # Check if user specified member with group (e.g., "jisoo blackpink")
+        elif len(args) >= 2:
+            member_name_input = args[0].lower()
+            group_name_input = ' '.join(args[1:]).lower()
+            
+            logger.info(f"Processing direct group selection: member='{member_name_input}', group='{group_name_input}'")
+            
+            # Try to find member by name and group
+            direct_match = self.bias_detector._find_member_by_name_and_group(member_name_input, group_name_input)
+            
+            if direct_match:
+                member_name = direct_match
+                logger.info(f"Found direct match: '{member_name}' for '{member_name_input}' from '{group_name_input}'")
+            else:
+                await ctx.send(f"❌ Tidak ditemukan member '{member_name_input}' dari grup '{group_name_input}'!\n💡 Coba: `!sn match {member_name_input}` untuk melihat pilihan yang tersedia.")
+                return
+        
         else:
             member_name = args[0].lower()
             
