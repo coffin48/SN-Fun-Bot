@@ -17,7 +17,21 @@ class BiasCommandsHandler:
         self.cooldown_duration = 30  # 30 seconds
         self.user_member_cache = {}  # Cache for consistent results
         
-    async def handle_bias_command(self, ctx, subcommand: str, *args):
+    async def handle_bias_command(self, ctx, user_input: str):
+        """Handle bias commands dari user input"""
+        # Parse subcommand dari user input
+        input_lower = user_input.lower().strip()
+        
+        if input_lower.startswith("bias"):
+            await self._handle_bias_detect(ctx, str(ctx.author.id), [])
+        elif input_lower.startswith("match"):
+            await self._handle_love_match(ctx, str(ctx.author.id), [])
+        elif input_lower.startswith(("fortune", "ramalan")):
+            await self._handle_fortune_telling(ctx, str(ctx.author.id), [])
+        else:
+            await ctx.send("❌ Command tidak dikenal. Gunakan: bias, match, fortune, atau ramalan")
+    
+    async def handle_bias_subcommand(self, ctx, subcommand: str, *args):
         """Handle semua bias-related commands"""
         user_id = str(ctx.author.id)
         
