@@ -123,13 +123,15 @@ class CommandsHandler:
                     detection_time = int((time.time() - start_time) * 1000)
                     
                     # Log dengan format yang rapi
-                    logger.log_sn_command(ctx.author, user_input, category, detected_name)
-                    logger.log_detection(user_input, category, detected_name)
-                    logger.log_performance("Detection", detection_time)
+                    from logger import log_sn_command, log_detection, log_performance
+                    log_sn_command(ctx.author, user_input, category, detected_name)
+                    log_detection(user_input, category, detected_name)
+                    log_performance("Detection", detection_time)
                     
                     # Log transition jika ada context
                     if conversation_context:
-                        logger.log_transition(conversation_context, user_input, category)
+                        from logger import log_transition
+                        log_transition(conversation_context, user_input, category)
                     
                     # Proses berdasarkan kategori
                     if category == "MEMBER" or category == "GROUP" or category == "MEMBER_GROUP":
@@ -157,8 +159,9 @@ class CommandsHandler:
                     # Send user-friendly error message
                     await ctx.send("❌ Maaf, terjadi error saat memproses command. Tim teknis sudah diberitahu! 🔧")
                     
-                    # Log ke analytics untuk monitoring
-                    analytics.log_error("SN_COMMAND_ERROR", str(e), user_input)
+                    # Log error dengan logger
+                    from logger import log_error
+                    log_error("SN_COMMAND", f"Error in SN command: {str(e)}", user_input)
         finally:
             # Remove from processing set when done
             self.processing_messages.discard(message_id)
@@ -175,7 +178,10 @@ class CommandsHandler:
     async def _handle_kpop_query(self, ctx, category, detected_name):
         """Handle K-pop related queries"""
         start_time = time.time()
-        analytics.track_daily_usage()
+        
+        # Log usage instead of using analytics.track_daily_usage()
+        from logger import log_performance
+        log_performance("KpopQuery", 0, f"Query: {category}:{detected_name}")
         
         # Enhanced cache key untuk akurasi lebih tinggi
         enhanced_query = self._build_enhanced_query(category, detected_name)
