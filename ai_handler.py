@@ -345,12 +345,15 @@ Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, �
 Format:
 - 🎤 Debut: [tanggal debut dan agensi]
 - 👥 Members: [Format berdasarkan jumlah member: Jika ≤6 member gunakan format vertical (• Nama (Posisi) emoji), Jika >6 member gunakan format comma (Nama (Posisi) emoji, Nama (Posisi) emoji)]
-- 💿 Discography: [album dan lagu hits]
+- 💿 Discography: [format vertikal dengan bullet point]
+  • Album 1 (tahun)
+  • Album 2 (tahun)
+  • Hit Song 1, Hit Song 2
 - 🏆 Prestasi: [penghargaan penting]
 - 🔑 Fandom: [nama fandom dan facts]
 - 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
-Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap, 💿=disco, 🔑=fandom). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Members: ≤6 vertical (• Nama (Posisi) emoji), >6 horizontal (comma separated). 1 posisi per nama. Intro fun: "✨ Ini info tentang [nama grup]" lalu format.
+Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap, 💿=disco, 🔑=fandom). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Members: ≤6 vertical (• Nama (Posisi) emoji), >6 horizontal (comma separated). Discography: format vertikal (• Album (tahun), • Hit songs). 1 posisi per nama. Intro fun: "✨ Ini info tentang [nama grup]" lalu format.
 
 {info}"""
     
