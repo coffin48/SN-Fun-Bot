@@ -22,15 +22,28 @@ class BiasCommandsHandler:
         # Parse subcommand dari user input
         input_lower = user_input.lower().strip()
         
-        if input_lower.startswith("bias"):
+        if input_lower.startswith("bias") and not input_lower.startswith(("bias fortune", "bias match")):
             await self._handle_bias_detect(ctx, str(ctx.author.id), [])
+        elif input_lower.startswith("bias fortune"):
+            # Parse fortune type from input
+            parts = user_input.split()
+            fortune_type = parts[2] if len(parts) > 2 else 'general'
+            await self._handle_fortune(ctx, str(ctx.author.id), [fortune_type])
+        elif input_lower.startswith("bias match"):
+            # Parse member name from input
+            parts = user_input.split()
+            member_name = parts[2] if len(parts) > 2 else None
+            await self._handle_love_match(ctx, str(ctx.author.id), [member_name] if member_name else [])
         elif input_lower.startswith("match"):
             # Parse member name from input
             parts = user_input.split()
             member_name = parts[1] if len(parts) > 1 else None
             await self._handle_love_match(ctx, str(ctx.author.id), [member_name] if member_name else [])
         elif input_lower.startswith(("fortune", "ramalan")):
-            await self._handle_fortune_telling(ctx, str(ctx.author.id), [])
+            # Parse fortune type from input
+            parts = user_input.split()
+            fortune_type = parts[1] if len(parts) > 1 else 'general'
+            await self._handle_fortune(ctx, str(ctx.author.id), [fortune_type])
         else:
             await ctx.send("❌ Command tidak dikenal. Gunakan: bias, match, fortune, atau ramalan")
     
