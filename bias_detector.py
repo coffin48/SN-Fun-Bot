@@ -288,9 +288,17 @@ class BiasDetector:
         logger.info(f"love_match called: user_id={user_id}, member_name='{member_name}', force_direct_match={force_direct_match}")
         
         # If force_direct_match is True, skip multiple choice detection
-        if force_direct_match and member_name in self.members:
+        if force_direct_match:
             logger.info(f"Force direct match enabled for: '{member_name}'")
-            similar_members = [member_name]
+            # Verify the member exists in database
+            if member_name in self.members:
+                similar_members = [member_name]
+            else:
+                logger.error(f"Force direct match requested but member '{member_name}' not found in database")
+                return {
+                    'is_selection_prompt': False,
+                    'error': f"Member '{member_name}' tidak ditemukan!"
+                }
         # Check if member_name contains underscore (member key format)
         elif '_' in member_name and member_name in self.members:
             logger.info(f"Direct member key detected: '{member_name}'")
