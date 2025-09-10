@@ -2,9 +2,7 @@
 Bias Commands Handler - Fun interactive commands untuk bias detection
 """
 import discord
-import asyncio
 from datetime import datetime
-# from bias_detector import BiasDetector  # Avoid circular import
 from logger import logger
 
 class BiasCommandsHandler:
@@ -508,18 +506,15 @@ class BiasCommandsHandler:
     
     async def _check_cooldown(self, ctx, user_id: str, command: str):
         """Check command cooldown"""
-        now = datetime.now().timestamp()
-        cooldown_key = f"{user_id}:{command}"
-        
-        if cooldown_key in self.command_cooldowns:
-            time_left = self.command_cooldowns[cooldown_key] + self.cooldown_duration - now
-            if time_left > 0:
-                minutes = int(time_left // 60)
-                seconds = int(time_left % 60)
+        now = datetime.now()
+        # Simplified cooldown check
+        if user_id in self.command_cooldowns:
+            if (now - self.command_cooldowns[user_id]).total_seconds() < self.cooldown_duration:
+                minutes = int(self.cooldown_duration - (now - self.command_cooldowns[user_id]).total_seconds()) // 60
+                seconds = int(self.cooldown_duration - (now - self.command_cooldowns[user_id]).total_seconds()) % 60
                 await ctx.send(f"⏰ Cooldown aktif! Coba lagi dalam {minutes}m {seconds}s")
                 return False
-        
-        self.command_cooldowns[cooldown_key] = now
+        self.command_cooldowns[user_id] = now
         return True
     
     def _get_score_emoji(self, score: int):
@@ -627,7 +622,7 @@ class BiasCommandsHandler:
     def _create_error_embed(self, message: str):
         """Create error embed"""
         return discord.Embed(
-            title="❌ Waduh, Ada Error Nih!",
-            description=f"Maaf ya, {message}. Coba lagi nanti ya! 😅",
+            title="❌ Error", 
+            description=message,
             color=0xFF0000
         )
