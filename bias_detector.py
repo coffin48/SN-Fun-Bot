@@ -782,6 +782,8 @@ Your response:"""
         member_name = member_name.lower().strip()
         group_name = group_name.lower().strip()
         
+        logger.info(f"Searching for member: '{member_name}' in group: '{group_name}'")
+        
         # Clean group name variations
         group_variations = [
             group_name,
@@ -794,14 +796,30 @@ Your response:"""
             stage_name = member_data['name'].lower()
             member_group = member_data.get('group', '').lower()
             
-            # Check if member name matches
-            if member_name == stage_name or stage_name.startswith(member_name):
+            # Check if member name matches (exact match or starts with)
+            name_match = member_name == stage_name or stage_name.startswith(member_name)
+            
+            if name_match:
+                logger.info(f"Name match found: '{stage_name}' in group '{member_group}' (key: {member_key})")
+                
                 # Check if group matches any variation
                 for group_var in group_variations:
-                    if group_var in member_group or member_group.replace(' ', '') == group_var:
-                        logger.info(f"Found direct match: {member_key} for '{member_name}' from '{group_name}'")
+                    # More flexible group matching
+                    group_match = (
+                        group_var == member_group or  # Exact match
+                        group_var in member_group or  # Contains
+                        member_group.replace(' ', '') == group_var or  # No spaces match
+                        member_group.replace(' ', '').replace('-', '') == group_var  # No spaces/dashes
+                    )
+                    
+                    if group_match:
+                        logger.info(f"✅ Found direct match: {member_key} for '{member_name}' from '{group_name}'")
+                        logger.info(f"   Matched: '{stage_name}' from '{member_group}' using variation '{group_var}'")
                         return member_key
+                
+                logger.debug(f"Group mismatch for '{stage_name}': '{member_group}' doesn't match any of {group_variations}")
         
+        logger.warning(f"❌ No direct match found for '{member_name}' from '{group_name}'")
         return None
     
     def _create_member_selection_prompt(self, similar_members: list, search_name: str, user_id: str):
