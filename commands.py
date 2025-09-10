@@ -262,34 +262,45 @@ class CommandsHandler:
             # Update loading message for AI processing
             await loading_msg.edit(content="🤖 Membuat ringkasan dengan AI...")
             
-            # Initialize summary with a default value
+            # Generate AI summary with proper error handling
+            ai_start = time.time()
             summary = None
             
-            # Generate AI summary
-            ai_start = time.time()
             try:
+                # First try to generate summary with AI
                 summary = await self.ai_handler.generate_kpop_summary(category, info)
                 
                 if not summary:
-                    raise ValueError("AI returned empty summary")
-                    
+                    logger.warning("AI returned empty summary, using fallback")
+                    # Fallback to basic info if AI fails
+                    summary = f"**{detected_name}**\n\n"
+                    if category == "MEMBER":
+                        summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
+                    summary += info.get('description', 'Tidak ada deskripsi tersedia.')
+                
                 ai_time = time.time() - ai_start
                 analytics.track_response_time("ai_generation", ai_time)
                 
-                # Smart cache duration berdasarkan kategori
-                cache_duration = self._get_cache_duration(category, len(summary))
-                self.redis_client.set(cache_key, summary, ex=cache_duration)
-                from logger import log_cache_set
-                log_cache_set(category, detected_name)
+                # Cache the result
+                try:
+                    cache_duration = self._get_cache_duration(category, len(str(summary)))
+                    self.redis_client.set(cache_key, summary, ex=cache_duration)
+                    from logger import log_cache_set
+                    log_cache_set(category, detected_name)
+                except Exception as cache_error:
+                    logger.error(f"Gagal menyimpan ke cache: {cache_error}")
                 
             except Exception as e:
                 logger.error(f"Gagal membuat ringkasan: {e}")
-                await self._handle_query_error(loading_msg, "ai_failed", str(e))
-                return
+                # Fallback to basic info on error
+                summary = f"**{detected_name}**\n\n"
+                if category == "MEMBER":
+                    summary += f"Adalah member dari grup {info.get('group', 'tidak diketahui')}. "
+                summary += info.get('description', 'Tidak ada deskripsi tersedia.')
                 
-            if not summary:
-                await self._handle_query_error(loading_msg, "empty_summary", "Gagal membuat ringkasan: hasil kosong")
-                return
+                # Log the error but continue with fallback content
+                await loading_msg.edit(content="⚠️ Sedang menggunakan data dasar...")
+                await asyncio.sleep(1)  # Give user time to see the message
         
         # Track total response time
         total_time = time.time() - start_time
