@@ -110,6 +110,11 @@ class CommandsHandler:
                         return
                     
                     # Monitor command (social media monitoring)
+                    # Help command
+                    if user_input.lower() == "help" or user_input.lower() == "bantuan":
+                        await self._handle_help_command(ctx)
+                        return
+                        
                     if user_input.lower().startswith("monitor"):
                         # Parse monitor subcommand: "monitor start", "monitor stop", etc.
                         parts = user_input.split()
