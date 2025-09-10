@@ -42,14 +42,19 @@ class CommandsHandler:
         
         # Fix circular import by importing BiasDetector first
         try:
+            print("DEBUG: Starting bias initialization...")
             from bias_detector import BiasDetector
+            print("DEBUG: BiasDetector imported successfully")
             self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
+            print(f"DEBUG: BiasDetector created: {self.bias_detector}")
             
             # Import BiasCommandsHandler after BiasDetector is initialized
             import bias_commands
+            print("DEBUG: bias_commands module imported")
             self.bias_handler = bias_commands.BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
+            print(f"DEBUG: BiasCommandsHandler created: {self.bias_handler}")
             logger.info("✅ Bias commands initialized successfully")
-            print(f"DEBUG: bias_handler = {self.bias_handler}")
+            print(f"DEBUG: Final bias_handler = {self.bias_handler}")
         except Exception as e:
             logger.error(f"Bias init failed: {e}")
             print(f"DEBUG: Bias init error: {e}")
@@ -57,6 +62,7 @@ class CommandsHandler:
             traceback.print_exc()
             self.bias_detector = None
             self.bias_handler = None
+            print(f"DEBUG: Set bias_handler to None due to error")
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
