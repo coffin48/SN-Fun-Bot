@@ -817,8 +817,8 @@ Your response:"""
             selection_text += f"**{i}.** {member_data['name']}{korean_display} - {group_name}\n"
         
         selection_text += f"\n💡 **Cara memilih:**\n"
-        selection_text += f"• `!sn match {search_name} [nomor]` - Contoh: `!sn match {search_name} 1`\n"
-        selection_text += f"• `!sn match {search_name} [grup]` - Contoh: `!sn match {search_name} blackpink`"
+        selection_text += f"Gunakan: `!sn match {search_name} [nama_grup]`\n"
+        selection_text += f"Contoh: `!sn match {search_name} blackpink`, `!sn match {search_name} lovelyz`"
         
         # Store pending selection for this user
         self.pending_selections[user_id] = {
