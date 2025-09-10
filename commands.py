@@ -600,45 +600,90 @@ class CommandsHandler:
             await ctx.send(f"Gagal memproses query: {e}")
     
     async def _handle_help_command(self, ctx):
-        """Handle !sn help command untuk menampilkan daftar commands"""
-        help_message = """🤖 **SN Fun Bot - K-pop Info** ✨
-
-**🎯 K-pop Info:**
-• `!sn [nama]` 🎤 Info K-pop (member/grup)
+        """Handle !sn help command dengan Discord embed yang cantik"""
+        try:
+            # Create main help embed
+            embed = discord.Embed(
+                title="🤖 SN Fun Bot - K-pop Info ✨",
+                description="Bot K-pop terlengkap dengan AI, bias detector, dan social media monitoring!",
+                color=0xFF69B4  # Pink color
+            )
+            
+            # K-pop Info section
+            kpop_info = """• `!sn [nama]` 🎤 Info K-pop (member/grup)
 • `!sn [member] [grup]` 🎭 Info spesifik
 • `!sn hai` 💬 Chat casual
-• `!sn rekomen lagu` 🎵 Minta rekomendasi
-
-**📝 Contoh K-pop:**
-```
+• `!sn rekomen lagu` 🎵 Minta rekomendasi"""
+            embed.add_field(
+                name="🎯 K-pop Info",
+                value=kpop_info,
+                inline=False
+            )
+            
+            # Examples section
+            examples = """```
 !sn QWER
 !sn Blackpink  
 !sn Hina QWER
 !sn rekomen ballad
-```
-
-**💕 Bias Detector:**
-• `!sn bias` 🎯 Deteksi bias kamu
+```"""
+            embed.add_field(
+                name="📝 Contoh Commands",
+                value=examples,
+                inline=False
+            )
+            
+            # Bias Detector section
+            bias_commands = """• `!sn bias` 🎯 Deteksi bias kamu
 • `!sn match` 💖 Love matching
 • `!sn fortune` 🔮 Ramalan cinta
-• `!sn ramalan` ✨ Fortune telling
-
-**📱 Social Media:**
-• `!sn twitter` 🐦 Latest tweets
+• `!sn ramalan` ✨ Fortune telling"""
+            embed.add_field(
+                name="💕 Bias Detector",
+                value=bias_commands,
+                inline=True
+            )
+            
+            # Social Media section
+            social_commands = """• `!sn twitter` 🐦 Latest tweets
 • `!sn youtube` 📺 Latest videos
 • `!sn instagram` 📸 Latest posts
 • `!sn tiktok` 🎵 Latest TikToks
-• `!sn sosmed` 📱 All platforms
-
-**⚙️ Utility:**
-• `!sn help` 📋 Help ini
+• `!sn sosmed` 📱 All platforms"""
+            embed.add_field(
+                name="📱 Social Media",
+                value=social_commands,
+                inline=True
+            )
+            
+            # Utility section
+            utility_commands = """• `!sn help` 📋 Help ini
 • `!sn analytics` 📊 Statistik bot
 • `!sn monitor start/stop` 🔍 Social monitoring
-• `!sn db status` 💾 Database status
-
-Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
-        await self._send_chunked_message(ctx, help_message)
-        logger.info("Help command requested")
+• `!sn db status` 💾 Database status"""
+            embed.add_field(
+                name="⚙️ Utility",
+                value=utility_commands,
+                inline=False
+            )
+            
+            # Footer with additional info
+            embed.set_footer(
+                text="Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨",
+                icon_url="https://cdn.discordapp.com/emojis/741243929655173160.png"
+            )
+            
+            # Thumbnail (Secret Number logo if available)
+            embed.set_thumbnail(url="https://i.imgur.com/YourSecretNumberLogo.png")
+            
+            await ctx.send(embed=embed)
+            logger.info("Help embed command requested")
+            
+        except Exception as e:
+            logger.error(f"Error creating help embed: {e}")
+            # Fallback to text message if embed fails
+            help_message = "🤖 **SN Fun Bot Help** - Gunakan `!sn [command]` untuk berbagai fitur K-pop!"
+            await ctx.send(help_message)
 
     async def _handle_analytics_command(self, ctx):
         """Handle !analytics command untuk view statistics"""
