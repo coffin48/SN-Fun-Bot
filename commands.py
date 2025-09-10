@@ -139,10 +139,10 @@ class CommandsHandler:
                         
                 except Exception as e:
                     # Log error dengan detail lengkap
-                    logger.logger.error(f"❌ Error in _handle_sn_command: {e}")
-                    logger.logger.error(f"   User: {ctx.author} | Input: '{user_input}'")
+                    logger.error(f"❌ Error in _handle_sn_command: {e}")
+                    logger.error(f"   User: {ctx.author} | Input: '{user_input}'")
                     import traceback
-                    logger.logger.error(f"   Traceback: {traceback.format_exc()}")
+                    logger.error(f"   Traceback: {traceback.format_exc()}")
                     
                     # Send user-friendly error message
                     await ctx.send("❌ Maaf, terjadi error saat memproses command. Tim teknis sudah diberitahu! 🔧")
@@ -185,7 +185,7 @@ class CommandsHandler:
                 await loading_msg.edit(content="⚡ Mengambil dari cache...")
                 return await self._send_kpop_embed(ctx, loading_msg, category, detected_name, summary)
         except Exception as e:
-            logger.logger.error(f"Error accessing Redis cache: {e}")
+            logger.error(f"Error accessing Redis cache: {e}")
             await loading_msg.edit(content="⚠️ Gagal mengakses cache. Mencoba mengambil data langsung...")
         
         # Initialize summary with default fallback value
@@ -193,20 +193,20 @@ class CommandsHandler:
         
         # Log scraping start dengan info lengkap
         scraping_start = time.time()
-        logger.logger.info(f"🔍 Scraping {category}: {detected_name} | Enhanced: {enhanced_query}")
+        logger.info(f"🔍 Scraping {category}: {detected_name} | Enhanced: {enhanced_query}")
         
         # Try enhanced query first
         if enhanced_query != detected_name:
-            logger.logger.info(f"🎯 Enhanced query: {enhanced_query}")
+            logger.info(f"🎯 Enhanced query: {enhanced_query}")
             info = await self.data_fetcher.fetch_kpop_info(enhanced_query)
             
             if not info.strip():
                 # Fallback to simple query
-                logger.logger.info(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
+                logger.info(f"⚠️ Enhanced query failed, trying simple query: {detected_name}")
                 info = await self.data_fetcher.fetch_kpop_info(detected_name)
                 
                 if not info.strip():
-                    logger.logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
+                    logger.warning(f"❌ Both enhanced and simple queries failed for {category}: {detected_name}")
                     await self._handle_query_error(loading_msg, "not_found")
                     self._track_failed_query(category, detected_name)
                     return
@@ -222,7 +222,7 @@ class CommandsHandler:
         # Calculate scraping time
         scraping_time = int((time.time() - scraping_start) * 1000)  # Convert to milliseconds
         
-        logger.logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
+        logger.info(f"✅ Scraping completed for {category}: {detected_name} - {len(info)} characters retrieved")
         
         # Update loading message for AI processing
         await loading_msg.edit(content="🤖 Membuat ringkasan dengan AI...")
@@ -237,7 +237,7 @@ class CommandsHandler:
             if ai_summary and ai_summary.strip():
                 summary = ai_summary
             else:
-                logger.logger.warning("AI returned empty summary, using fallback")
+                logger.warning("AI returned empty summary, using fallback")
                 # Fallback to basic info if AI fails
                 summary = f"**{detected_name}**\n\n"
                 
@@ -265,10 +265,10 @@ class CommandsHandler:
                 self.redis_client.set(cache_key, summary, ex=cache_duration)
                 logger.log_cache_set(category, detected_name)
             except Exception as cache_error:
-                logger.logger.error(f"Gagal menyimpan ke cache: {cache_error}")
+                logger.error(f"Gagal menyimpan ke cache: {cache_error}")
                 
         except Exception as e:
-            logger.logger.error(f"Gagal membuat ringkasan: {e}")
+            logger.error(f"Gagal membuat ringkasan: {e}")
             # Fallback to basic info on error
             summary = f"**{detected_name}**\n\n"
             
@@ -288,7 +288,7 @@ class CommandsHandler:
                 else:  # MEMBER_GROUP or others
                     summary += "Informasi tidak tersedia."
             except Exception as inner_e:
-                logger.logger.error(f"Error saat membuat fallback summary: {inner_e}")
+                logger.error(f"Error saat membuat fallback summary: {inner_e}")
                 summary = f"**{detected_name}**\n\nMaaf, terjadi kesalahan saat memproses permintaan. Silakan coba lagi nanti."
             
             # Log the error but continue with fallback content
@@ -305,7 +305,7 @@ class CommandsHandler:
             await loading_msg.edit(content="🖼️ Mencari foto...")
             image_data = await self.data_fetcher.scrape_kpop_image(detected_name)
         except Exception as e:
-            logger.logger.debug(f"Image scraping failed: {e}")
+            logger.debug(f"Image scraping failed: {e}")
         
         # Send dengan embed dan foto (tanpa URL link)
         await self._send_kpop_embed(ctx, loading_msg, category, detected_name, summary, image_data)
@@ -315,7 +315,7 @@ class CommandsHandler:
         """Lazy initialization of DataFetcher"""
         if not hasattr(self, '_data_fetcher'):
             self._data_fetcher = DataFetcher(self.kpop_df)
-            logger.logger.info("DataFetcher initialized lazily")
+            logger.info("DataFetcher initialized lazily")
         return self._data_fetcher
     
     async def _send_loading_message(self, ctx):
@@ -363,7 +363,7 @@ class CommandsHandler:
     async def _cleanup_processing_messages(self):
         """Periodic cleanup of old processing messages"""
         if len(self.processing_messages) > 100:
-            logger.logger.info(f"Cleaning up {len(self.processing_messages)} processing messages")
+            logger.info(f"Cleaning up {len(self.processing_messages)} processing messages")
             self.processing_messages.clear()
     
     async def _send_kpop_embed(self, ctx, loading_msg, category, detected_name, summary, image_data=None):
@@ -399,16 +399,16 @@ class CommandsHandler:
                 
                 # Edit loading message dengan embed + foto
                 await loading_msg.edit(content="", embed=embed, attachments=[file])
-                logger.logger.info(f"✅ Sent embed with image for {detected_name}")
+                logger.info(f"✅ Sent embed with image for {detected_name}")
                 
             except Exception as e:
-                logger.logger.error(f"Failed to send embed with image: {e}")
+                logger.error(f"Failed to send embed with image: {e}")
                 # Fallback: kirim embed tanpa foto
                 await loading_msg.edit(content="", embed=embed)
         else:
             # Kirim embed tanpa foto
             await loading_msg.edit(content="", embed=embed)
-            logger.logger.info(f"✅ Sent embed without image for {detected_name}")
+            logger.info(f"✅ Sent embed without image for {detected_name}")
     
     def _add_to_memory(self, user_id, role, message):
         """Tambahkan pesan ke conversation memory"""
@@ -549,36 +549,51 @@ class CommandsHandler:
         """Handle !sn help command untuk menampilkan daftar commands"""
         help_message = """🤖 **SN Fun Bot - K-pop Info** ✨
 
-**🎯 Cara Pakai:**
+**🎯 K-pop Info:**
 • `!sn [nama]` 🎤 Info K-pop (member/grup)
 • `!sn [member] [grup]` 🎭 Info spesifik
 • `!sn hai` 💬 Chat casual
 • `!sn rekomen lagu` 🎵 Minta rekomendasi
 
-**📝 Contoh:**
+**📝 Contoh K-pop:**
 ```
-!sn Jisoo
-!sn BTS  
+!sn QWER
+!sn Blackpink  
 !sn Hina QWER
 !sn rekomen ballad
 ```
 
+**💕 Bias Detector:**
+• `!sn bias` 🎯 Deteksi bias kamu
+• `!sn match` 💖 Love matching
+• `!sn fortune` 🔮 Ramalan cinta
+• `!sn ramalan` ✨ Fortune telling
+
+**📱 Social Media:**
+• `!sn twitter` 🐦 Latest tweets
+• `!sn youtube` 📺 Latest videos
+• `!sn instagram` 📸 Latest posts
+• `!sn tiktok` 🎵 Latest TikToks
+• `!sn sosmed` 📱 All platforms
+
 **⚙️ Utility:**
 • `!sn help` 📋 Help ini
 • `!sn analytics` 📊 Statistik bot
+• `!sn monitor start/stop` 🔍 Social monitoring
+• `!sn db status` 💾 Database status
 
 Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
         await self._send_chunked_message(ctx, help_message)
-        logger.logger.info("Help command requested")
+        logger.info("Help command requested")
 
     async def _handle_analytics_command(self, ctx):
         """Handle !analytics command untuk view statistics"""
         try:
             summary = analytics.get_analytics_summary()
             await self._send_chunked_message(ctx, summary)
-            logger.logger.info("Analytics summary requested")
+            logger.info("Analytics summary requested")
         except Exception as e:
-            logger.logger.error(f"Error getting analytics: {e}")
+            logger.error(f"Error getting analytics: {e}")
             await ctx.send(f"Error getting analytics: {e}")
     
     async def _handle_multiple_matches(self, ctx, detected_name, multiple_matches):
@@ -664,7 +679,7 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
                 return detected_name
                 
         except Exception as e:
-            logger.logger.error(f"Error building enhanced query: {e}")
+            logger.error(f"Error building enhanced query: {e}")
         
         # Fallback ke detected_name original
         return detected_name
@@ -699,16 +714,16 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
             chunks.append(current_chunk)
         
         # Send all chunks with logging
-        logger.logger.info(f"Sending {len(chunks)} chunks to Discord")
+        logger.info(f"Sending {len(chunks)} chunks to Discord")
         for i, chunk in enumerate(chunks):
             try:
                 if i > 0:
                     await asyncio.sleep(1.0)  # Longer delay between chunks
-                logger.logger.info(f"Sending chunk {i+1}/{len(chunks)} - {len(chunk)} characters")
+                logger.info(f"Sending chunk {i+1}/{len(chunks)} - {len(chunk)} characters")
                 await ctx.send(chunk)
-                logger.logger.info(f"Successfully sent chunk {i+1}/{len(chunks)}")
+                logger.info(f"Successfully sent chunk {i+1}/{len(chunks)}")
             except Exception as e:
-                logger.logger.error(f"Failed to send chunk {i+1}/{len(chunks)}: {e}")
+                logger.error(f"Failed to send chunk {i+1}/{len(chunks)}: {e}")
                 # Try to send remaining chunks
                 continue
     
@@ -739,7 +754,7 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
             await ctx.send(status_message)
             
         except Exception as e:
-            logger.logger.error(f"Database status error: {e}")
+            logger.error(f"Database status error: {e}")
             await ctx.send("❌ Error retrieving database status")
     
     def _get_database_performance_info(self):
@@ -838,7 +853,7 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
                 await ctx.send("❌ Unknown action. Use: `start`, `stop`, `check`, `status`")
                 
         except Exception as e:
-            logger.logger.error(f"Monitor command error: {e}")
+            logger.error(f"Monitor command error: {e}")
             await ctx.send(f"❌ Error: {e}")
         else:
             return "📁 **Performance**: CSV fallback mode"
