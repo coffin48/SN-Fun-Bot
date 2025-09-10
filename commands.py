@@ -56,6 +56,8 @@ class CommandsHandler:
     
     async def _handle_sn_command(self, ctx, user_input: str):
         """Handle command !sn"""
+        from logger import log_sn_command, log_error
+        
         # Create unique message ID untuk prevent duplicates
         message_id = f"{ctx.author.id}:{ctx.message.id}:{user_input}"
         
@@ -68,7 +70,15 @@ class CommandsHandler:
         
         try:
             async with ctx.typing():
+                # Log command execution
+                log_sn_command(ctx.author, user_input, "COMMAND", "")
+                
                 try:
+                    # Help command (prioritas paling tinggi)
+                    if user_input.lower() in ["help", "bantuan", "?"]:
+                        await self._handle_help_command(ctx)
+                        return
+                        
                     # Clear cache command
                     if user_input.lower().startswith("clearcache") or user_input.lower().startswith("clear cache"):
                         await self._clear_cache(ctx)
@@ -110,11 +120,7 @@ class CommandsHandler:
                         return
                     
                     # Monitor command (social media monitoring)
-                    # Help command
-                    if user_input.lower() == "help" or user_input.lower() == "bantuan":
-                        await self._handle_help_command(ctx)
-                        return
-                        
+                    
                     if user_input.lower().startswith("monitor"):
                         # Parse monitor subcommand: "monitor start", "monitor stop", etc.
                         parts = user_input.split()
@@ -125,9 +131,14 @@ class CommandsHandler:
                     
                     # Deteksi K-pop member/group dengan SmartDetector (dengan conversation context)
                     start_time = time.time()
-                    conversation_context = self._get_recent_conversation_context(ctx.author.id)
-                    category, detected_name, multiple_matches = self.kpop_detector.detect(user_input, conversation_context)
-                    detection_time = int((time.time() - start_time) * 1000)
+                    try:
+                        conversation_context = self._get_recent_conversation_context(ctx.author.id)
+                        category, detected_name, multiple_matches = self.kpop_detector.detect(user_input, conversation_context)
+                        detection_time = int((time.time() - start_time) * 1000)
+                    except Exception as e:
+                        log_error("DETECTION", f"Error during detection: {str(e)}", user_input)
+                        await ctx.send("❌ Maaf, terjadi kesalahan saat memproses permintaan. Coba lagi nanti ya!")
+                        return
                     
                     # Log dengan format yang rapi
                     from logger import log_sn_command, log_detection, log_performance
@@ -251,11 +262,17 @@ class CommandsHandler:
             # Update loading message for AI processing
             await loading_msg.edit(content="🤖 Membuat ringkasan dengan AI...")
             
+            # Initialize summary with a default value
+            summary = None
+            
             # Generate AI summary
             ai_start = time.time()
             try:
                 summary = await self.ai_handler.generate_kpop_summary(category, info)
                 
+                if not summary:
+                    raise ValueError("AI returned empty summary")
+                    
                 ai_time = time.time() - ai_start
                 analytics.track_response_time("ai_generation", ai_time)
                 
@@ -268,6 +285,10 @@ class CommandsHandler:
             except Exception as e:
                 logger.error(f"Gagal membuat ringkasan: {e}")
                 await self._handle_query_error(loading_msg, "ai_failed", str(e))
+                return
+                
+            if not summary:
+                await self._handle_query_error(loading_msg, "empty_summary", "Gagal membuat ringkasan: hasil kosong")
                 return
         
         # Track total response time
