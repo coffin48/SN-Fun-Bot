@@ -36,7 +36,7 @@ class BotCore:
         self.bot = self._create_bot()
         
         # Initialize Social Media Monitor
-        self.social_monitor = SocialMediaMonitor(self.bot)
+        self.social_monitor = SocialMediaMonitor(self)
         self.social_monitor.redis_client = self.redis_client
     
     def _get_legacy_dataframe(self):

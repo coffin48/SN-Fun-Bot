@@ -12,9 +12,10 @@ import logger
 import discord
 
 class SocialMediaMonitor:
-    def __init__(self, bot):
-        self.bot = bot
-        self.redis_client = getattr(bot, 'redis_client', None)
+    def __init__(self, bot_core):
+        self.bot_core = bot_core
+        self.bot = bot_core.bot
+        self.redis_client = getattr(bot_core, 'redis_client', None)
         
         # Secret Number social media accounts (Updated with correct URLs)
         self.accounts = {
@@ -181,6 +182,206 @@ class SocialMediaMonitor:
                         
         except Exception as e:
             logger.logger.error(f"TikTok monitoring error: {e}")
+    
+    # New methods for getting latest content (for commands)
+    async def get_latest_twitter_post(self):
+        """Get latest Twitter post data for command display"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                
+                # Use alternative Twitter scraping or RSS feed
+                url = f"https://nitter.net/5ecretnumber/rss"
+                
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        return await self.parse_twitter_rss_for_latest(content)
+                    else:
+                        return None
+                        
+        except Exception as e:
+            logger.logger.error(f"Get latest Twitter error: {e}")
+            return None
+    
+    async def get_latest_youtube_video(self):
+        """Get latest YouTube video data for command display"""
+        try:
+            if not self.youtube_api_key:
+                return None
+                
+            async with aiohttp.ClientSession() as session:
+                url = f"https://www.googleapis.com/youtube/v3/search"
+                params = {
+                    'key': self.youtube_api_key,
+                    'channelId': self.accounts['youtube']['channel_id'],
+                    'part': 'snippet',
+                    'order': 'date',
+                    'maxResults': 1,
+                    'type': 'video'
+                }
+                
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if 'items' in data and data['items']:
+                            video = data['items'][0]
+                            return await self.format_youtube_data(video)
+                    return None
+                        
+        except Exception as e:
+            logger.logger.error(f"Get latest YouTube error: {e}")
+            return None
+    
+    async def get_latest_tiktok_post(self):
+        """Get latest TikTok post data for command display"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                
+                url = f"https://www.tiktok.com/@secretnumber.official"
+                
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        return await self.parse_tiktok_html_for_latest(content)
+                    else:
+                        return None
+                        
+        except Exception as e:
+            logger.logger.error(f"Get latest TikTok error: {e}")
+            return None
+    
+    async def get_latest_instagram_post(self):
+        """Get latest Instagram post data for command display"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                
+                url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username=secretnumber.official"
+                
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return await self.parse_instagram_data_for_latest(data)
+                    else:
+                        return None
+                        
+        except Exception as e:
+            logger.logger.error(f"Get latest Instagram error: {e}")
+            return None
+    
+    # Helper methods for parsing content data
+    async def parse_twitter_rss_for_latest(self, rss_content):
+        """Parse Twitter RSS for latest tweet data"""
+        try:
+            import re
+            from datetime import datetime
+            
+            # Extract tweet data from RSS
+            title_pattern = r'<title><!\[CDATA\[(.*?)\]\]></title>'
+            link_pattern = r'<link>([^<]+)</link>'
+            pubdate_pattern = r'<pubDate>([^<]+)</pubDate>'
+            
+            titles = re.findall(title_pattern, rss_content)
+            links = re.findall(link_pattern, rss_content)
+            dates = re.findall(pubdate_pattern, rss_content)
+            
+            if titles and links:
+                return {
+                    'text': titles[0],
+                    'url': links[0],
+                    'created_at': dates[0] if dates else 'Unknown',
+                    'likes': 0,  # RSS doesn't provide stats
+                    'retweets': 0
+                }
+            return None
+            
+        except Exception as e:
+            logger.logger.error(f"Twitter RSS parsing error: {e}")
+            return None
+    
+    async def format_youtube_data(self, video_data):
+        """Format YouTube API data for display"""
+        try:
+            snippet = video_data['snippet']
+            video_id = video_data['id']['videoId']
+            
+            return {
+                'title': snippet['title'],
+                'url': f"https://www.youtube.com/watch?v={video_id}",
+                'thumbnail': snippet['thumbnails']['high']['url'],
+                'published_at': snippet['publishedAt'],
+                'views': 0,  # Would need additional API call for stats
+                'duration': 'Unknown'  # Would need additional API call
+            }
+            
+        except Exception as e:
+            logger.logger.error(f"YouTube data formatting error: {e}")
+            return None
+    
+    async def parse_tiktok_html_for_latest(self, html_content):
+        """Parse TikTok HTML for latest video data"""
+        try:
+            import re
+            
+            # Extract video data from HTML (simplified approach)
+            # This is a basic implementation - TikTok scraping is complex
+            video_pattern = r'"id":"(\d+)".*?"desc":"([^"]*)"'
+            matches = re.findall(video_pattern, html_content)
+            
+            if matches:
+                video_id, description = matches[0]
+                return {
+                    'description': description,
+                    'url': f"https://www.tiktok.com/@secretnumber.official/video/{video_id}",
+                    'thumbnail': None,
+                    'likes': 0,
+                    'views': 0,
+                    'shares': 0
+                }
+            return None
+            
+        except Exception as e:
+            logger.logger.error(f"TikTok HTML parsing error: {e}")
+            return None
+    
+    async def parse_instagram_data_for_latest(self, data):
+        """Parse Instagram API data for latest post"""
+        try:
+            if 'data' in data and 'user' in data['data']:
+                user_data = data['data']['user']
+                if 'edge_owner_to_timeline_media' in user_data:
+                    posts = user_data['edge_owner_to_timeline_media']['edges']
+                    
+                    if posts:
+                        post = posts[0]['node']
+                        
+                        # Get caption
+                        caption = ""
+                        if 'edge_media_to_caption' in post:
+                            captions = post['edge_media_to_caption']['edges']
+                            if captions:
+                                caption = captions[0]['node']['text']
+                        
+                        return {
+                            'caption': caption,
+                            'url': f"https://www.instagram.com/p/{post['shortcode']}/",
+                            'image_url': post.get('display_url', ''),
+                            'likes': post.get('edge_liked_by', {}).get('count', 0),
+                            'comments': post.get('edge_media_to_comment', {}).get('count', 0)
+                        }
+            return None
+            
+        except Exception as e:
+            logger.logger.error(f"Instagram data parsing error: {e}")
+            return None
     
     async def process_instagram_data(self, data):
         """Process Instagram API response"""

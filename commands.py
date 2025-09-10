@@ -2,14 +2,13 @@
 Commands Module - Menangani semua Discord commands
 """
 import asyncio
-import redis
-import logger
-import time
-import random
 import discord
+from datetime import datetime
+from logger import logger
 from ai_handler import AIHandler
-from data_fetcher import DataFetcher
-from analytics import analytics
+from database_manager import DatabaseManager
+from patch.smart_detector import SmartDetector
+from social_media_commands import SocialMediaCommandsHandler
 
 class CommandsHandler:
     def __init__(self, bot_core):
@@ -23,6 +22,9 @@ class CommandsHandler:
         # Initialize handlers
         self.ai_handler = AIHandler()
         # DataFetcher will be lazy loaded when needed
+        
+        # Initialize social media commands handler
+        self.social_media_handler = SocialMediaCommandsHandler(self.social_monitor)
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
@@ -60,9 +62,21 @@ class CommandsHandler:
                         await self._clear_cache(ctx)
                         return
                     
-                    # Help command
-                    if user_input.lower().startswith("help"):
-                        await self._handle_help_command(ctx)
+                    # Social media commands (latest posts)
+                    if user_input.lower() in ["x", "twitter"]:
+                        await self.social_media_handler.handle_platform_command(ctx, "twitter")
+                        return
+                    
+                    if user_input.lower() == "youtube":
+                        await self.social_media_handler.handle_platform_command(ctx, "youtube")
+                        return
+                    
+                    if user_input.lower() == "tiktok":
+                        await self.social_media_handler.handle_platform_command(ctx, "tiktok")
+                        return
+                    
+                    if user_input.lower() == "instagram":
+                        await self.social_media_handler.handle_platform_command(ctx, "instagram")
                         return
                     
                     # Analytics command
@@ -760,5 +774,11 @@ Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
         except Exception as e:
             logger.logger.error(f"Monitor command error: {e}")
             await ctx.send(f"❌ Error: {e}")
+    
+    
+    def _get_database_performance_info(self):
+        """Get database performance information"""
+        if hasattr(self.db_manager, 'engine') and self.db_manager.engine:
+            return "🚀 **Performance**: PostgreSQL optimized queries with indexes"
         else:
             return "📁 **Performance**: CSV fallback mode"
