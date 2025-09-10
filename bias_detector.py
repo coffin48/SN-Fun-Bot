@@ -140,6 +140,10 @@ class BiasDetector:
                     }
                 
                 logger.info(f"✅ Loaded {len(self.members)} members from database")
+                
+                # Debug: Show some Jisoo members for debugging
+                jisoo_members = {k: v for k, v in self.members.items() if 'jisoo' in k.lower()}
+                logger.info(f"Jisoo members in database: {list(jisoo_members.keys())}")
             else:
                 logger.warning("⚠️ No K-pop database available, using Secret Number fallback")
                 self.members = self.sn_members.copy()
@@ -154,7 +158,9 @@ class BiasDetector:
         # Use stage name + group to ensure uniqueness for members with same names
         clean_stage = stage_name.lower().replace(' ', '_')
         clean_group = group.lower().replace(' ', '_').replace('&', 'and')
-        return f"{clean_stage}_{clean_group}"
+        member_key = f"{clean_stage}_{clean_group}"
+        logger.debug(f"Created member key: '{member_key}' from stage_name='{stage_name}', group='{group}'")
+        return member_key
     
     def _generate_member_traits(self, row):
         """Generate personality traits based on member data"""
@@ -284,16 +290,21 @@ class BiasDetector:
                 member_name = await self.detect_bias(user_id)
             
             member_name = member_name.lower()
+            logger.info(f"Processing love_match for user {user_id} with member_name: '{member_name}'")
             
             # Try exact match first (including full member keys like yuna_itzy)
             if member_name in self.members:
-                pass  # Found exact match
+                logger.info(f"Found exact match for member_name: '{member_name}'")
+                # Found exact match - proceed directly to love match generation
             else:
+                logger.info(f"No exact match for '{member_name}', searching similar members")
                 # Find all members with similar names
                 similar_members = self._find_similar_members(member_name)
+                logger.info(f"Similar members found: {similar_members}")
                 
                 if len(similar_members) > 1:
                     # Multiple matches found, return selection prompt
+                    logger.info(f"Multiple matches ({len(similar_members)}) found for '{member_name}', returning selection prompt")
                     return self._create_member_selection_prompt(similar_members, member_name, user_id)
                 elif len(similar_members) == 1:
                     # Single match found
@@ -718,6 +729,11 @@ Your response:"""
         if len(search_name) < 2:
             return similar_members
         
+        # If search_name is already a full member key (contains underscore), return it directly if exists
+        if '_' in search_name and search_name in self.members:
+            logger.info(f"Search name '{search_name}' is already a valid member key")
+            return [search_name]
+        
         for member_key, member_data in self.members.items():
             # Check stage name - prioritize exact match, then starts with, then contains
             stage_name = member_data['name'].lower()
@@ -781,13 +797,17 @@ Your response:"""
     
     def handle_member_selection(self, user_id: str, search_name: str, selection_number: int):
         """Handle user's member selection by number"""
+        logger.info(f"handle_member_selection called: user_id={user_id}, search_name='{search_name}', selection_number={selection_number}")
+        
         # Check if user has pending selection that matches
         if user_id in self.pending_selections:
             pending = self.pending_selections[user_id]
+            logger.info(f"Found pending selection for user {user_id}: {pending}")
             
             # Check if this matches the pending selection (case insensitive)
             if pending['search_name'].lower() == search_name.lower():
                 similar_members = pending['similar_members']
+                logger.info(f"Matching pending selection found. Similar members: {similar_members}")
                 
                 if 1 <= selection_number <= len(similar_members):
                     selected_member = similar_members[selection_number - 1]
@@ -795,10 +815,15 @@ Your response:"""
                     
                     # Clear the pending selection
                     del self.pending_selections[user_id]
+                    logger.info(f"Cleared pending selection for user {user_id}")
                     return selected_member
                 else:
                     logger.warning(f"Invalid selection number {selection_number} for pending selection {search_name}")
                     return None
+            else:
+                logger.warning(f"Search name '{search_name}' doesn't match pending '{pending['search_name']}'")
+        else:
+            logger.warning(f"No pending selection found for user {user_id}")
         
         # Fallback to fresh search if no pending selection
         similar_members = self._find_similar_members(search_name)
