@@ -257,7 +257,8 @@ class CommandsHandler:
                 # Smart cache duration berdasarkan kategori
                 cache_duration = self._get_cache_duration(category, len(summary))
                 self.redis_client.set(cache_key, summary, ex=cache_duration)
-                logger.log_cache_set(category, detected_name)
+                from logger import log_cache_set
+                log_cache_set(category, detected_name)
                 
             except Exception as e:
                 logger.error(f"Gagal membuat ringkasan: {e}")
@@ -442,6 +443,7 @@ class CommandsHandler:
         """Handle obrolan casual dengan memory dan caching"""
         try:
             user_id = ctx.author.id
+            message_id = f"{user_id}:{ctx.message.id}:{hash(user_input)}"  # Create unique message ID
             
             # Check cache untuk casual conversation
             cache_key = f"casual:{hash(user_input.lower())}"
