@@ -518,7 +518,8 @@ class CommandsHandler:
             await self._send_chunked_message(ctx, summary)
             
         except Exception as e:
-            logger.log_error("CASUAL_CONV", str(e), user_input)
+            from logger import log_error
+            log_error("CASUAL_CONV", str(e), user_input)
             await ctx.send("Maaf, ada masalah teknis. Coba lagi nanti ya! 😅")
     
     async def _handle_recommendation_request(self, ctx, user_input):
@@ -531,13 +532,15 @@ class CommandsHandler:
             # Langsung AI response dengan max_tokens terbatas
             summary = await self.ai_handler.chat_async(user_input, max_tokens=1500, category="REKOMENDASI")
             ai_duration = int((time.time() - start_time) * 1000)
-            logger.log_ai_response("RECOMMENDATION", len(summary) if summary else 0, ai_duration)
+            from logger import log_ai_response
+            log_ai_response("RECOMMENDATION", len(summary) if summary else 0, ai_duration)
             
             # Kirim dalam chunks untuk menghindari Discord limit
             await self._send_chunked_message(ctx, summary)
             
         except Exception as e:
-            logger.log_error("RECOMMENDATION", str(e), user_input)
+            from logger import log_error
+            log_error("RECOMMENDATION", str(e), user_input)
             await ctx.send("Maaf, ada masalah dalam memberikan rekomendasi. Coba lagi nanti ya! 😅")
     
     async def _handle_general_query(self, ctx, user_input):
@@ -549,12 +552,14 @@ class CommandsHandler:
             
             summary = await self.ai_handler.handle_general_query(user_input)
             ai_duration = int((time.time() - start_time) * 1000)
-            logger.log_ai_response("GENERAL", len(summary) if summary else 0, ai_duration)
+            from logger import log_ai_response
+            log_ai_response("GENERAL", len(summary) if summary else 0, ai_duration)
             
             await ctx.send(summary)
             
         except Exception as e:
-            logger.log_error("GENERAL_QUERY", str(e), user_input)
+            from logger import log_error
+            log_error("GENERAL_QUERY", str(e), user_input)
             await ctx.send(f"Gagal memproses query: {e}")
     
     async def _handle_help_command(self, ctx):
