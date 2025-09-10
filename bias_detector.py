@@ -147,8 +147,10 @@ class BiasDetector:
     
     def _create_member_key(self, stage_name, group):
         """Create unique key for member"""
-        # Use only stage name for key to avoid confusion
-        return stage_name.lower().replace(' ', '_')
+        # Use stage name + group to ensure uniqueness for members with same names
+        clean_stage = stage_name.lower().replace(' ', '_')
+        clean_group = group.lower().replace(' ', '_').replace('&', 'and')
+        return f"{clean_stage}_{clean_group}"
     
     def _generate_member_traits(self, row):
         """Generate personality traits based on member data"""
@@ -709,14 +711,14 @@ Your response:"""
         search_name = search_name.lower()
         
         for member_key, member_data in self.members.items():
-            # Check stage name
+            # Check stage name (exact and partial match)
             stage_name = member_data['name'].lower()
-            if search_name in stage_name or stage_name in search_name:
+            if search_name == stage_name or search_name in stage_name or stage_name in search_name:
                 similar_members.append(member_key)
                 continue
             
-            # Check if member_key contains the search term
-            if search_name in member_key or member_key in search_name:
+            # Check if member_key starts with search term (for jisoo_blackpink format)
+            if member_key.startswith(search_name + '_') or search_name in member_key:
                 similar_members.append(member_key)
                 continue
                 
@@ -725,6 +727,7 @@ Your response:"""
             if korean_name and (search_name in korean_name or korean_name in search_name):
                 similar_members.append(member_key)
         
+        logger.info(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
         return similar_members
     
     def _create_member_selection_prompt(self, similar_members: list, search_name: str):
