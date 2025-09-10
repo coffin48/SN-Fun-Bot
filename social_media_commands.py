@@ -268,6 +268,47 @@ class SocialMediaCommandsHandler:
         
         return embed
     
+    def _is_valid_image_url(self, url):
+        """Validate if URL is a valid image URL"""
+        if not url:
+            return False
+        
+        # Check if URL has valid image extensions
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+        url_lower = url.lower()
+        
+        # Check for direct image URLs
+        if any(ext in url_lower for ext in valid_extensions):
+            return True
+        
+        # Check for common image hosting patterns
+        image_hosts = ['imgur.com', 'i.redd.it', 'pbs.twimg.com', 'img.youtube.com']
+        if any(host in url_lower for host in image_hosts):
+            return True
+            
+        return False
+    
+    def _extract_youtube_video_id(self, url):
+        """Extract YouTube video ID from URL"""
+        import re
+        
+        if not url:
+            return None
+            
+        # YouTube URL patterns
+        patterns = [
+            r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})',
+            r'youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+            r'youtube\.com/v/([a-zA-Z0-9_-]{11})'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        
+        return None
+    
     async def _create_no_content_embed(self, platform: str, info: dict):
         """Create embed when no content is found"""
         embed = discord.Embed(
