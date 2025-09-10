@@ -45,6 +45,43 @@ class SocialMediaCommandsHandler:
             }
         }
     
+    async def handle_social_command(self, ctx, user_input: str):
+        """Handle social media commands dari user input"""
+        # Parse platform dari user input
+        input_lower = user_input.lower().strip()
+        
+        if input_lower.startswith("twitter"):
+            await self.handle_platform_command(ctx, "twitter")
+        elif input_lower.startswith("youtube"):
+            await self.handle_platform_command(ctx, "youtube")
+        elif input_lower.startswith("instagram"):
+            await self.handle_platform_command(ctx, "instagram")
+        elif input_lower.startswith("tiktok"):
+            await self.handle_platform_command(ctx, "tiktok")
+        elif input_lower.startswith("sosmed"):
+            # Show all social media info
+            await self._handle_all_social_media(ctx)
+        else:
+            await ctx.send("❌ Platform tidak dikenal. Gunakan: twitter, youtube, instagram, tiktok, atau sosmed")
+    
+    async def _handle_all_social_media(self, ctx):
+        """Show all social media platforms info"""
+        embed = discord.Embed(
+            title="📱 Secret Number Social Media",
+            description="Semua platform social media Secret Number",
+            color=0xFF1493
+        )
+        
+        for platform, info in self.platform_info.items():
+            embed.add_field(
+                name=f"{info['emoji']} {info['name']}",
+                value=f"[{info['username']}]({info['url']})",
+                inline=True
+            )
+        
+        embed.set_footer(text="Gunakan !sn [platform] untuk cek update terbaru")
+        await ctx.send(embed=embed)
+    
     async def handle_platform_command(self, ctx, platform: str):
         """Handle command untuk platform social media tertentu"""
         try:
