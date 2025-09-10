@@ -11,6 +11,11 @@ class BiasCommandsHandler:
         self.ai_handler = ai_handler
         self.kpop_df = kpop_df
         self.user_preferences = {}
+        
+        # Initialize cooldown system and caches
+        self.command_cooldowns = {}
+        self.cooldown_duration = 30  # 30 seconds
+        self.user_member_cache = {}  # Cache for consistent results
     
     def _get_color_display(self, color_hex):
         """Convert hex color to emoji display - NEW FUNCTION"""
@@ -28,11 +33,6 @@ class BiasCommandsHandler:
         }
         return color_map.get(color_hex, "✨ Mystical")
     
-    def __init_cooldowns__(self):
-        """Initialize cooldown system - MOVED TO SEPARATE METHOD"""
-        self.command_cooldowns = {}
-        self.cooldown_duration = 30  # 30 seconds
-        self.user_member_cache = {}  # Cache for consistent results
         
     async def handle_bias_command(self, ctx, user_input: str):
         """Handle bias commands dari user input"""
