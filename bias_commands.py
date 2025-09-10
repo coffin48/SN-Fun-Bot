@@ -25,7 +25,10 @@ class BiasCommandsHandler:
         if input_lower.startswith("bias"):
             await self._handle_bias_detect(ctx, str(ctx.author.id), [])
         elif input_lower.startswith("match"):
-            await self._handle_love_match(ctx, str(ctx.author.id), [])
+            # Parse member name from input
+            parts = user_input.split()
+            member_name = parts[1] if len(parts) > 1 else None
+            await self._handle_love_match(ctx, str(ctx.author.id), [member_name] if member_name else [])
         elif input_lower.startswith(("fortune", "ramalan")):
             await self._handle_fortune_telling(ctx, str(ctx.author.id), [])
         else:
