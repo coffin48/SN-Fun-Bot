@@ -15,7 +15,22 @@ class SmartKPopDetector:
         self.additional_groups = {
             'wooah': 'WOOAH',
             'woo!ah!': 'WOOAH', 
-            'woah': 'WOOAH'
+            'woah': 'WOOAH',
+            'qwer': 'QWER',
+            'blackpink': 'BLACKPINK',
+            'bp': 'BLACKPINK',
+            'bts': 'BTS',
+            'twice': 'TWICE',
+            'newjeans': 'NewJeans',
+            'ive': 'IVE',
+            'aespa': 'aespa',
+            'itzy': 'ITZY',
+            'gidle': '(G)I-DLE',
+            'g-idle': '(G)I-DLE',
+            'lesserafim': 'LE SSERAFIM',
+            'le_sserafim': 'LE SSERAFIM',
+            'nmixx': 'NMIXX',
+            'stayc': 'STAYC'
         }
         
         # Blacklist untuk nama member yang terlalu umum atau problematik
@@ -103,6 +118,10 @@ class SmartKPopDetector:
         Returns: (category, detected_name, multiple_matches)
         Categories: MEMBER, GROUP, MEMBER_GROUP, OBROLAN, REKOMENDASI, MULTIPLE
         """
+        # Check additional groups first
+        input_lower = user_input.lower().strip()
+        if input_lower in self.additional_groups:
+            return "GROUP", self.additional_groups[input_lower], []
         input_norm = user_input.strip()
         input_lower = input_norm.lower()
         
