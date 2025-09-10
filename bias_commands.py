@@ -160,6 +160,8 @@ class BiasCommandsHandler:
             member_name = args[0].lower()
             selection_number = int(args[1])
             
+            logger.info(f"Processing member selection: member_name='{member_name}', selection_number={selection_number}")
+            
             # Validate member name is not just a number
             if member_name.isdigit():
                 await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member> <nomor>`")
@@ -167,11 +169,14 @@ class BiasCommandsHandler:
             
             # Handle member selection by number
             selected_member = self.bias_detector.handle_member_selection(user_id, member_name, selection_number)
+            logger.info(f"handle_member_selection returned: '{selected_member}' (type: {type(selected_member)})")
+            
             if not selected_member:
                 await ctx.send(f"❌ Nomor pilihan tidak valid! Coba lagi dengan nomor yang benar.")
                 return
+            
             member_name = selected_member
-            logger.info(f"User {user_id} selected member: {member_name} from selection")
+            logger.info(f"User {user_id} selected member: '{member_name}' from selection, proceeding with this member_name")
         else:
             member_name = args[0].lower()
             
