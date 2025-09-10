@@ -300,14 +300,14 @@ class BiasDetector:
             
             member_data = self.members[member_name]
             
-            # Generate AI prompt for love match
-            prompt = self._create_love_match_prompt(user_id, member_data)
+            # Calculate compatibility score (10-100%)
+            score = random.randint(10, 100)  # Always positive for fun
+            
+            # Generate AI prompt for love match with score context
+            prompt = self._create_love_match_prompt(user_id, member_data, score)
             
             # Get AI response
             ai_response = await self.ai_handler.get_ai_response(prompt)
-            
-            # Calculate compatibility score (10-100%)
-            score = random.randint(10, 100)  # Always positive for fun
             
             return {
                 'member': member_data,
@@ -374,22 +374,67 @@ class BiasDetector:
         Respond with just the member key (e.g., "hyuna_4minute" or "jimin_bts").
         """
     
-    def _create_love_match_prompt(self, user_id: str, member_data: dict):
-        """Create AI prompt for love compatibility"""
+    def _create_love_match_prompt(self, user_id: str, member_data: dict, compatibility_score: int):
+        """Create AI prompt for love compatibility based on score"""
+        import random
+        import hashlib
+        
+        # Create consistent hash for user-member combination to ensure same response
+        hash_input = f"{user_id}{member_data['name']}".encode()
+        hash_value = int(hashlib.md5(hash_input).hexdigest(), 16)
+        
+        # Adjust tone based on compatibility score with multiple variations
+        if compatibility_score >= 80:
+            examples = [
+                f"Wah, kalian tuh chemistry-nya kece badai! Si {member_data['name']} yang [trait] banget cocok sama kamu yang [personality]. Dijamin deh, vibes kalian bakal klop abis! 💕",
+                f"OMG! Perfect match banget nih! {member_data['name']} yang [trait] tuh literally soulmate kamu! Chemistry kalian bikin iri semua orang! 🔥✨",
+                f"Astaga! Kalian tuh kayak dibuat satu sama lain! Si {member_data['name']} yang [trait] bakal bikin hidup kamu makin berwarna! Love is in the air! 💖🌟",
+                f"Wuih! Chemistry level maksimal detected! {member_data['name']} yang [trait] tuh complement kamu dengan sempurna! Ini mah jodoh dari surga! 👑💕",
+                f"Gila sih! Kalian tuh match-nya epic banget! Si {member_data['name']} yang [trait] bakal jadi partner in crime terbaik kamu! Relationship goals! 🚀💫"
+            ]
+        elif compatibility_score >= 60:
+            examples = [
+                f"Chemistry kalian cukup menarik nih! Si {member_data['name']} yang [trait] bisa jadi match yang oke sama kamu. Dengan sedikit usaha, hubungan kalian bisa berkembang! 😊",
+                f"Hmm, ada potensi bagus nih! {member_data['name']} yang [trait] sama kamu punya chemistry yang promising. Tinggal dikembangkan aja! 💪😄",
+                f"Not bad! Kalian punya foundation yang solid. Si {member_data['name']} yang [trait] bisa jadi teman yang asik, mungkin lebih! 🌸💕",
+                f"Interesting combo! {member_data['name']} yang [trait] sama kamu bisa create something beautiful. Slow but steady wins the race! 🐢✨",
+                f"Ada spark nih! Si {member_data['name']} yang [trait] sama kamu punya chemistry yang bisa diexplore. Worth the try! 🔍💖"
+            ]
+        elif compatibility_score >= 40:
+            examples = [
+                f"Hmm, kalian punya chemistry yang unik! Si {member_data['name']} yang [trait] mungkin butuh waktu buat connect sama kamu. Tapi hey, opposites attract kan? 😅",
+                f"Challenging tapi menarik! {member_data['name']} yang [trait] sama kamu kayak puzzle yang rumit. Butuh patience tapi bisa jadi seru! 🧩😊",
+                f"Plot twist! Kalian beda banget tapi siapa tau justru itu yang bikin chemistry-nya unique. Si {member_data['name']} yang [trait] bisa surprise kamu! 🎭💫",
+                f"Tricky situation nih! {member_data['name']} yang [trait] sama kamu butuh effort ekstra. Tapi love conquers all, right? 💪❤️",
+                f"Unexpected combo! Si {member_data['name']} yang [trait] sama kamu kayak eksperimen chemistry. Risky tapi potentially rewarding! ⚗️✨"
+            ]
+        else:
+            examples = [
+                f"Maaf, mungkin {member_data['name']} aja ga tau kalo kamu hidup 😭💔 Chemistry kalian tuh kayak air sama minyak - susah nyatu!",
+                f"Waduh... {member_data['name']} yang [trait] sama kamu tuh kayak kutub utara ketemu kutub selatan. Jauh banget! 🥶😢",
+                f"Brutal honesty time: Si {member_data['name']} mungkin lebih cocok sama ghost daripada sama kamu. Sorry not sorry! 👻💀",
+                f"Yikes! Chemistry kalian minus banget. {member_data['name']} yang [trait] sama kamu kayak mencampur air sama api. Disaster! 🔥💧😵",
+                f"Oof... {member_data['name']} mungkin butuh kacamata buat bisa notice kamu. Chemistry kalian invisible level! 👓😭"
+            ]
+        
+        # Select consistent example based on hash
+        selected_example = examples[hash_value % len(examples)]
+        
         return f"""
-        Kamu adalah AI analis kompatibilitas cinta yang seru dan lucu! Buat analisis chemistry yang fun dan positif dalam bahasa Indonesia yang natural dan menggemaskan.
+        Kamu adalah AI analis kompatibilitas cinta yang brutally honest! Skor kompatibilitas: {compatibility_score}%
         
         Member: {member_data['name']} ({member_data.get('korean_name', '')})
         Posisi: {member_data['position']}
         Kepribadian: {member_data['personality']}
         Traits: {', '.join(member_data['traits'])}
         
-        Buat analisis kompatibilitas romantis (2-3 kalimat) yang menjelaskan kenapa ini match yang sempurna banget.
-        Gunakan bahasa Indonesia yang santai, lucu, dan penuh emoji. Sebutkan traits kepribadian spesifik dan alasan kenapa cocok.
+        Buat analisis kompatibilitas romantis (2-3 kalimat) yang sesuai dengan skor {compatibility_score}%.
+        Gunakan bahasa Indonesia yang santai, lucu, dan penuh emoji. Sebutkan traits kepribadian spesifik.
+        Untuk skor rendah, jangan takut brutal dan menohok tapi tetap entertaining!
         
-        Contoh gaya: "Wah, kalian tuh chemistry-nya kece badai! Si {member_data['name']} yang [trait] banget cocok sama kamu yang [personality]. Dijamin deh, vibes kalian bakal klop abis! 💕"
+        Contoh gaya untuk skor ini: "{selected_example}"
         
-        Bikin yang wholesome, fun, dan bikin baper! 🥰
+        Bikin yang honest dan entertaining sesuai skor! 🎭
         """
     
     def _create_fortune_prompt(self, user_id: str, question_type: str):
