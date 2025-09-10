@@ -9,6 +9,7 @@ from ai_handler import AIHandler
 from database_manager import DatabaseManager
 from patch.smart_detector import SmartKPopDetector
 from social_media_commands import SocialMediaCommandsHandler
+from bias_commands import BiasCommandsHandler
 
 class CommandsHandler:
     def __init__(self, bot_core):
@@ -25,6 +26,9 @@ class CommandsHandler:
         
         # Initialize social media commands handler
         self.social_media_handler = SocialMediaCommandsHandler(self.social_monitor)
+        
+        # Initialize bias commands handler
+        self.bias_handler = BiasCommandsHandler(self.ai_handler, self.kpop_df)
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
@@ -77,6 +81,14 @@ class CommandsHandler:
                     
                     if user_input.lower() == "instagram":
                         await self.social_media_handler.handle_platform_command(ctx, "instagram")
+                        return
+        
+                    # Handle bias commands
+                    if user_input.lower().startswith("bias"):
+                        bias_parts = user_input.split()[1:] if len(user_input.split()) > 1 else []
+                        subcommand = bias_parts[0] if bias_parts else "help"
+                        args = bias_parts[1:] if len(bias_parts) > 1 else []
+                        await self.bias_handler.handle_bias_command(ctx, subcommand, *args)
                         return
                     
                     # Analytics command
@@ -481,28 +493,74 @@ class CommandsHandler:
     
     async def _handle_help_command(self, ctx):
         """Handle !sn help command untuk menampilkan daftar commands"""
-        help_message = """🤖 **SN Fun Bot - K-pop Info** ✨
-
-**🎯 Cara Pakai:**
-• `!sn [nama]` 🎤 Info K-pop (member/grup)
-• `!sn [member] [grup]` 🎭 Info spesifik
-• `!sn hai` 💬 Chat casual
-• `!sn rekomen lagu` 🎵 Minta rekomendasi
-
-**📝 Contoh:**
-```
-!sn Jisoo
-!sn BTS  
-!sn Hina QWER
-!sn rekomen ballad
-```
-
-**⚙️ Utility:**
-• `!sn help` 📋 Help ini
-• `!sn analytics` 📊 Statistik bot
-
-Bot otomatis deteksi member, grup, atau chat biasa! 🎵✨"""
-        await self._send_chunked_message(ctx, help_message)
+        help_embed = discord.Embed(
+            title="🤖 SN Fun Bot - K-pop Info ✨",
+            description="Bot K-pop yang seru dengan fitur bias detector dan social media monitoring!",
+            color=0xFF1493
+        )
+        
+        help_embed.add_field(
+            name="🎯 Cara Pakai Dasar",
+            value="`!sn [nama]` - Info K-pop (member/grup)\n"
+                  "`!sn [member] [grup]` - Info spesifik\n"
+                  "`!sn hai` - Chat casual\n"
+                  "`!sn rekomen lagu` - Minta rekomendasi",
+            inline=False
+        )
+        
+        help_embed.add_field(
+            name="📝 Contoh Commands",
+            value="```\n!sn Jisoo\n!sn BTS\n!sn Hina QWER\n!sn rekomen ballad\n```",
+            inline=False
+        )
+        
+        help_embed.add_field(
+            name="📱 Social Media",
+            value="`!sn twitter` 🐦 Latest tweets\n"
+                  "`!sn instagram` 📸 Latest posts\n"
+                  "`!sn youtube` 📺 Latest videos\n"
+                  "`!sn tiktok` 🎵 Latest TikToks",
+            inline=True
+        )
+        
+        help_embed.add_field(
+            name="🔮 Bias Detector (NEW!)",
+            value="`!sn bias detect` 🎯 Cari bias cocok\n"
+                  "`!sn bias match [member]` 💕 Cek chemistry\n"
+                  "`!sn bias fortune [type]` 🌟 Ramalan\n"
+                  "`!sn bias profile [member]` 📋 Info member\n"
+                  "`!sn bias pref [key] [value]` ⚙️ Preferensi",
+            inline=True
+        )
+        
+        help_embed.add_field(
+            name="📊 Monitor & Utility",
+            value="`!sn monitor` 📱 Social media monitoring\n"
+                  "`!sn help` 📋 Help ini\n"
+                  "`!sn analytics` 📊 Statistik bot",
+            inline=False
+        )
+        
+        help_embed.add_field(
+            name="🎵 Fortune Types",
+            value="`love` - Ramalan cinta 💕\n"
+                  "`career` - Panduan karir 💼\n"
+                  "`friendship` - Hubungan pertemanan 👫\n"
+                  "`general` - Ramalan umum ✨",
+            inline=True
+        )
+        
+        help_embed.add_field(
+            name="✨ Tips",
+            value="Bot otomatis deteksi member, grup, atau chat biasa!\n"
+                  "Bias detector pakai AI untuk hasil yang seru! 🤖",
+            inline=True
+        )
+        
+        help_embed.set_footer(text="SN Fun Bot • Dibuat dengan cinta untuk K-pop fans 💕")
+        help_embed.set_thumbnail(url="https://i.imgur.com/placeholder.png")  # Optional: add bot avatar
+        
+        await ctx.send(embed=help_embed)
         logger.logger.info("Help command requested")
 
     async def _handle_analytics_command(self, ctx):
