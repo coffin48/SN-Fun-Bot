@@ -7,7 +7,7 @@ from datetime import datetime
 from logger import logger
 from ai_handler import AIHandler
 from database_manager import DatabaseManager
-from patch.smart_detector import SmartDetector
+from patch.smart_detector import SmartKPopDetector
 from social_media_commands import SocialMediaCommandsHandler
 
 class CommandsHandler:
