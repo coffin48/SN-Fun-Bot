@@ -1,13 +1,15 @@
 """
-Social Media Monitor - Monitor Secret Number social media updates
+Social Media Monitor - Memantau update dari berbagai platform social media
 """
 import asyncio
 import aiohttp
 import json
-import time
 import os
+import re
+import requests
+import time
 from datetime import datetime, timedelta
-import hashlib
+from bs4 import BeautifulSoup
 from logger import logger
 import discord
 
