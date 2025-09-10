@@ -187,27 +187,73 @@ class SocialMediaMonitor:
     
     # New methods for getting latest content (for commands)
     async def get_latest_twitter_post(self):
-        """Get latest Twitter post data using APIFlash screenshot"""
+        """Get latest Twitter post data using optimized APIFlash screenshot"""
         try:
-            # Use APIFlash screenshot instead of RSS scraping
+            # Try to get actual tweet data first, then add screenshot
+            tweet_data = await self._try_get_latest_tweet_data()
             screenshot_url = await self._get_social_media_screenshot('twitter')
             
             if screenshot_url:
-                return {
-                    'text': '📸 Screenshot terbaru dari Twitter @5ecretnumber',
-                    'url': 'https://twitter.com/5ecretnumber',
+                result = {
+                    'text': tweet_data.get('text', '📸 Screenshot terbaru dari Twitter @5ecretnumber'),
+                    'url': tweet_data.get('url', 'https://twitter.com/5ecretnumber'),
                     'image_url': screenshot_url,
-                    'likes': 0,
-                    'retweets': 0,
+                    'likes': tweet_data.get('likes', 0),
+                    'retweets': tweet_data.get('retweets', 0),
                     'is_screenshot': True,
-                    'timestamp': 'Just now'
+                    'timestamp': tweet_data.get('created_at', 'Just now')
                 }
+                logger.info(f"✅ Twitter screenshot dengan data: {result['text'][:50]}...")
+                return result
             else:
                 logger.warning("⚠️ Twitter screenshot failed")
-                return None
+                return tweet_data if tweet_data else None
                 
         except Exception as e:
             logger.error(f"Get latest Twitter error: {e}")
+            return None
+    
+    async def _try_get_latest_tweet_data(self):
+        """Try to get actual tweet data from various sources"""
+        try:
+            import aiohttp
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                
+                # Try RSS feeds first (most reliable for basic data)
+                rss_urls = [
+                    'https://rsshub.app/twitter/user/5ecretnumber',
+                    'https://nitter.net/5ecretnumber/rss',
+                    'https://nitter.privacydev.net/5ecretnumber/rss'
+                ]
+                
+                for rss_url in rss_urls:
+                    try:
+                        async with session.get(rss_url, headers=headers, timeout=10) as response:
+                            if response.status == 200:
+                                content = await response.text()
+                                tweet_data = await self.parse_twitter_rss_for_latest(content)
+                                if tweet_data:
+                                    logger.info(f"✅ Tweet data dari RSS: {rss_url}")
+                                    return tweet_data
+                    except Exception as e:
+                        logger.warning(f"RSS {rss_url} failed: {e}")
+                        continue
+                
+                # If RSS fails, return basic fallback data
+                return {
+                    'text': 'Tweet terbaru dari Secret Number - lihat screenshot untuk detail',
+                    'url': 'https://twitter.com/5ecretnumber',
+                    'created_at': 'Recent',
+                    'likes': 0,
+                    'retweets': 0
+                }
+                        
+        except Exception as e:
+            logger.error(f"Get tweet data failed: {e}")
             return None
     
     async def _try_direct_twitter_approach(self, session, headers):
@@ -393,7 +439,7 @@ class SocialMediaMonitor:
         }
     
     async def _get_social_media_screenshot(self, platform: str):
-        """Get screenshot of social media page as fallback"""
+        """Get screenshot of social media page with platform-specific optimizations"""
         import os
         import aiohttp
         
@@ -416,14 +462,22 @@ class SocialMediaMonitor:
                 logger.warning(f"No URL configured for platform: {platform}")
                 return None
             
-            # APIFlash screenshot URL
-            screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key={apiflash_key}&url={target_url}&format=png&width=1200&height=800&crop_width=600&crop_height=400&delay=3&wait_until=page_loaded"
+            # Platform-specific screenshot parameters
+            if platform == 'twitter':
+                # Twitter-specific: Focus on timeline area, crop to show latest tweets
+                screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key={apiflash_key}&url={target_url}&format=png&width=1200&height=1200&crop_width=600&crop_height=800&crop_x=0&crop_y=100&delay=5&wait_until=page_loaded&element=[data-testid='primaryColumn']"
+            elif platform == 'instagram':
+                # Instagram-specific: Focus on posts area
+                screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key={apiflash_key}&url={target_url}&format=png&width=1200&height=1200&crop_width=600&crop_height=800&crop_x=0&crop_y=150&delay=5&wait_until=page_loaded"
+            else:
+                # Default screenshot for other platforms
+                screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key={apiflash_key}&url={target_url}&format=png&width=1200&height=800&crop_width=600&crop_height=400&delay=3&wait_until=page_loaded"
             
             # Test if APIFlash is working
             async with aiohttp.ClientSession() as session:
                 async with session.head(screenshot_url, timeout=10) as response:
                     if response.status == 200:
-                        logger.info(f"✅ APIFlash screenshot ready for {platform}")
+                        logger.info(f"✅ APIFlash screenshot ready for {platform} with optimized settings")
                         return screenshot_url
                     else:
                         logger.warning(f"APIFlash returned status {response.status} for {platform}")
