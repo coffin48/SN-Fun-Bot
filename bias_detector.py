@@ -261,26 +261,52 @@ class BiasDetector:
     
     async def bias_detect(self, user_id: str, preferences: dict = None):
         """AI-powered bias detection based on user preferences"""
+        logger.info(f"🔍 Starting bias detection for user {user_id}")
+        
         try:
-            # Generate AI prompt for bias detection
-            prompt = self._create_bias_detection_prompt(user_id, preferences)
-            logger.info(f"Generated bias detection prompt: {prompt[:200]}...")
+            # Get random member from database or fallback to SN members
+            if self.members:
+                # Use full K-pop database
+                available_members = list(self.members.keys())
+                selected_key = random.choice(available_members)
+                member_data = self.members[selected_key]
+            else:
+                # Fallback to Secret Number members
+                available_members = list(self.sn_members.keys())
+                selected_key = random.choice(available_members)
+                member_data = self.sn_members[selected_key]
             
-            # Get AI response
-            ai_response = await self.ai_handler.get_ai_response(prompt)
-            logger.info(f"AI response received: {ai_response}")
+            # Generate user-specific compatibility score
+            score_seed = f"{user_id}_bias_detect_{selected_key}"
+            compatibility_score = 75 + (hash(score_seed) % 25)  # 75-99%
             
-            # Parse AI response to get recommended member
-            recommended_member = self._parse_ai_bias_response(ai_response)
+            # Generate AI analysis
+            ai_prompt = f"""
+            Analisis mengapa {member_data['name']} cocok sebagai bias untuk user ini.
+            Skor kompatibilitas: {compatibility_score}%
             
-            return recommended_member
+            Buat analisis yang fun dan personal dalam bahasa Indonesia yang cute.
+            """
+            
+            ai_analysis = await self.ai_handler.get_ai_response(ai_prompt)
+            
+            bias_result = {
+                'member_name': member_data['name'],
+                'group_name': member_data.get('group', 'Secret Number'),
+                'compatibility_score': compatibility_score,
+                'ai_analysis': ai_analysis,
+                'member_traits': member_data.get('traits', ['charming', 'talented', 'beautiful']),
+                'reason': f"Kepribadian kamu sangat cocok dengan vibe {member_data['name']}! ✨"
+            }
+            
+            logger.info(f"✅ Bias detection completed for user {user_id}: {member_data['name']}")
+            return bias_result
             
         except Exception as e:
-            logger.error(f"Bias detection error: {e}")
-            # Fallback to random selection
-            fallback = random.choice(list(self.members.keys()))
-            logger.warning(f"Using fallback member: {fallback}")
-            return fallback
+            logger.error(f"❌ Bias detection error for user {user_id}: {e}")
+            return {
+                'error': 'Bias detection gagal, coba lagi ya! 💕'
+            }
     
     async def love_match(self, user_id: str, member_name: str, force_direct_match: bool = False):
         """Generate love match result for user and member"""
