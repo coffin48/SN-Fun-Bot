@@ -282,10 +282,10 @@ class BiasDetector:
             
             # Generate AI analysis
             ai_prompt = f"""
-            Analisis mengapa {member_data['name']} cocok sebagai bias untuk user ini.
-            Skor kompatibilitas: {compatibility_score}%
+            Analisis singkat mengapa {member_data['name']} cocok sebagai bias.
+            Skor: {compatibility_score}%
             
-            Buat analisis yang fun dan personal dalam bahasa Indonesia yang cute.
+            Buat analisis fun dalam bahasa Indonesia yang cute. Maksimal 2-3 kalimat pendek.
             """
             
             ai_analysis = await self.ai_handler.get_ai_response(ai_prompt)
