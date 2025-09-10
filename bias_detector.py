@@ -17,6 +17,10 @@ class BiasDetector:
         # Format: {user_id: {member_name: {'result': match_result, 'count': usage_count, 'cycle': cycle_number}}}
         self.match_cache = {}
         
+        # Cache for pending member selections
+        # Format: {user_id: {'search_name': str, 'similar_members': list, 'timestamp': datetime}}
+        self.pending_selections = {}
+        
         # Secret Number member data (fallback)
         self.sn_members = {
             'lea': {
@@ -290,7 +294,7 @@ class BiasDetector:
                 
                 if len(similar_members) > 1:
                     # Multiple matches found, return selection prompt
-                    return self._create_member_selection_prompt(similar_members, member_name)
+                    return self._create_member_selection_prompt(similar_members, member_name, user_id)
                 elif len(similar_members) == 1:
                     # Single match found
                     member_name = similar_members[0]
@@ -708,29 +712,45 @@ Your response:"""
     def _find_similar_members(self, search_name: str):
         """Find all members with similar names"""
         similar_members = []
-        search_name = search_name.lower()
+        search_name = search_name.lower().strip()
+        
+        # Skip if search is too short (avoid matching single letters)
+        if len(search_name) < 2:
+            return similar_members
         
         for member_key, member_data in self.members.items():
-            # Check stage name (exact and partial match)
+            # Check stage name - prioritize exact match, then starts with, then contains
             stage_name = member_data['name'].lower()
-            if search_name == stage_name or search_name in stage_name or stage_name in search_name:
+            
+            # Exact match (highest priority)
+            if search_name == stage_name:
+                similar_members.append(member_key)
+                continue
+            
+            # Starts with search term (high priority)
+            if stage_name.startswith(search_name):
                 similar_members.append(member_key)
                 continue
             
             # Check if member_key starts with search term (for jisoo_blackpink format)
-            if member_key.startswith(search_name + '_') or search_name in member_key:
+            if member_key.startswith(search_name + '_'):
+                similar_members.append(member_key)
+                continue
+            
+            # Contains search term but only if search is 3+ chars (lower priority)
+            if len(search_name) >= 3 and search_name in stage_name:
                 similar_members.append(member_key)
                 continue
                 
-            # Check Korean name if available
+            # Check Korean name if available (exact or starts with only)
             korean_name = member_data.get('korean_name', '').lower()
-            if korean_name and (search_name in korean_name or korean_name in search_name):
+            if korean_name and (search_name == korean_name or korean_name.startswith(search_name)):
                 similar_members.append(member_key)
         
         logger.info(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
         return similar_members
     
-    def _create_member_selection_prompt(self, similar_members: list, search_name: str):
+    def _create_member_selection_prompt(self, similar_members: list, search_name: str, user_id: str):
         """Create selection prompt when multiple members found"""
         selection_text = f"🔍 Ditemukan beberapa member dengan nama '{search_name}':\n\n"
         
@@ -745,6 +765,13 @@ Your response:"""
         selection_text += f"\n💡 Ketik `!sn match {search_name} [nomor]` untuk memilih!\n"
         selection_text += f"Contoh: `!sn match {search_name} 1`"
         
+        # Store pending selection for this user
+        self.pending_selections[user_id] = {
+            'search_name': search_name,
+            'similar_members': similar_members,
+            'timestamp': datetime.now()
+        }
+        
         return {
             'is_selection_prompt': True,
             'selection_text': selection_text,
@@ -754,11 +781,31 @@ Your response:"""
     
     def handle_member_selection(self, user_id: str, search_name: str, selection_number: int):
         """Handle user's member selection by number"""
+        # Check if user has pending selection that matches
+        if user_id in self.pending_selections:
+            pending = self.pending_selections[user_id]
+            
+            # Check if this matches the pending selection (case insensitive)
+            if pending['search_name'].lower() == search_name.lower():
+                similar_members = pending['similar_members']
+                
+                if 1 <= selection_number <= len(similar_members):
+                    selected_member = similar_members[selection_number - 1]
+                    logger.info(f"User {user_id} selected member #{selection_number}: {selected_member} from pending selection")
+                    
+                    # Clear the pending selection
+                    del self.pending_selections[user_id]
+                    return selected_member
+                else:
+                    logger.warning(f"Invalid selection number {selection_number} for pending selection {search_name}")
+                    return None
+        
+        # Fallback to fresh search if no pending selection
         similar_members = self._find_similar_members(search_name)
         
         if 1 <= selection_number <= len(similar_members):
             selected_member = similar_members[selection_number - 1]
-            logger.info(f"User {user_id} selected member #{selection_number}: {selected_member}")
+            logger.info(f"User {user_id} selected member #{selection_number}: {selected_member} from fresh search")
             return selected_member
         else:
             logger.warning(f"Invalid selection number {selection_number} for {search_name}")
