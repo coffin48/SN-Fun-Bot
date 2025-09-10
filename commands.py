@@ -13,6 +13,7 @@ from patch.smart_detector import SmartKPopDetector
 from social_media_commands import SocialMediaCommandsHandler
 from bias_commands import BiasCommandsHandler
 from analytics import analytics
+from data_fetcher import DataFetcher
 
 class CommandsHandler:
     def __init__(self, bot_core):
@@ -447,18 +448,21 @@ class CommandsHandler:
             cached_response = self.redis_client.get(cache_key)
             
             if cached_response:
-                logger.log_cache_hit("CASUAL", user_input[:30])
+                from logger import log_cache_hit
+                log_cache_hit("CASUAL", user_input[:30])
                 await self._send_chunked_message(ctx, cached_response.decode('utf-8'))
                 return
             else:
-                logger.log_cache_miss("CASUAL", user_input[:30])
+                from logger import log_cache_miss
+                log_cache_miss("CASUAL", user_input[:30])
             
             # Generate response dengan AI (reduced max_tokens untuk speed)
             start_time = time.time()
-            logger.log_ai_request("CASUAL", len(user_input))
+            from logger import log_ai_request, log_ai_response
+            log_ai_request("CASUAL", len(user_input))
             summary = await self.ai_handler.chat_async(user_input, max_tokens=800, category="OBROLAN")
             ai_duration = int((time.time() - start_time) * 1000)
-            logger.log_ai_response("CASUAL", len(summary) if summary else 0, ai_duration)
+            log_ai_response("CASUAL", len(summary) if summary else 0, ai_duration)
             
             # Validasi dan sanitasi response
             if not summary or not isinstance(summary, str):
