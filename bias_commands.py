@@ -11,6 +11,25 @@ class BiasCommandsHandler:
         self.ai_handler = ai_handler
         self.kpop_df = kpop_df
         self.user_preferences = {}
+    
+    def _get_color_display(self, color_hex):
+        """Convert hex color to emoji display - NEW FUNCTION"""
+        color_map = {
+            0xFF69B4: "🩷 Pink",
+            0x87CEEB: "💙 Sky Blue", 
+            0x98FB98: "💚 Pale Green",
+            0xDDA0DD: "💜 Plum",
+            0xF0E68C: "💛 Khaki",
+            0xFFB6C1: "🌸 Light Pink",
+            0xFF4500: "🧡 Orange Red",
+            0x9370DB: "💙 Medium Purple",
+            0x20B2AA: "🩵 Light Sea Green",
+            0xDC143C: "❤️ Crimson"
+        }
+        return color_map.get(color_hex, "✨ Mystical")
+    
+    def __init_cooldowns__(self):
+        """Initialize cooldown system - MOVED TO SEPARATE METHOD"""
         self.command_cooldowns = {}
         self.cooldown_duration = 30  # 30 seconds
         self.user_member_cache = {}  # Cache for consistent results
@@ -346,7 +365,7 @@ class BiasCommandsHandler:
             
             fortune_embed.add_field(
                 name="🎨 Warna Beruntung",
-                value=f"**Warna {guide_member['name']}** - Pakai warna ini biar makin hoki! ✨",
+                value=f"**{self._get_color_display(fortune_result['lucky_color'])}** - Pakai warna ini biar makin hoki! ✨",
                 inline=True
             )
             
