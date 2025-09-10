@@ -33,10 +33,10 @@ class BiasCommandsHandler:
             member_name = parts[2] if len(parts) > 2 else None
             await self._handle_love_match(ctx, str(ctx.author.id), [member_name] if member_name else [])
         elif input_lower.startswith("match"):
-            # Parse member name from input
+            # Parse member name and group from input
             parts = user_input.split()
-            member_name = parts[1] if len(parts) > 1 else None
-            await self._handle_love_match(ctx, str(ctx.author.id), [member_name] if member_name else [])
+            args = parts[1:] if len(parts) > 1 else []
+            await self._handle_love_match(ctx, str(ctx.author.id), args)
         elif input_lower.startswith(("fortune", "ramalan")):
             # Parse fortune type from input
             parts = user_input.split()
