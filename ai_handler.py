@@ -329,12 +329,7 @@ Format:
 - 👀 Rumor: [rumor atau "Gak ada rumor yang kesebut di sini, aman! ✅"]
 - 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
-PENTING: 
-1. Gunakan emoji yang RELEVAN dan SPESIFIK saja. Contoh: 🎤 untuk vocalist, 🥁 untuk drummer, 🎸 untuk guitarist, 💃 untuk dancer, 🎨 untuk visual, 🔥 untuk rapper
-2. Social Media: WAJIB hanya tampilkan 4 platform ini jika ada: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵. Jangan tambahkan platform lain seperti Facebook, Weibo, VLive, dll.
-3. Format: "📸 @instagram_handle, 🐦 @twitter_handle, 📺 YouTube Channel Name, 🎵 @tiktok_handle"
-
-Awali dengan intro singkat natural (contoh: "✨ Ini info tentang [nama]" atau "🎤 Berikut data [nama]"), lalu langsung ke format. Gunakan emoji secukupnya dan relevan dengan konteks! Hanya dari konten yang diberikan.
+Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Intro fun: "✨ Ini info tentang [nama]" lalu format.
 
 {info}"""
     
@@ -349,18 +344,13 @@ Awali dengan intro singkat natural (contoh: "✨ Ini info tentang [nama]" atau "
         return f"""Buat info K-pop grup berikut dengan emoji yang relevan dan tepat sasaran:
 Format:
 - 🎤 Debut: [tanggal debut dan agensi]
-- 👥 Members: [Nama (1 posisi), contoh: "Jisoo (Visual) 🎨, Jennie (Rapper) 🔥"]
+- 👥 Members: [Format berdasarkan jumlah member: Jika ≤6 member gunakan format vertical (• Nama (Posisi) emoji), Jika >6 member gunakan format comma (Nama (Posisi) emoji, Nama (Posisi) emoji)]
 - 💿 Discography: [album dan lagu hits]
 - 🏆 Prestasi: [penghargaan penting]
 - 🔑 Fandom: [nama fandom dan facts]
 - 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
-PENTING: 
-1. Gunakan emoji yang RELEVAN dan SPESIFIK saja. Contoh: 🎤 untuk vocalist, 🥁 untuk drummer, 🎸 untuk guitarist, 💃 untuk dancer, 🎨 untuk visual, 🔥 untuk rapper, 💿 untuk discography, 🔑 untuk fandom
-2. Social Media: WAJIB hanya tampilkan 4 platform ini jika ada: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵. Jangan tambahkan platform lain seperti Facebook, Weibo, VLive, dll.
-3. Format: "📸 @instagram_handle, 🐦 @twitter_handle, 📺 YouTube Channel Name, 🎵 @tiktok_handle"
-
-Members: HANYA 1 posisi per nama dengan emoji yang sesuai untuk posisi mereka. Awali dengan intro singkat natural (contoh: "✨ Ini info tentang [nama grup]" atau "🎤 Berikut data [nama grup]"), lalu langsung ke format. Gunakan emoji secukupnya dan relevan dengan konteks! Hanya dari konten yang diberikan.
+Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap, 💿=disco, 🔑=fandom). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Members: ≤6 vertical (• Nama (Posisi) emoji), >6 horizontal (comma separated). 1 posisi per nama. Intro fun: "✨ Ini info tentang [nama grup]" lalu format.
 
 {info}"""
     
