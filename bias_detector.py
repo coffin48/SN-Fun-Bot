@@ -284,11 +284,11 @@ class BiasDetector:
     
     async def love_match(self, user_id: str, member_name: str, force_direct_match: bool = False):
         """Generate love match result for user and member"""
-        logger.info(f"love_match called: user_id={user_id}, member_name='{member_name}', force_direct_match={force_direct_match}")
+        logger.debug(f"love_match called: user_id={user_id}, member_name='{member_name}', force_direct_match={force_direct_match}")
         
         # If force_direct_match is True, skip multiple choice detection
         if force_direct_match:
-            logger.info(f"Force direct match enabled for: '{member_name}'")
+            logger.debug(f"Force direct match enabled for: '{member_name}'")
             # Verify the member exists in database
             if member_name in self.members:
                 similar_members = [member_name]
@@ -300,13 +300,13 @@ class BiasDetector:
                 }
         # Check if member_name contains underscore (member key format)
         elif '_' in member_name and member_name in self.members:
-            logger.info(f"Direct member key detected: '{member_name}'")
+            logger.debug(f"Direct member key detected: '{member_name}'")
             similar_members = [member_name]
         else:
             # Find similar members
             similar_members = self._find_similar_members(member_name)
         
-        logger.info(f"Similar members found: {similar_members}")
+        logger.debug(f"Similar members found: {similar_members}")
         
         if len(similar_members) == 0:
             return {
@@ -319,7 +319,7 @@ class BiasDetector:
             logger.info(f"Single member selected: '{selected_member}'")
         else:
             # Multiple members found, show selection prompt
-            logger.info(f"Multiple members found ({len(similar_members)}), showing selection prompt")
+            logger.debug(f"Multiple members found ({len(similar_members)}), showing selection prompt")
             return self._create_member_selection_prompt(similar_members, member_name, user_id)
         
         # Check cache for consistent results with 5-cycle system
@@ -331,11 +331,11 @@ class BiasDetector:
             if cycle_position < 4:  # Still within current 5-cycle (positions 0-3, need one more)
                 # Return cached result and increment count
                 cached_data['count'] += 1
-                logger.info(f"Returning cached match result for {user_id}-{selected_member} (use #{cached_data['count']}, cycle {current_cycle + 1}, position {cycle_position + 2}/5)")
+                logger.debug(f"Returning cached match result for {user_id}-{selected_member} (use #{cached_data['count']}, cycle {current_cycle + 1}, position {cycle_position + 2}/5)")
                 return cached_data['result']
             else:
                 # End of 5-cycle, need to generate new result for next cycle
-                logger.info(f"End of cycle {current_cycle + 1} for {user_id}-{selected_member}, generating new result")
+                logger.debug(f"End of cycle {current_cycle + 1} for {user_id}-{selected_member}, generating new result")
         
         member_data = self.members[selected_member]
         
@@ -773,7 +773,7 @@ Your response:"""
             if korean_name and (search_name == korean_name or korean_name.startswith(search_name)):
                 similar_members.append(member_key)
         
-        logger.info(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
+        logger.debug(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
         return similar_members
     
     def _find_member_by_name_and_group(self, member_name: str, group_name: str):
@@ -781,7 +781,7 @@ Your response:"""
         member_name = member_name.lower().strip()
         group_name = group_name.lower().strip()
         
-        logger.info(f"🔍 _find_member_by_name_and_group: Searching for member: '{member_name}' in group: '{group_name}'")
+        logger.debug(f"Searching for member: '{member_name}' in group: '{group_name}'")
         
         # Clean group name variations
         group_variations = [
@@ -791,8 +791,6 @@ Your response:"""
             group_name.replace('&', 'and')
         ]
         
-        logger.info(f"📝 Group variations to test: {group_variations}")
-        
         for member_key, member_data in self.members.items():
             stage_name = member_data['name'].lower()
             member_group = member_data.get('group', '').lower()
@@ -801,7 +799,7 @@ Your response:"""
             name_match = member_name == stage_name or stage_name.startswith(member_name)
             
             if name_match:
-                logger.info(f"Name match found: '{stage_name}' in group '{member_group}' (key: {member_key})")
+                logger.debug(f"Name match found: '{stage_name}' in group '{member_group}' (key: {member_key})")
                 
                 # Check if group matches any variation
                 for group_var in group_variations:
@@ -817,7 +815,6 @@ Your response:"""
                     
                     if group_match:
                         logger.info(f"✅ Found direct match: {member_key} for '{member_name}' from '{group_name}'")
-                        logger.info(f"   Matched: '{stage_name}' from '{member_group}' using variation '{group_var}'")
                         return member_key
                 
                 logger.debug(f"Group mismatch for '{stage_name}': '{member_group}' doesn't match any of {group_variations}")
