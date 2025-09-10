@@ -158,9 +158,7 @@ class BiasCommandsHandler:
             member_name_input = args[0].lower()
             group_name_input = ' '.join(args[1:]).lower()
             
-            logger.info(f"🔍 Processing direct group selection: member='{member_name_input}', group='{group_name_input}'")
-            logger.info(f"📝 Raw args: {args}")
-            logger.info(f"📝 Args length: {len(args)}")
+            logger.debug(f"Processing direct group selection: member='{member_name_input}', group='{group_name_input}'")
             
             # Try to find member by name and group
             direct_match = self.bias_detector._find_member_by_name_and_group(member_name_input, group_name_input)
@@ -171,15 +169,7 @@ class BiasCommandsHandler:
                 # Set flag to force direct match and bypass multiple choice
                 force_direct = True
             else:
-                logger.warning(f"❌ Direct match failed for '{member_name_input}' from '{group_name_input}'")
-                
-                # Debug: Show available members with similar names
-                similar_members = self.bias_detector._find_similar_members(member_name_input)
-                logger.info(f"🔍 Available similar members: {similar_members}")
-                
-                for member_key in similar_members:
-                    member_data = self.bias_detector.members[member_key]
-                    logger.info(f"   • {member_data['name']} from {member_data['group']} (key: {member_key})")
+                logger.debug(f"Direct match failed for '{member_name_input}' from '{group_name_input}'")
                 
                 await ctx.send(f"❌ Tidak ditemukan member '{member_name_input}' dari grup '{group_name_input}'!\n💡 Coba: `!sn match {member_name_input}` untuk melihat pilihan yang tersedia.")
                 return
@@ -203,9 +193,8 @@ class BiasCommandsHandler:
         
         try:
             # Get love match analysis
-            logger.info(f"Calling love_match with member_name: '{member_name}' for user {user_id}, force_direct: {force_direct}")
+            logger.debug(f"Calling love_match with member_name: '{member_name}' for user {user_id}, force_direct: {force_direct}")
             match_result = await self.bias_detector.love_match(user_id, member_name, force_direct_match=force_direct)
-            logger.info(f"love_match returned: {type(match_result)} - {match_result.get('is_selection_prompt', 'not selection prompt')}")
             
             # Check if it's a selection prompt (just show info, don't wait for selection)
             if isinstance(match_result, dict) and match_result.get('is_selection_prompt'):
