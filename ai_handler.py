@@ -188,8 +188,8 @@ class AIHandler:
             ]
         }
         
-        # Retry logic for API calls
-        max_retries = 3
+        # Retry logic for API calls - reduced to 1 retry only
+        max_retries = 1
         request_start_time = time.time()
         
         for attempt in range(max_retries):
@@ -206,17 +206,15 @@ class AIHandler:
                 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 503 and attempt < max_retries - 1:
-                    # Service unavailable, retry with exponential backoff
-                    wait_time = (2 ** attempt) + 1  # 2, 5, 9 seconds
+                    # Service unavailable, retry with shorter backoff
+                    wait_time = 2  # Only 2 seconds for single retry
                     logger.warning(f"Gemini API 503 error, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
-                elif e.response.status_code == 429 and attempt < max_retries - 1:
-                    # Rate limit exceeded, wait longer before retry
-                    wait_time = (2 ** (attempt + 2)) + 5  # 9, 21, 37 seconds
-                    logger.warning(f"Gemini API rate limit (429), retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
-                    time.sleep(wait_time)
-                    continue
+                elif e.response.status_code == 429:
+                    # Rate limit exceeded, immediately switch to backup API
+                    logger.warning(f"Gemini API rate limit (429), switching to backup API key (attempt {attempt + 1}/{max_retries})")
+                    return "MODEL_FAILED"  # Force switch to backup API
                 elif e.response.status_code == 404:
                     # Model not found - try next model
                     logger.warning(f"Model {model_name} not found (404), trying next model")
