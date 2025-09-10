@@ -249,9 +249,11 @@ class BiasDetector:
         try:
             # Generate AI prompt for bias detection
             prompt = self._create_bias_detection_prompt(user_id, preferences)
+            logger.info(f"Generated bias detection prompt: {prompt[:200]}...")
             
             # Get AI response
             ai_response = await self.ai_handler.get_ai_response(prompt)
+            logger.info(f"AI response received: {ai_response}")
             
             # Parse AI response to get recommended member
             recommended_member = self._parse_ai_bias_response(ai_response)
@@ -261,7 +263,9 @@ class BiasDetector:
         except Exception as e:
             logger.error(f"Bias detection error: {e}")
             # Fallback to random selection
-            return random.choice(list(self.members.keys()))
+            fallback = random.choice(list(self.members.keys()))
+            logger.warning(f"Using fallback member: {fallback}")
+            return fallback
     
     async def love_match(self, user_id: str, member_name: str = None):
         """AI-powered love compatibility dengan Secret Number member"""
@@ -465,13 +469,20 @@ class BiasDetector:
         """Parse AI response to extract member name"""
         ai_response = ai_response.lower().strip()
         
+        # Debug logging
+        logger.info(f"AI Response for bias detection: {ai_response}")
+        logger.info(f"Available members: {list(self.members.keys())[:10]}...")
+        
         # Check if any member name is in the response
         for member_name in self.members.keys():
             if member_name in ai_response:
+                logger.info(f"Found member match: {member_name}")
                 return member_name
         
         # Fallback to random
-        return random.choice(list(self.members.keys()))
+        fallback_member = random.choice(list(self.members.keys()))
+        logger.warning(f"No member found in AI response, using fallback: {fallback_member}")
+        return fallback_member
     
     def _generate_match_reasons(self, member_data: dict, score: int):
         """Generate match reasons based on compatibility score"""
