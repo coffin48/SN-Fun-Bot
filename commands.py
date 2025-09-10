@@ -41,8 +41,11 @@ class CommandsHandler:
         self.bias_handler = None
         
         # Fix circular import by importing BiasDetector first
+        print("DEBUG: Starting bias initialization...")
+        print(f"DEBUG: ai_handler = {self.ai_handler}")
+        print(f"DEBUG: kpop_df = {self.kpop_df}")
+        
         try:
-            print("DEBUG: Starting bias initialization...")
             from bias_detector import BiasDetector
             print("DEBUG: BiasDetector imported successfully")
             self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
@@ -51,10 +54,12 @@ class CommandsHandler:
             # Import BiasCommandsHandler after BiasDetector is initialized
             import bias_commands
             print("DEBUG: bias_commands module imported")
+            print(f"DEBUG: BiasCommandsHandler class exists: {hasattr(bias_commands, 'BiasCommandsHandler')}")
             self.bias_handler = bias_commands.BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
             print(f"DEBUG: BiasCommandsHandler created: {self.bias_handler}")
             logger.info("✅ Bias commands initialized successfully")
             print(f"DEBUG: Final bias_handler = {self.bias_handler}")
+            print(f"DEBUG: bias_handler type: {type(self.bias_handler)}")
         except Exception as e:
             logger.error(f"Bias init failed: {e}")
             print(f"DEBUG: Bias init error: {e}")
