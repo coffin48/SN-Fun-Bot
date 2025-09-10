@@ -13,6 +13,10 @@ class BiasDetector:
         self.ai_handler = ai_handler
         self.kpop_df = kpop_df
         
+        # Cache for consistent match results
+        # Format: {user_id: {member_name: {'result': match_result, 'count': usage_count}}}
+        self.match_cache = {}
+        
         # Secret Number member data (fallback)
         self.sn_members = {
             'lea': {
@@ -302,6 +306,19 @@ class BiasDetector:
                     member_name = random.choice(list(self.members.keys()))
                     logger.warning(f"No match for original input, using random: {member_name}")
             
+            # Check cache for consistent results (first 5 uses)
+            cache_key = f"{user_id}_{member_name}"
+            if user_id in self.match_cache and member_name in self.match_cache[user_id]:
+                cached_data = self.match_cache[user_id][member_name]
+                if cached_data['count'] < 5:
+                    # Return cached result and increment count
+                    cached_data['count'] += 1
+                    logger.info(f"Returning cached match result for {user_id}-{member_name} (use #{cached_data['count']}/5)")
+                    return cached_data['result']
+                else:
+                    # After 5 uses, generate new result but don't cache it
+                    logger.info(f"Cache limit reached for {user_id}-{member_name}, generating new result")
+            
             member_data = self.members[member_name]
             
             # Calculate compatibility score (10-100%)
@@ -313,12 +330,25 @@ class BiasDetector:
             # Get AI response
             ai_response = await self.ai_handler.get_ai_response(prompt)
             
-            return {
+            result = {
                 'member': member_data,
                 'compatibility_score': score,
                 'ai_analysis': ai_response,
                 'match_reasons': self._generate_match_reasons(member_data, score)
             }
+            
+            # Cache the result for first-time users or after cache expiry
+            if user_id not in self.match_cache:
+                self.match_cache[user_id] = {}
+            
+            if member_name not in self.match_cache[user_id] or self.match_cache[user_id][member_name]['count'] >= 5:
+                self.match_cache[user_id][member_name] = {
+                    'result': result,
+                    'count': 1
+                }
+                logger.info(f"Cached new match result for {user_id}-{member_name}")
+            
+            return result
             
         except Exception as e:
             logger.error(f"Love match error: {e}")
@@ -540,6 +570,37 @@ Your response:"""
             'ai_analysis': f"Wah! Kamu sama {member_data['name']} tuh chemistry-nya kece banget! Kepribadian kalian saling melengkapi dengan sempurna! 💕",
             'match_reasons': self._generate_match_reasons(member_data, score)
         }
+    
+    def clear_match_cache(self, user_id: str = None, member_name: str = None):
+        """Clear match cache for specific user/member or all cache"""
+        if user_id and member_name:
+            # Clear specific user-member combination
+            if user_id in self.match_cache and member_name in self.match_cache[user_id]:
+                del self.match_cache[user_id][member_name]
+                logger.info(f"Cleared cache for {user_id}-{member_name}")
+        elif user_id:
+            # Clear all cache for specific user
+            if user_id in self.match_cache:
+                del self.match_cache[user_id]
+                logger.info(f"Cleared all cache for user {user_id}")
+        else:
+            # Clear all cache
+            self.match_cache.clear()
+            logger.info("Cleared all match cache")
+    
+    def get_match_cache_info(self, user_id: str):
+        """Get cache information for a user"""
+        if user_id not in self.match_cache:
+            return {}
+        
+        cache_info = {}
+        for member_name, data in self.match_cache[user_id].items():
+            cache_info[member_name] = {
+                'usage_count': data['count'],
+                'remaining_consistent_uses': max(0, 5 - data['count'])
+            }
+        
+        return cache_info
     
     def _fallback_fortune(self, question_type: str):
         """Fallback fortune when AI fails"""
