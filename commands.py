@@ -40,18 +40,21 @@ class CommandsHandler:
         self.bias_detector = None
         self.bias_handler = None
         
-        if BIAS_COMMANDS_AVAILABLE:
-            try:
-                from bias_detector import BiasDetector
-                self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
-                self.bias_handler = BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
-                logger.info("✅ Bias commands initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize bias commands: {e}")
-                self.bias_detector = None
-                self.bias_handler = None
-        else:
-            logger.warning("⚠️ Bias commands disabled due to import errors")
+        # Force enable bias commands for debugging
+        try:
+            from bias_detector import BiasDetector
+            from bias_commands import BiasCommandsHandler
+            self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
+            self.bias_handler = BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
+            logger.info("✅ Bias commands force initialized")
+            print(f"DEBUG: Force init - bias_handler = {self.bias_handler}")
+        except Exception as e:
+            logger.error(f"Force bias init failed: {e}")
+            print(f"DEBUG: Force init error: {e}")
+            import traceback
+            traceback.print_exc()
+            self.bias_detector = None
+            self.bias_handler = None
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
@@ -115,6 +118,7 @@ class CommandsHandler:
                     
                     # Bias detector commands (with availability check)
                     if user_input.lower().startswith(("bias", "match", "fortune", "ramalan")):
+                        print(f"DEBUG: Bias command detected. bias_handler = {self.bias_handler}")
                         if self.bias_handler:
                             await self.bias_handler.handle_bias_command(ctx, user_input)
                         else:
