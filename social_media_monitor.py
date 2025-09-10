@@ -187,41 +187,25 @@ class SocialMediaMonitor:
     
     # New methods for getting latest content (for commands)
     async def get_latest_twitter_post(self):
-        """Get latest Twitter post data for command display"""
+        """Get latest Twitter post data using APIFlash screenshot"""
         try:
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            # Use APIFlash screenshot instead of RSS scraping
+            screenshot_url = await self._get_social_media_screenshot('twitter')
+            
+            if screenshot_url:
+                return {
+                    'text': '📸 Screenshot terbaru dari Twitter @5ecretnumber',
+                    'url': 'https://twitter.com/5ecretnumber',
+                    'image_url': screenshot_url,
+                    'likes': 0,
+                    'retweets': 0,
+                    'is_screenshot': True,
+                    'timestamp': 'Just now'
                 }
+            else:
+                logger.warning("⚠️ Twitter screenshot failed")
+                return None
                 
-                nitter_instances = [
-                    "nitter.poast.org",
-                    "nitter.privacydev.net",
-                    "nitter.ktachibana.party",
-                    "nitter.fdn.fr",
-                    "nitter.it"
-                ]
-                
-                for instance in nitter_instances:
-                    url = f"https://{instance}/5ecretnumber/rss"
-                    try:
-                        async with session.get(url, headers=headers, timeout=10) as response:
-                            if response.status == 200:
-                                content = await response.text()
-                                result = await self.parse_twitter_rss_for_latest(content)
-                                if result:
-                                    logger.info(f"✅ Twitter data retrieved from {url}")
-                                    return result
-                            else:
-                                logger.warning(f"❌ {url} returned status {response.status}")
-                    except Exception as alt_error:
-                        logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
-                        continue
-                
-                # If all alternatives fail, try direct Twitter API approach
-                logger.warning("⚠️ All Nitter instances failed, trying direct approach")
-                return await self._try_direct_twitter_approach(session, headers)
-                        
         except Exception as e:
             logger.error(f"Get latest Twitter error: {e}")
             return None
@@ -314,59 +298,28 @@ class SocialMediaMonitor:
             return None
     
     async def get_latest_instagram_post(self):
-        """Get latest Instagram post data for command display"""
+        """Get latest Instagram post data using APIFlash screenshot"""
         try:
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1'
+            # Use APIFlash screenshot instead of scraping
+            screenshot_url = await self._get_social_media_screenshot('instagram')
+            
+            if screenshot_url:
+                return {
+                    'caption': '📸 Screenshot terbaru dari Instagram @secretnumber.official',
+                    'url': 'https://www.instagram.com/secretnumber.official/',
+                    'image_url': screenshot_url,
+                    'likes': 0,
+                    'comments': 0,
+                    'is_screenshot': True,
+                    'timestamp': 'Just now'
                 }
+            else:
+                logger.warning("⚠️ Instagram screenshot failed")
+                return None
                 
-                # Try multiple Instagram alternatives
-                alternatives = [
-                    # Instagram RSS alternatives
-                    f"https://rsshub.app/instagram/user/secretnumber.official",
-                    f"https://picuki.com/profile/secretnumber.official",
-                    f"https://imginn.com/secretnumber.official/",
-                    # Direct Instagram (might be blocked)
-                    f"https://www.instagram.com/api/v1/users/web_profile_info/?username=secretnumber.official"
-                ]
-                
-                for url in alternatives:
-                    try:
-                        async with session.get(url, headers=headers, timeout=15) as response:
-                            if response.status == 200:
-                                content = await response.text()
-                                
-                                # Try different parsing methods based on URL
-                                if 'rsshub.app' in url:
-                                    result = await self.parse_instagram_rss(content)
-                                elif 'picuki.com' in url or 'imginn.com' in url:
-                                    result = await self.parse_instagram_html(content)
-                                else:
-                                    data = await response.json()
-                                    result = await self.parse_instagram_data_for_latest(data)
-                                
-                                if result:
-                                    logger.info(f"✅ Instagram data retrieved from {url}")
-                                    return result
-                            else:
-                                logger.warning(f"❌ {url} returned status {response.status}")
-                    except Exception as alt_error:
-                        logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
-                        continue
-                
-                # Final fallback
-                logger.warning("⚠️ All Instagram sources failed")
-                return await self._create_instagram_fallback()
-                        
         except Exception as e:
             logger.error(f"Get latest Instagram error: {e}")
-            return await self._create_instagram_fallback()
+            return None
     
     async def parse_instagram_rss(self, rss_content):
         """Parse Instagram RSS feed"""
