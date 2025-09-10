@@ -27,8 +27,12 @@ class CommandsHandler:
         # Initialize social media commands handler
         self.social_media_handler = SocialMediaCommandsHandler(self.social_monitor)
         
+        # Initialize bias detector first
+        from bias_detector import BiasDetector
+        self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
+        
         # Initialize bias commands handler
-        self.bias_handler = BiasCommandsHandler(self.ai_handler, self.kpop_df)
+        self.bias_handler = BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
