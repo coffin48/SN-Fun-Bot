@@ -413,8 +413,8 @@ class BiasCommandsHandler:
             # Create ramalan embed
             ramalan_embed = discord.Embed(
                 title=f"🌙 Ramalan {ramalan_type.title()} Tradisional",
-                description=ramalan_result['ramalan'],
-                color=ramalan_result['warna_hoki']
+                description=ramalan_result['fortune'],
+                color=0x8B4513
             )
             
             ramalan_embed.add_field(
@@ -424,26 +424,26 @@ class BiasCommandsHandler:
             )
             
             ramalan_embed.add_field(
-                name="📅 Hari Baik",
-                value=f"**{ramalan_result['hari_baik']}** - Hari terbaik buat kamu! 🌟",
+                name="📅 Weton",
+                value=f"**{ramalan_result['weton']}** - Weton keberuntungan kamu! 🌟",
                 inline=True
             )
             
             ramalan_embed.add_field(
-                name="🔢 Angka Jawa",
-                value=f"**{ramalan_result['angka_jawa']}** - Angka keberuntungan Jawa! 🎯",
+                name="🔢 Angka Hoki",
+                value=f"**{', '.join(map(str, ramalan_result['lucky_numbers']))}** - Angka keberuntungan! 🎯",
                 inline=True
             )
             
             ramalan_embed.add_field(
-                name="🧭 Arah Rejeki",
-                value=f"**{ramalan_result['arah_rejeki']}** - Arah keberuntungan kamu! 💰",
+                name="🧭 Elemen",
+                value=f"**{ramalan_result['element']}** - Elemen primbon kamu! 💰",
                 inline=True
             )
             
             ramalan_embed.add_field(
-                name="📿 Weton Hoki",
-                value=f"**{ramalan_result['weton_hoki']}** - Weton keberuntungan! ✨",
+                name="📿 Tipe Ramalan",
+                value=f"**{ramalan_result['type'].title()}** - Fokus ramalan ini! ✨",
                 inline=True
             )
             
