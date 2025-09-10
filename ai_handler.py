@@ -323,11 +323,11 @@ class AIHandler:
         
         return f"""Buat info K-pop member berikut dengan emoji yang relevan dan tepat sasaran:
 Format:
-- 👤 Nama: [nama lengkap]
-- 🎂 Tanggal Lahir: [tanggal lahir]
-- 🌟 Fun Fact: [fakta menarik]
-- 👀 Rumor: [rumor atau "Gak ada rumor yang kesebut di sini, aman! ✅"]
-- 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
+- 👤 **Nama**: [nama lengkap]
+- 🎂 **Tanggal Lahir**: [tanggal lahir]
+- 🌟 **Fun Fact**: [fakta menarik]
+- 👀 **Rumor**: [rumor atau "Gak ada rumor yang kesebut di sini, aman! ✅"]
+- 📱 **Social Media**: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
 Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Intro fun: "✨ Ini info tentang [nama]" lalu format.
 
@@ -343,17 +343,17 @@ Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, �
         
         return f"""Buat info K-pop grup berikut dengan emoji yang relevan dan tepat sasaran:
 Format:
-- 🎤 Debut: [tanggal debut dan agensi]
-- 👥 Members: [Format berdasarkan jumlah member: Jika ≤6 member gunakan format vertical (• Nama (Posisi) emoji), Jika >6 member gunakan format comma (Nama (Posisi) emoji, Nama (Posisi) emoji)]
-- 💿 Discography: [format vertikal dengan bullet point]
-  • Album 1 (tahun)
-  • Album 2 (tahun)
+- 🎤 **Debut**: [tanggal debut dan agensi]
+- 👥 **Members**: [Format berdasarkan jumlah member: Jika ≤6 member gunakan format vertical (• Nama (Posisi) emoji), Jika >6 member gunakan format comma (Nama (Posisi) emoji, Nama (Posisi) emoji)]
+- 💿 **Discography**: [maksimal 4 yang terbaru, format vertikal dengan bullet point]
+  • Album Terbaru 1 (tahun)
+  • Album Terbaru 2 (tahun)
   • Hit Song 1, Hit Song 2
-- 🏆 Prestasi: [penghargaan penting]
-- 🔑 Fandom: [nama fandom dan facts]
-- 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
+- 🏆 **Prestasi**: [penghargaan penting]
+- 🔑 **Fandom**: [nama fandom dan facts]
+- 📱 **Social Media**: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
-Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap, 💿=disco, 🔑=fandom). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Members: ≤6 vertical (• Nama (Posisi) emoji), >6 horizontal (comma separated). Discography: format vertikal (• Album (tahun), • Hit songs). 1 posisi per nama. Intro fun: "✨ Ini info tentang [nama grup]" lalu format.
+Aturan: Bahasa fun & natural Indonesia. Emoji relevan (🎤=vocal, 🥁=drum, 🎸=guitar, 💃=dance, 🎨=visual, 🔥=rap, 💿=disco, 🔑=fandom). Sosmed: 4 saja (📸 IG, 🐦 X, 📺 YT, 🎵 TT) format "📸 @handle, 🐦 @handle, 📺 Channel, 🎵 @handle". Members: ≤6 vertical (• Nama (Posisi) emoji), >6 horizontal (comma separated). Discography: maksimal 4 terbaru, format vertikal (• Album (tahun), • Hit songs). 1 posisi per nama. Intro fun: "✨ Ini info tentang [nama grup]" lalu format.
 
 {info}"""
     
