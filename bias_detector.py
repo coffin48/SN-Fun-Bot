@@ -1,790 +1,776 @@
 """
-Bias Detector - AI-powered K-pop bias detection and love matching
+Bias Commands Handler - Fun interactive commands untuk bias detection
 """
 import discord
-import random
 from datetime import datetime
 from logger import logger
-from ai_handler import AIHandler
 
-class BiasDetector:
-    def __init__(self, ai_handler, kpop_df=None):
+class BiasCommandsHandler:
+    def __init__(self, bias_detector, ai_handler, kpop_df):
+        self.bias_detector = bias_detector
         self.ai_handler = ai_handler
         self.kpop_df = kpop_df
-        
-        # Cache for consistent match results with 5-cycle system
-        # Format: {user_id: {member_name: {'result': match_result, 'count': usage_count, 'cycle': cycle_number}}}
-        self.match_cache = {}
-        
-        # Cache for pending member selections
-        # Format: {user_id: {'search_name': str, 'similar_members': list, 'timestamp': datetime}}
-        self.pending_selections = {}
-        
-        # Secret Number member data (fallback)
-        self.sn_members = {
-            'lea': {
-                'name': 'Lea',
-                'korean_name': '이아',
-                'position': 'Leader, Main Vocalist',
-                'birthday': '1995-08-12',
-                'nationality': 'Japanese-American',
-                'personality': 'Charismatic, caring leader, strong vocals, multilingual',
-                'color': 0xFF69B4,
-                'emoji': '👑',
-                'traits': ['leadership', 'caring', 'multilingual', 'strong', 'charismatic']
-            },
-            'dita': {
-                'name': 'Dita',
-                'korean_name': '디타',
-                'position': 'Main Dancer, Vocalist, Visual',
-                'birthday': '1999-12-25',
-                'nationality': 'Indonesian',
-                'personality': 'Elegant dancer, sweet personality, Christmas baby',
-                'color': 0x87CEEB,
-                'emoji': '💃',
-                'traits': ['elegant', 'sweet', 'graceful', 'artistic', 'gentle']
-            },
-            'jinny': {
-                'name': 'Jinny',
-                'korean_name': '지니',
-                'position': 'Main Rapper, Vocalist',
-                'birthday': '2000-04-16',
-                'nationality': 'Korean-American',
-                'personality': 'Cool rapper, confident, bilingual, trendy',
-                'color': 0x9370DB,
-                'emoji': '🎤',
-                'traits': ['confident', 'cool', 'trendy', 'bilingual', 'charismatic']
-            },
-            'soodam': {
-                'name': 'Soodam',
-                'korean_name': '수담',
-                'position': 'Vocalist, Visual',
-                'birthday': '2002-03-09',
-                'nationality': 'Korean',
-                'personality': 'Bright smile, cheerful, pure visual, energetic',
-                'color': 0xFFB6C1,
-                'emoji': '😊',
-                'traits': ['cheerful', 'bright', 'pure', 'energetic', 'optimistic']
-            },
-            'denise': {
-                'name': 'Denise',
-                'korean_name': '데니스',
-                'position': 'Vocalist, Maknae',
-                'birthday': '2003-01-11',
-                'nationality': 'Korean',
-                'personality': 'Cute maknae, playful, youngest member energy',
-                'color': 0x98FB98,
-                'emoji': '🌸',
-                'traits': ['playful', 'cute', 'youthful', 'energetic', 'adorable']
-            },
-            'minji': {
-                'name': 'Minji',
-                'korean_name': '민지',
-                'position': 'Vocalist, Dancer',
-                'birthday': '2001-05-05',
-                'nationality': 'Korean',
-                'personality': 'Talented all-rounder, hardworking, versatile',
-                'color': 0xDDA0DD,
-                'emoji': '✨',
-                'traits': ['versatile', 'hardworking', 'talented', 'dedicated', 'balanced']
-            },
-            'zuu': {
-                'name': 'Zuu',
-                'korean_name': '주',
-                'position': 'Vocalist, Dancer',
-                'birthday': '2002-10-25',
-                'nationality': 'Korean',
-                'personality': 'Unique charm, mysterious aura, artistic soul',
-                'color': 0x20B2AA,
-                'emoji': '🌙',
-                'traits': ['mysterious', 'unique', 'artistic', 'charming', 'creative']
-            }
+        self.user_preferences = {}
+    
+    def _get_color_display(self, color_hex):
+        """Convert hex color to emoji display - NEW FUNCTION"""
+        color_map = {
+            0xFF69B4: "🩷 Pink",
+            0x87CEEB: "💙 Sky Blue", 
+            0x98FB98: "💚 Pale Green",
+            0xDDA0DD: "💜 Plum",
+            0xF0E68C: "💛 Khaki",
+            0xFFB6C1: "🌸 Light Pink",
+            0xFF4500: "🧡 Orange Red",
+            0x9370DB: "💙 Medium Purple",
+            0x20B2AA: "🩵 Light Sea Green",
+            0xDC143C: "❤️ Crimson"
         }
-        
-        # Load members from database or fallback to Secret Number
-        self.members = {}
-        try:
-            self.load_members_from_database()
-        except Exception as e:
-            logger.error(f"Error loading members from database: {e}")
-            # Use Secret Number fallback if database loading fails
-            self.members = self.sn_members.copy()
+        return color_map.get(color_hex, "✨ Mystical")
     
-    def load_members_from_database(self):
-        """Load all K-pop members from database"""
-        try:
-            if self.kpop_df is not None and not self.kpop_df.empty:
-                logger.info(f"Loading {len(self.kpop_df)} members from K-pop database")
-                
-                # Process each member from database
-                for _, row in self.kpop_df.iterrows():
-                    member_key = self._create_member_key(row['Stage Name'], row['Group'])
-                    
-                    # Generate personality traits based on available data
-                    traits = self._generate_member_traits(row)
-                    personality = self._generate_personality_description(row, traits)
-                    
-                    self.members[member_key] = {
-                        'name': row['Stage Name'],
-                        'korean_name': row.get('Korean Stage Name', ''),
-                        'full_name': row.get('Full Name', ''),
-                        'group': row['Group'],
-                        'birthday': row.get('Date of Birth', ''),
-                        'position': self._guess_position_from_name(row['Stage Name']),
-                        'personality': personality,
-                        'color': self._generate_member_color(row['Stage Name']),
-                        'emoji': self._generate_member_emoji(traits),
-                        'traits': traits,
-                        'instagram': row.get('Instagram', '')
-                    }
-                
-                logger.info(f"✅ Loaded {len(self.members)} members from database")
-                
-                # Debug: Show some Jisoo members for debugging
-                jisoo_members = {k: v for k, v in self.members.items() if 'jisoo' in k.lower()}
-                logger.info(f"Jisoo members in database: {list(jisoo_members.keys())}")
-            else:
-                logger.warning("⚠️ No K-pop database available, using Secret Number fallback")
-                self.members = self.sn_members.copy()
-                
-        except Exception as e:
-            logger.error(f"Error loading members from database: {e}")
-            logger.info("Using Secret Number fallback members")
-            self.members = self.sn_members.copy()
-    
-    def _create_member_key(self, stage_name, group):
-        """Create unique key for member"""
-        # Use stage name + group to ensure uniqueness for members with same names
-        clean_stage = stage_name.lower().replace(' ', '_')
-        clean_group = group.lower().replace(' ', '_').replace('&', 'and')
-        member_key = f"{clean_stage}_{clean_group}"
-        logger.debug(f"Created member key: '{member_key}' from stage_name='{stage_name}', group='{group}'")
-        return member_key
-    
-    def _generate_member_traits(self, row):
-        """Generate personality traits based on member data"""
-        traits = []
+    def __init_cooldowns__(self):
+        """Initialize cooldown system - MOVED TO SEPARATE METHOD"""
+        self.command_cooldowns = {}
+        self.cooldown_duration = 30  # 30 seconds
+        self.user_member_cache = {}  # Cache for consistent results
         
-        # Trait generation based on name patterns and group
-        name = row['Stage Name'].lower()
-        group = row['Group'].lower()
+    async def handle_bias_command(self, ctx, user_input: str):
+        """Handle bias commands dari user input"""
+        # Parse subcommand dari user input
+        input_lower = user_input.lower().strip()
         
-        # Name-based traits
-        if any(x in name for x in ['min', 'ji', 'yu']):
-            traits.append('gentle')
-        if any(x in name for x in ['hyun', 'jun', 'chan']):
-            traits.append('charismatic')
-        if any(x in name for x in ['young', 'hae', 'da']):
-            traits.append('energetic')
-        if any(x in name for x in ['soo', 'eun', 'ye']):
-            traits.append('sweet')
-        
-        # Group-based traits
-        if 'secret' in group:
-            traits.extend(['mysterious', 'elegant'])
-        elif any(x in group for x in ['twice', 'red velvet', 'blackpink']):
-            traits.extend(['confident', 'trendy'])
-        elif any(x in group for x in ['bts', 'exo', 'seventeen']):
-            traits.extend(['charismatic', 'talented'])
-        
-        # Default traits if none generated
-        if not traits:
-            traits = random.sample(['sweet', 'charming', 'talented', 'bright', 'caring'], 3)
-        
-        return traits[:5]  # Max 5 traits
-    
-    def _generate_personality_description(self, row, traits):
-        """Generate personality description"""
-        trait_descriptions = {
-            'gentle': 'gentle and caring',
-            'charismatic': 'charismatic and confident',
-            'energetic': 'energetic and lively',
-            'sweet': 'sweet and adorable',
-            'mysterious': 'mysterious and intriguing',
-            'elegant': 'elegant and graceful',
-            'confident': 'confident and bold',
-            'trendy': 'trendy and stylish',
-            'talented': 'talented and skilled',
-            'bright': 'bright and cheerful',
-            'caring': 'caring and warm'
-        }
-        
-        descriptions = [trait_descriptions.get(trait, trait) for trait in traits[:3]]
-        return f"{row['Stage Name']} from {row['Group']} - {', '.join(descriptions)}"
-    
-    def _guess_position_from_name(self, name):
-        """Guess member position based on name patterns"""
-        name_lower = name.lower()
-        
-        if any(x in name_lower for x in ['leader', 'cap']):
-            return 'Leader'
-        elif any(x in name_lower for x in ['main', 'lead']):
-            return 'Main Vocalist'
-        elif any(x in name_lower for x in ['rap', 'mc']):
-            return 'Rapper'
-        elif any(x in name_lower for x in ['dance', 'move']):
-            return 'Dancer'
+        if input_lower.startswith("bias") and not input_lower.startswith(("bias fortune", "bias match")):
+            await self._handle_bias_detect(ctx, str(ctx.author.id), [])
+        elif input_lower.startswith("bias fortune"):
+            # Parse fortune type from input
+            parts = user_input.split()
+            fortune_type = parts[2] if len(parts) > 2 else 'general'
+            await self._handle_fortune(ctx, str(ctx.author.id), [fortune_type])
+        elif input_lower.startswith("bias match"):
+            # Parse member name from input
+            parts = user_input.split()
+            member_name = parts[2] if len(parts) > 2 else None
+            await self._handle_love_match(ctx, str(ctx.author.id), [member_name] if member_name else [])
+        elif input_lower.startswith("match"):
+            # Parse member name and group from input
+            parts = user_input.split()
+            args = parts[1:] if len(parts) > 1 else []
+            await self._handle_love_match(ctx, str(ctx.author.id), args)
+        elif input_lower.startswith("fortune"):
+            # Parse fortune type from input
+            parts = user_input.split()
+            fortune_type = parts[1] if len(parts) > 1 else 'general'
+            await self._handle_fortune(ctx, str(ctx.author.id), [fortune_type])
+        elif input_lower.startswith("ramalan"):
+            # Parse ramalan type from input
+            parts = user_input.split()
+            ramalan_type = parts[1] if len(parts) > 1 else 'umum'
+            await self._handle_ramalan(ctx, str(ctx.author.id), [ramalan_type])
         else:
-            positions = ['Vocalist', 'Dancer', 'Visual', 'Vocalist, Dancer']
-            return random.choice(positions)
+            await ctx.send("❌ Command tidak dikenal. Gunakan: bias, match, fortune, atau ramalan")
     
-    def _generate_member_color(self, name):
-        """Generate color based on name hash"""
-        colors = [
-            0xFF69B4, 0x87CEEB, 0x9370DB, 0xFFB6C1, 0x98FB98, 
-            0xDDA0DD, 0x20B2AA, 0xFF1493, 0x00CED1, 0xBA55D3,
-            0xFF6347, 0x40E0D0, 0xEE82EE, 0x90EE90, 0xF0E68C
-        ]
-        return colors[hash(name) % len(colors)]
-    
-    def _generate_member_emoji(self, traits):
-        """Generate emoji based on traits"""
-        emoji_map = {
-            'gentle': '🌸',
-            'charismatic': '⭐',
-            'energetic': '⚡',
-            'sweet': '🍯',
-            'mysterious': '🌙',
-            'elegant': '💎',
-            'confident': '🔥',
-            'trendy': '✨',
-            'talented': '🎭',
-            'bright': '☀️',
-            'caring': '💕'
-        }
+    async def handle_bias_subcommand(self, ctx, subcommand: str, *args):
+        """Handle semua bias-related commands"""
+        user_id = str(ctx.author.id)
         
-        for trait in traits:
-            if trait in emoji_map:
-                return emoji_map[trait]
-        
-        return '🌟'  # Default emoji
-    
-    async def bias_detect(self, user_id: str, preferences: dict = None):
-        """AI-powered bias detection based on user preferences"""
-        logger.info(f"🔍 Starting bias detection for user {user_id}")
+        # Check cooldown
+        if not await self._check_cooldown(ctx, user_id, subcommand):
+            return
         
         try:
-            # Get random member from database or fallback to SN members
-            if self.members:
-                # Use full K-pop database
-                available_members = list(self.members.keys())
-                selected_key = random.choice(available_members)
-                member_data = self.members[selected_key]
+            if subcommand == 'detect':
+                await self._handle_bias_detect(ctx, user_id, args)
+            elif subcommand == 'match':
+                await self._handle_love_match(ctx, user_id, args)
+            elif subcommand == 'fortune':
+                await self._handle_fortune(ctx, user_id, args)
+            elif subcommand == 'profile':
+                await self._handle_member_profile(ctx, args)
+            elif subcommand == 'preferences':
+                await self._handle_set_preferences(ctx, user_id, args)
             else:
-                # Fallback to Secret Number members
-                available_members = list(self.sn_members.keys())
-                selected_key = random.choice(available_members)
-                member_data = self.sn_members[selected_key]
+                await self._show_bias_help(ctx)
+                
+        except Exception as e:
+            logger.error(f"Bias command error: {e}")
+            await self._send_error_embed(ctx, "Terjadi error saat memproses command bias")
+    
+    async def _handle_bias_detect(self, ctx, user_id: str, args):
+        """Handle !sn bias detect command"""
+        # Show loading embed
+        loading_embed = discord.Embed(
+            title="🔮 Bias Detector Ajaib",
+            description="Wah! AI lagi sibuk baca pikiran kamu nih... 🤭✨",
+            color=0xFF1493
+        )
+        loading_embed.add_field(
+            name="⏳ Lagi Proses Nih",
+            value="Bentar ya, lagi nyocokkin sama ribuan idol K-pop... 💕",
+            inline=False
+        )
+        loading_message = await ctx.send(embed=loading_embed)
+        
+        try:
+            logger.info(f"🔍 Starting bias detection for user {user_id}")
             
-            # Generate user-specific compatibility score
-            score_seed = f"{user_id}_bias_detect_{selected_key}"
-            compatibility_score = 75 + (hash(score_seed) % 25)  # 75-99%
+            # Get user preferences
+            preferences = self.user_preferences.get(user_id, {})
+            logger.info(f"User preferences: {preferences}")
             
-            # Generate personality-based AI analysis for bias detection
-            personality_traits = [
-                "kreatif dan imajinatif", "loyal dan setia", "energik dan ceria", "tenang dan bijaksana",
-                "spontan dan fun", "perfeksionis", "empati tinggi", "leadership natural",
-                "artistic soul", "adventurous spirit", "caring dan nurturing", "confident dan bold"
-            ]
+            # Detect bias using AI
+            logger.info("Calling bias_detector.bias_detect...")
+            bias_result = await self.bias_detector.bias_detect(user_id, preferences)
+            logger.info(f"✅ Bias detection completed. Result type: {type(bias_result)}")
+            logger.info(f"Bias result: {bias_result}")
             
-            user_trait = personality_traits[hash(f"{user_id}_trait") % len(personality_traits)]
-            member_trait = personality_traits[hash(f"{selected_key}_trait") % len(personality_traits)]
+            # Check if there's an error
+            if isinstance(bias_result, dict) and bias_result.get('error'):
+                logger.error(f"Bias detection returned error: {bias_result['error']}")
+                await loading_message.edit(embed=self._create_error_embed(bias_result['error']))
+                return
             
-            ai_prompt = f"""
-            BIAS DETECTOR ANALYSIS 🎯
+            # Extract member info from bias result
+            member_name = bias_result.get('member_name')
+            logger.info(f"Extracted member name: {member_name}")
             
-            Kamu adalah AI personality analyzer yang ahli dalam MBTI dan astrologi K-pop!
+            member_data = self.bias_detector.get_member_info(member_name)
+            logger.info(f"Member data retrieved: {member_data}")
             
-            User personality: {user_trait}
-            {member_data['name']} personality: {member_trait}
-            Compatibility score: {compatibility_score}%
+            if not member_data:
+                logger.error(f"No member data found for: {member_name}")
+                await loading_message.edit(embed=self._create_error_embed("Member data tidak ditemukan"))
+                return
             
-            Analisis mengapa {member_data['name']} dari {member_data.get('group', 'Secret Number')} cocok jadi bias kamu berdasarkan:
-            1. Kecocokan personality traits
-            2. Vibe dan energy yang match
-            3. Alasan psikologis kenapa kalian klop
+            # Create result embed
+            result_embed = discord.Embed(
+                title=f"🎯 Bias Kamu Ketemu Nih: {member_data['name']}! 💕",
+                description=f"Yeay! AI udah nemuin jodoh hati kamu: **{member_data['name']}** dari **{bias_result.get('group_name', 'Unknown Group')}**! 🥰✨",
+                color=member_data.get('color', 0xFF69B4)
+            )
             
-            Gunakan bahasa Indonesia yang fun, analytical tapi tetap cute. 3-4 kalimat.
-            Fokus pada ANALISIS KEPRIBADIAN, bukan ramalan!
-            """
+            result_embed.add_field(
+                name=f"{member_data.get('emoji', '✨')} Info Si Doi",
+                value=f"**Grup:** {bias_result.get('group_name', 'Unknown')}\n**Posisi:** {member_data.get('position', 'Unknown')}\n**Ultah:** {member_data.get('birthday', 'Unknown')}",
+                inline=True
+            )
             
-            ai_analysis = await self.ai_handler.get_ai_response(ai_prompt)
+            result_embed.add_field(
+                name="🎯 Compatibility Score",
+                value=f"**{bias_result.get('compatibility_score', 85)}%** - {bias_result.get('reason', 'Perfect match!')}",
+                inline=True
+            )
             
-            bias_result = {
-                'member_name': member_data['name'],
-                'group_name': member_data.get('group', 'Secret Number'),
-                'compatibility_score': compatibility_score,
-                'ai_analysis': ai_analysis,
-                'member_traits': member_data.get('traits', ['charming', 'talented', 'beautiful']),
-                'reason': f"Kepribadian kamu sangat cocok dengan vibe {member_data['name']}! ✨"
-            }
+            # Truncate AI analysis to fit Discord limits (max 1024 characters)
+            ai_analysis = bias_result.get('ai_analysis', 'Kalian cocok banget! 💕')
+            if len(ai_analysis) > 1000:  # Leave some buffer
+                ai_analysis = ai_analysis[:997] + "..."
             
-            logger.info(f"✅ Bias detection completed for user {user_id}: {member_data['name']}")
-            return bias_result
+            result_embed.add_field(
+                name="✨ AI Analysis",
+                value=ai_analysis,
+                inline=False
+            )
+            
+            result_embed.add_field(
+                name="🎪 Member Traits",
+                value=f"Kepribadian: {', '.join(bias_result.get('member_traits', ['charming', 'talented'])[:3])} - amazing! 💯",
+                inline=False
+            )
+            
+            result_embed.add_field(
+                name="💡 Mau Tau Seberapa Cocok?",
+                value=f"Coba `!sn bias match {member_data['name'].lower()}` buat cek love compatibility! 😍",
+                inline=False
+            )
+            
+            result_embed.set_footer(text="K-pop Bias Detector • Dibuat dengan cinta 💕")
+            
+            logger.info("📤 Sending result embed to Discord...")
+            await loading_message.edit(embed=result_embed)
+            logger.info("✅ Result embed sent successfully!")
             
         except Exception as e:
-            logger.error(f"❌ Bias detection error for user {user_id}: {e}")
-            return {
-                'error': 'Bias detection gagal, coba lagi ya! 💕'
-            }
+            logger.error(f"❌ Bias detect error: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            await loading_message.edit(embed=self._create_error_embed("Bias detection gagal"))
     
-    async def love_match(self, user_id: str, member_name: str, force_direct_match: bool = False):
-        """Generate love match result for user and member"""
-        logger.info(f"💕 Love match request: {member_name} for user {user_id}")
+    async def _handle_love_match(self, ctx, user_id: str, args):
+        """Handle !sn bias match command"""
+        if not args:
+            await ctx.send("❌ Sebutkan nama member! Contoh: `!sn match jisoo`")
+            return
         
-        # If force_direct_match is True, skip multiple choice detection
-        if force_direct_match:
-            logger.debug(f"Force direct match enabled for: '{member_name}'")
-            # Verify the member exists in database
-            if member_name in self.members:
-                similar_members = [member_name]
-            else:
-                logger.error(f"Force direct match requested but member '{member_name}' not found in database")
-                return {
-                    'is_selection_prompt': False,
-                    'error': f"Member '{member_name}' tidak ditemukan!"
-                }
-        # Check if member_name contains underscore (member key format)
-        elif '_' in member_name and member_name in self.members:
-            logger.debug(f"Direct member key detected: '{member_name}'")
-            similar_members = [member_name]
-        else:
-            # Find similar members
-            similar_members = self._find_similar_members(member_name)
+        # Check if first argument is just a number (invalid input)
+        if len(args) == 1 and args[0].isdigit():
+            await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member>` atau `!sn match <nama_member> <grup>`")
+            return
         
-        logger.debug(f"Similar members found: {similar_members}")
-        
-        if len(similar_members) == 0:
-            return {
-                'is_selection_prompt': False,
-                'error': f"Member '{member_name}' tidak ditemukan!"
-            }
-        elif len(similar_members) == 1:
-            # Single member found, proceed with match
-            selected_member = similar_members[0]
-            logger.info(f"✅ Member selected: {selected_member}")
-        else:
-            # Multiple members found, show selection prompt
-            logger.debug(f"Multiple members found for '{member_name}': {similar_members}, showing selection prompt")
-            return self._create_member_selection_prompt(similar_members, member_name, user_id)
-        
-        # Check cache for consistent results with 5-cycle system
-        if user_id in self.match_cache and selected_member in self.match_cache[user_id]:
-            cached_data = self.match_cache[user_id][selected_member]
-            current_cycle = (cached_data['count'] - 1) // 5  # Which 5-cycle we're in (0, 1, 2, ...)
-            cycle_position = (cached_data['count'] - 1) % 5  # Position within current cycle (0-4)
+        # Check if user specified member with group (e.g., "jisoo blackpink")
+        if len(args) >= 2:
+            member_name_input = args[0].lower()
+            group_name_input = ' '.join(args[1:]).lower()
             
-            if cycle_position < 4:  # Still within current 5-cycle (positions 0-3, need one more)
-                # Return cached result and increment count
-                cached_data['count'] += 1
-                logger.debug(f"Cache hit for user {user_id}, member {selected_member}: {cached_data['count']}/5 uses")
-                return cached_data['result']
+            logger.info(f"🎯 Direct selection: '{member_name_input}' from '{group_name_input}'")
+            
+            # Try to find member by name and group
+            direct_match = self.bias_detector._find_member_by_name_and_group(member_name_input, group_name_input)
+            
+            if direct_match:
+                member_name = direct_match
+                logger.info(f"✅ Found direct match: '{member_name}' for '{member_name_input}' from '{group_name_input}'")
+                # Set flag to force direct match and bypass multiple choice
+                force_direct = True
             else:
-                # End of 5-cycle, need to generate new result for next cycle
-                logger.debug(f"End of cycle {current_cycle + 1} for {user_id}-{selected_member}, generating new result")
+                logger.debug(f"Direct match failed for '{member_name_input}' from '{group_name_input}'")
+                
+                await ctx.send(f"❌ Tidak ditemukan member '{member_name_input}' dari grup '{group_name_input}'!\n💡 Coba: `!sn match {member_name_input}` untuk melihat pilihan yang tersedia.")
+                return
         
-        # Generate new match result
-        logger.debug(f"Cache miss for user {user_id}, member {selected_member} - generating new result")
+        else:
+            member_name = args[0].lower()
+            force_direct = False
+            
+            # Validate member name is not just a number
+            if member_name.isdigit():
+                await ctx.send("❌ Nama member tidak boleh hanya angka! Contoh: `!sn match jisoo`")
+                return
         
-        # Get member data
-        member_data = self.members.get(selected_member)
+        # Show loading embed
+        loading_embed = discord.Embed(
+            title="💕 Cek Chemistry Yuk!",
+            description="Wah seru nih! AI lagi ngitung seberapa cocok kalian... 🥰💫",
+            color=0xFF69B4
+        )
+        loading_message = await ctx.send(embed=loading_embed)
+        
+        try:
+            # Get love match analysis
+            logger.info(f"💕 Love match analysis: {member_name} for user {user_id}")
+            match_result = await self.bias_detector.love_match(user_id, member_name, force_direct_match=force_direct)
+            
+            # Check if it's a selection prompt (just show info, don't wait for selection)
+            if isinstance(match_result, dict) and match_result.get('is_selection_prompt'):
+                # Create informational embed showing available members
+                info_embed = discord.Embed(
+                    title="🔍 Ditemukan Beberapa Member",
+                    description=match_result['selection_text'],
+                    color=0xFF69B4
+                )
+                info_embed.set_footer(text="💡 Gunakan format: !sn match <nama> <grup> untuk analisis langsung")
+                await loading_message.edit(embed=info_embed)
+                return
+            
+            # Check if there's an error in the result
+            if isinstance(match_result, dict) and match_result.get('error'):
+                error_embed = self._create_error_embed(match_result['error'])
+                await loading_message.edit(embed=error_embed)
+                return
+            
+            # Validate match_result structure
+            if not match_result or not isinstance(match_result, dict):
+                logger.error(f"Invalid match_result: {match_result}")
+                error_embed = self._create_error_embed("Gagal mendapatkan hasil analisis")
+                await loading_message.edit(embed=error_embed)
+                return
+            
+            member_name_display = match_result.get('member_name', 'Unknown')
+            group_name_display = match_result.get('group_name', 'Unknown')
+            score = match_result.get('score', 0)
+            
+            # Create compatibility embed
+            compatibility_embed = discord.Embed(
+                title=f"💖 Chemistry Kalian: Kamu & {member_name_display}",
+                description=f"**Skor Kecocokan: {score}%** {self._get_score_emoji(score)} - Wah mantap nih! 🥳",
+                color=0xFF69B4
+            )
+            
+            compatibility_embed.add_field(
+                name=f"💫 Si Doi Kamu",
+                value=f"**{member_name_display}** dari **{group_name_display}**",
+                inline=True
+            )
+            
+            compatibility_embed.add_field(
+                name="🔥 Level Kecocokan",
+                value=self._get_compatibility_level(score, user_id, member_name_display),
+                inline=True
+            )
+            
+            compatibility_embed.add_field(
+                name="🤖 Analisis AI",
+                value=match_result.get('ai_analysis', 'Analisis tidak tersedia')[:200] + "..." if len(match_result.get('ai_analysis', '')) > 200 else match_result.get('ai_analysis', 'Analisis tidak tersedia'),
+                inline=False
+            )
+            
+            compatibility_embed.add_field(
+                name="💫 Kenapa Kalian Cocok",
+                value="\n".join([f"• {reason}" for reason in match_result.get('match_reasons', ['Chemistry yang bagus'])]),
+                inline=False
+            )
+            
+            compatibility_embed.add_field(
+                name="🔮 Mau Ramalan Cinta?",
+                value=f"Coba `!sn bias fortune love` buat tau nasib asmara kamu! 😘",
+                inline=False
+            )
+            
+            compatibility_embed.set_footer(text="K-pop Love Matcher • Cuma buat hiburan ya! 😄💕")
+            
+            await loading_message.edit(embed=compatibility_embed)
+            
+        except Exception as e:
+            logger.error(f"Love match error: {e}")
+            await loading_message.edit(embed=self._create_error_embed("Love match analysis gagal"))
+    
+    async def _handle_fortune(self, ctx, user_id: str, args):
+        """Handle !sn bias fortune command"""
+        fortune_type = args[0].lower() if args else 'general'
+        valid_types = ['love', 'career', 'friendship', 'general']
+        
+        if fortune_type not in valid_types:
+            fortune_type = 'general'
+        
+        # Show loading embed
+        loading_embed = discord.Embed(
+            title="🔮 Peramal Cinta K-pop",
+            description="Wah! Energi kosmik lagi ngumpul nih... ✨🌙 Siap-siap ya!",
+            color=0x9370DB
+        )
+        loading_message = await ctx.send(embed=loading_embed)
+        
+        try:
+            # Get fortune reading
+            fortune_result = await self.bias_detector.fortune_teller(user_id, fortune_type)
+            guide_member = fortune_result['guide_member']
+            
+            # Create fortune embed
+            fortune_embed = discord.Embed(
+                title=f"🌟 Ramalan {fortune_type.title()} Kamu",
+                description=fortune_result['fortune'],
+                color=fortune_result['lucky_color']
+            )
+            
+            fortune_embed.add_field(
+                name=f"{guide_member['emoji']} Pemandu Spiritual",
+                value=f"**{guide_member['name']}** lagi bantuin ramalin nasib kamu nih! 🥰",
+                inline=True
+            )
+            
+            fortune_embed.add_field(
+                name="🍀 Angka Hoki",
+                value=f"**{fortune_result['lucky_number']}** - Inget angka ini ya! 💫",
+                inline=True
+            )
+            
+            fortune_embed.add_field(
+                name="🎨 Warna Beruntung",
+                value=f"**{self._get_color_display(fortune_result['lucky_color'])}** - Pakai warna ini biar makin hoki! ✨",
+                inline=True
+            )
+            
+            fortune_embed.add_field(
+                name="✨ Pesan Kosmik",
+                value="Percaya sama magic K-pop dan tetep positive thinking ya! 🌙💕",
+                inline=False
+            )
+            
+            fortune_embed.add_field(
+                name="🔄 Mau Ramalan Lain?",
+                value="Coba: `love` (cinta), `career` (karir), `friendship` (persahabatan), `general` (umum)",
+                inline=False
+            )
+            
+            fortune_embed.set_footer(text=f"Ramalan by {guide_member['name']} • K-pop Magic ✨")
+            
+            await loading_message.edit(embed=fortune_embed)
+            
+        except Exception as e:
+            logger.error(f"Fortune command error: {e}")
+            await loading_message.edit(embed=self._create_error_embed("Fortune reading gagal"))
+    
+    async def _handle_ramalan(self, ctx, user_id: str, args):
+        """Handle !sn ramalan command"""
+        ramalan_type = args[0].lower() if args else 'umum'
+        valid_types = ['cinta', 'rejeki', 'kesehatan', 'umum']
+        
+        if ramalan_type not in valid_types:
+            ramalan_type = 'umum'
+        
+        # Show loading embed
+        loading_embed = discord.Embed(
+            title="🌙 Sedang Membaca Primbon...",
+            description="Dukun sedang melihat garis tangan dan membaca daun lontar...",
+            color=0x8B4513
+        )
+        loading_message = await ctx.send(embed=loading_embed)
+        
+        try:
+            # Get ramalan tradisional
+            ramalan_result = await self.bias_detector.ramalan_tradisional(user_id, ramalan_type)
+            dukun_member = ramalan_result['dukun_member']
+            
+            # Create ramalan embed
+            ramalan_embed = discord.Embed(
+                title=f"🌙 Ramalan {ramalan_type.title()} Tradisional",
+                description=ramalan_result['ramalan'],
+                color=ramalan_result['warna_hoki']
+            )
+            
+            ramalan_embed.add_field(
+                name=f"{dukun_member['emoji']} Dukun Spiritual",
+                value=f"**{dukun_member['name']}** sebagai dukun yang membaca primbon kamu! 🙏",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="📅 Hari Baik",
+                value=f"**{ramalan_result['hari_baik']}** - Hari terbaik buat kamu! 🌟",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🔢 Angka Jawa",
+                value=f"**{ramalan_result['angka_jawa']}** - Angka keberuntungan Jawa! 🎯",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🧭 Arah Rejeki",
+                value=f"**{ramalan_result['arah_rejeki']}** - Arah keberuntungan kamu! 💰",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="📿 Weton Hoki",
+                value=f"**{ramalan_result['weton_hoki']}** - Weton keberuntungan! ✨",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🌿 Pesan Tradisional",
+                value="Ikuti petunjuk primbon dan jaga keseimbangan hidup ya! 🙏💕",
+                inline=True
+            )
+            
+            ramalan_embed.add_field(
+                name="🔄 Mau Ramalan Lain?",
+                value="`!sn ramalan cinta` • `!sn ramalan rejeki` • `!sn ramalan kesehatan`",
+                inline=False
+            )
+            
+            ramalan_embed.set_footer(
+                text=f"Ramalan tradisional untuk @{ctx.author.display_name} • Berdasarkan primbon Jawa",
+                icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+            )
+            
+            await loading_message.edit(embed=ramalan_embed)
+            
+        except Exception as e:
+            logger.error(f"Ramalan command error: {e}")
+            await loading_message.edit(embed=self._create_error_embed("Ramalan tradisional gagal"))
+    
+    async def _handle_member_profile(self, ctx, args):
+        """Handle !sn bias profile command"""
+        if not args:
+            await self._show_all_members(ctx)
+            return
+        
+        member_name = args[0].lower()
+        member_data = self.bias_detector.get_member_info(member_name)
+        
         if not member_data:
-            logger.error(f"Member data not found for key: {selected_member}")
-            return {
-                'is_selection_prompt': False,
-                'error': f"Data member tidak ditemukan!"
-            }
+            await ctx.send("❌ Member tidak ditemukan! Coba: lea, dita, jinny, soodam, denise, minji, zuu")
+            return
         
-        # Generate compatibility score (user-specific but consistent)
-        score_seed = f"{user_id}_{selected_member}_score"
-        score = 60 + (hash(score_seed) % 40)  # 60-99%
+        # Create member profile embed
+        profile_embed = discord.Embed(
+            title=f"{member_data['emoji']} {member_data['name']} Profile",
+            description=f"**{member_data['korean_name']}** • Secret Number",
+            color=member_data['color']
+        )
         
-        # Generate match result
-        match_result = {
-            'member_name': member_data['name'],
-            'group_name': member_data.get('group', 'Solo Artist'),
-            'score': score,
-            'ai_analysis': f"Kalian berdua punya chemistry yang luar biasa! Kepribadian kamu yang unik sangat cocok dengan {member_data['name']}.",
-            'match_reasons': [
-                "Kalian punya vibe yang sama",
-                "Chemistry yang natural banget",
-                "Saling melengkapi satu sama lain"
+        profile_embed.add_field(
+            name="🎭 Position",
+            value=member_data['position'],
+            inline=True
+        )
+        
+        profile_embed.add_field(
+            name="🎂 Birthday",
+            value=member_data['birthday'],
+            inline=True
+        )
+        
+        profile_embed.add_field(
+            name="🌍 Nationality",
+            value=member_data['nationality'],
+            inline=True
+        )
+        
+        profile_embed.add_field(
+            name="✨ Personality",
+            value=member_data['personality'],
+            inline=False
+        )
+        
+        profile_embed.add_field(
+            name="🎪 Traits",
+            value=", ".join(member_data['traits']),
+            inline=False
+        )
+        
+        profile_embed.add_field(
+            name="💕 Try Commands",
+            value=f"`!sn bias match {member_name}` • `!sn bias detect`",
+            inline=False
+        )
+        
+        profile_embed.set_footer(text="Secret Number Member Profile")
+        
+        await ctx.send(embed=profile_embed)
+    
+    async def _handle_set_preferences(self, ctx, user_id: str, args):
+        """Handle !sn bias preferences command"""
+        if not args:
+            await self._show_preferences_help(ctx)
+            return
+        
+        # Parse preferences from args
+        traits = [trait.lower() for trait in args if trait.lower() in ['leader', 'artistic', 'energetic', 'gentle', 'confident', 'playful', 'mysterious', 'multilingual']]
+        
+        if not traits:
+            await ctx.send("❌ Traits tidak valid! Gunakan: leader, artistic, energetic, gentle, confident, playful, mysterious, multilingual")
+            return
+        
+        # Save preferences
+        self.user_preferences[user_id] = {'traits': traits}
+        
+        # Confirmation embed
+        pref_embed = discord.Embed(
+            title="✅ Preferences Updated!",
+            description=f"Preferences kamu telah disimpan untuk bias detection yang lebih akurat.",
+            color=0x00FF00
+        )
+        
+        pref_embed.add_field(
+            name="🎯 Your Traits",
+            value=", ".join(traits),
+            inline=False
+        )
+        
+        pref_embed.add_field(
+            name="🔮 Next Step",
+            value="Try `!sn bias detect` dengan preferences baru!",
+            inline=False
+        )
+        
+        await ctx.send(embed=pref_embed)
+    
+    async def _show_all_members(self, ctx):
+        """Show all Secret Number members"""
+        members_embed = discord.Embed(
+            title="🌟 Secret Number Members",
+            description="Pilih member untuk melihat profile lengkap!",
+            color=0xFF1493
+        )
+        
+        for name, data in self.bias_detector.get_all_members().items():
+            members_embed.add_field(
+                name=f"{data['emoji']} {data['name']}",
+                value=f"{data['korean_name']} • {data['position'].split(',')[0]}",
+                inline=True
+            )
+        
+        members_embed.add_field(
+            name="💡 Usage",
+            value="`!sn bias profile [member_name]`",
+            inline=False
+        )
+        
+        await ctx.send(embed=members_embed)
+    
+    async def _show_preferences_help(self, ctx):
+        """Show preferences help"""
+        help_embed = discord.Embed(
+            title="🎯 Set Your Preferences",
+            description="Customize bias detection dengan personality traits yang kamu suka!",
+            color=0x9370DB
+        )
+        
+        help_embed.add_field(
+            name="Available Traits",
+            value="leader, artistic, energetic, gentle, confident, playful, mysterious, multilingual",
+            inline=False
+        )
+        
+        help_embed.add_field(
+            name="Usage",
+            value="`!sn bias preferences confident artistic energetic`",
+            inline=False
+        )
+        
+        await ctx.send(embed=help_embed)
+    
+    async def _show_bias_help(self, ctx):
+        """Show bias detector help"""
+        help_embed = discord.Embed(
+            title="🔮 K-pop Bias Detector Ajaib",
+            description="AI canggih yang bisa nemuin bias perfect kamu! Seru banget deh! 🥰✨",
+            color=0xFF1493
+        )
+        
+        help_embed.add_field(
+            name="🎯 Command Seru",
+            value="`!sn bias detect` - Cari bias K-pop yang cocok banget sama kamu!\n"
+                  "`!sn bias match <member>` - Cek chemistry sama idol favorit\n"
+                  "`!sn bias fortune <type>` - Ramalan masa depan kamu\n"
+                  "`!sn bias profile <member>` - Info lengkap member\n"
+                  "`!sn bias pref <key> <value>` - Atur preferensi kamu",
+            inline=False
+        )
+        
+        help_embed.add_field(
+            name="🔮 Jenis Ramalan",
+            value="`love` - Ramalan cinta 💕\n"
+                  "`career` - Panduan karir 💼\n"
+                  "`friendship` - Hubungan pertemanan 👫\n"
+                  "`general` - Ramalan umum ✨",
+            inline=True
+        )
+        
+        help_embed.add_field(
+            name="⚙️ Preferensi Kamu",
+            value="`age_range` - rentang umur yang disuka\n"
+                  "`personality` - tipe kepribadian\n"
+                  "`position` - posisi member\n"
+                  "`group` - grup tertentu",
+            inline=True
+        )
+        
+        help_embed.set_footer(text="K-pop Bias Detector • Dibuat dengan cinta 💕")
+        
+        await ctx.send(embed=help_embed)
+    
+    async def _check_cooldown(self, ctx, user_id: str, command: str):
+        """Check command cooldown"""
+        now = datetime.now()
+        # Simplified cooldown check
+        if user_id in self.command_cooldowns:
+            if (now - self.command_cooldowns[user_id]).total_seconds() < self.cooldown_duration:
+                minutes = int(self.cooldown_duration - (now - self.command_cooldowns[user_id]).total_seconds()) // 60
+                seconds = int(self.cooldown_duration - (now - self.command_cooldowns[user_id]).total_seconds()) % 60
+                await ctx.send(f"⏰ Cooldown aktif! Coba lagi dalam {minutes}m {seconds}s")
+                return False
+        self.command_cooldowns[user_id] = now
+        return True
+    
+    def _get_score_emoji(self, score: int):
+        """Get emoji based on score"""
+        if score >= 95:
+            return "💯"
+        elif score >= 90:
+            return "🔥"
+        elif score >= 80:
+            return "💖"
+        elif score >= 70:
+            return "💕"
+        elif score >= 60:
+            return "💸"
+        elif score >= 40:
+            return "💪"
+        elif score >= 20:
+            return "😅"
+        else:
+            return "😭"
+    
+    def _get_compatibility_level(self, score: int, user_id: str, member_name: str):
+        """Get compatibility level text with consistent messaging"""
+        import random
+        import hashlib
+        
+        # Create consistent hash for user-member combination
+        cache_key = f"{user_id}:{member_name}"
+        
+        if score >= 95:
+            messages = [
+                "**Astaga! Kalian tuh literally jodoh dari planet lain!** 💯✨",
+                "**OMG! Chemistry kalian bikin iri malaikat!** 💯🔥", 
+                "**Perfect match banget! Udah kayak drama Korea!** 💯💕",
+                "**Wah! Ini mah chemistry level dewa-dewi!** 💯🌟",
+                "**Gila sih! Kalian tuh made for each other banget!** 💯💎"
             ]
-        }
-        
-        # Cache the result
-        if user_id not in self.match_cache:
-            self.match_cache[user_id] = {}
-        
-        self.match_cache[user_id][selected_member] = {
-            'result': match_result,
-            'count': 1
-        }
-        
-        logger.info(f"Generated new match result for {user_id}-{selected_member}: {score}%")
-        return match_result
-
-    def clear_match_cache(self, user_id: str = None, member_name: str = None):
-        """Clear match cache for specific user/member or all cache"""
-        if user_id and member_name:
-            # Clear specific user-member combination
-            if user_id in self.match_cache and member_name in self.match_cache[user_id]:
-                del self.match_cache[user_id][member_name]
-                logger.debug(f"Cache reset for user {user_id}, member {member_name} after 5 uses")
-        elif user_id:
-            # Clear all cache for specific user
-            if user_id in self.match_cache:
-                del self.match_cache[user_id]
-                logger.info(f"Cleared all cache for user {user_id}")
+        elif score >= 90:
+            messages = [
+                "**Soulmate level detected! Ini mah takdir!** 🔥💫",
+                "**Wah, vibes kalian tuh harmonis banget kayak lagu ballad!** 🔥🎵",
+                "**Chemistry premium nih! Bikin baper semua orang!** 🔥💖",
+                "**Mantap! Kalian tuh power couple sejati!** 🔥👑",
+                "**Epic match! Kayak main character di webtoon!** 🔥📚"
+            ]
+        elif score >= 80:
+            messages = [
+                "**Chemistry kalian kece badai! Bikin thunder!** 💖⚡",
+                "**Cocok banget! Kayak peanut butter sama jelly!** 💖🥜",
+                "**Mantap jiwa! Kalian tuh couple goals banget!** 💖👑",
+                "**Wah seru! Vibes kalian tuh aesthetic banget!** 💖🎨",
+                "**Chemistry solid! Kayak duo superhero!** 💖🦸‍♂️"
+            ]
+        elif score >= 70:
+            messages = [
+                "**Potensi gede banget! Tinggal poles dikit lagi!** 💕✨",
+                "**Lumayan oke nih! Ada chemistry yang promising!** 💕🌟",
+                "**Not bad! Kalian bisa jadi power couple!** 💕💪",
+                "**Oke lah! Tinggal upgrade skill komunikasi!** 💕📱",
+                "**Bagus! Chemistry kalian ada progress nih!** 💕📈"
+            ]
+        elif score >= 60:
+            messages = [
+                "**Wajahmu udah cukup tampan, mungkin dompetmu yang perlu di-upgrade** 💸😅",
+                "**Secara fisik oke, tapi mungkin skill flirting-nya yang kurang** 💸🤭",
+                "**Lumayan lah, cuma butuh sedikit magic dan duit lebih** 💸✨",
+                "**Hmm, mungkin perlu invest di skincare premium** 💸🧴",
+                "**Oke sih, tapi kayaknya butuh glow up budget** 💸💄"
+            ]
+        elif score >= 40:
+            messages = [
+                "**Ayo semangat! Rome wasn't built in a day!** 💪✨",
+                "**Jangan nyerah! Setiap expert pernah jadi beginner!** 💪🌱",
+                "**Keep fighting! Plot twist bisa datang kapan aja!** 💪🎬",
+                "**Sabar ya! Character development butuh waktu!** 💪⏰",
+                "**Tetep optimis! Main character energy!** 💪🌟"
+            ]
+        elif score >= 20:
+            messages = [
+                "**Hmm... mungkin perlu konsultasi sama beauty guru dulu** 😂💄",
+                "**Kayaknya butuh glow up session yang intense nih** 😂✨",
+                "**Sabar ya, everyone has their own timeline** 😂⏰",
+                "**Mungkin saatnya belajar dari tutorial YouTube** 😂📺",
+                "**Oke, time for major character development!** 😂📖"
+            ]
         else:
-            # Clear all cache
-            self.match_cache.clear()
-            logger.info("Cleared all match cache")
-
-    def _find_member_by_name_and_group(self, member_name: str, group_name: str):
-        """Find specific member by name and group"""
-        member_name = member_name.lower().strip()
-        group_name = group_name.lower().strip()
+            messages = [
+                "**Waduh! Emergency skincare routine needed ASAP!** 🧴😭",
+                "**Mungkin saatnya investasi di facial treatment** 🧴💆‍♂️",
+                "**Plot twist: inner beauty is your secret weapon!** 🧴💎",
+                "**Urgent! Butuh makeover total nih!** 🧴🔄",
+                "**SOS! Time to call the beauty emergency hotline!** 🧴🚨"
+            ]
         
-        logger.debug(f"Searching for member: '{member_name}' in group: '{group_name}'")
+        # Use hash to ensure consistent message for same user-member combo
+        if cache_key not in self.user_member_cache:
+            # Create deterministic selection based on user_id and member_name
+            hash_input = f"{user_id}{member_name}".encode()
+            hash_value = int(hashlib.md5(hash_input).hexdigest(), 16)
+            selected_index = hash_value % len(messages)
+            self.user_member_cache[cache_key] = selected_index
         
-        # Clean group name variations
-        group_variations = [
-            group_name,
-            group_name.replace(' ', ''),
-            group_name.replace('-', ''),
-            group_name.replace('&', 'and')
-        ]
-        
-        for member_key, member_data in self.members.items():
-            stage_name = member_data['name'].lower()
-            member_group = member_data.get('group', '').lower()
-            
-            # Check if member name matches (exact match or starts with)
-            name_match = member_name == stage_name or stage_name.startswith(member_name)
-            
-            if name_match:
-                logger.debug(f"Name match found: '{stage_name}' in group '{member_group}' (key: {member_key})")
-                
-                # Check if group matches any variation
-                for group_var in group_variations:
-                    # More flexible group matching
-                    group_match = (
-                        group_var == member_group or  # Exact match
-                        group_var in member_group or  # Contains
-                        member_group.replace(' ', '') == group_var or  # No spaces match
-                        member_group.replace(' ', '').replace('-', '') == group_var or  # No spaces/dashes
-                        member_group.lower() == group_var.lower() or  # Case insensitive exact
-                        group_var.lower() in member_group.lower()  # Case insensitive contains
-                    )
-                    
-                    if group_match:
-                        logger.info(f"✅ Found direct match: {member_key} for '{member_name}' from '{group_name}'")
-                        return member_key
-                
-                logger.debug(f"Group mismatch for '{stage_name}': '{member_group}' doesn't match any of {group_variations}")
-        
-        logger.warning(f"❌ No direct match found for '{member_name}' from '{group_name}'")
-        return None
+        return messages[self.user_member_cache[cache_key]]
     
-    def _find_similar_members(self, search_name: str):
-        """Find members with similar names"""
-        search_name = search_name.lower().strip()
-        similar_members = []
-        
-        for member_key, member_data in self.members.items():
-            stage_name = member_data['name'].lower()
-            korean_name = member_data.get('korean_name', '').lower()
-            
-            # Check various matching criteria
-            if (search_name == stage_name or 
-                stage_name.startswith(search_name) or
-                search_name in stage_name or
-                (korean_name and (search_name == korean_name or korean_name.startswith(search_name))) or
-                search_name == member_key.lower()):
-                similar_members.append(member_key)
-        
-        logger.debug(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
-        return similar_members
-    
-    def _create_member_selection_prompt(self, similar_members: list, search_name: str, user_id: str):
-        """Create selection prompt when multiple members found"""
-        selection_text = f"🔍 Ditemukan beberapa member dengan nama '{search_name}':\n\n"
-        
-        for i, member_key in enumerate(similar_members[:10], 1):  # Limit to 10 options
-            member_data = self.members[member_key]
-            group_name = member_data.get('group', 'Solo Artist')
-            korean_name = member_data.get('korean_name', '')
-            korean_display = f" ({korean_name})" if korean_name else ""
-            
-            selection_text += f"**{i}.** {member_data['name']}{korean_display} - {group_name}\n"
-        
-        selection_text += f"\n💡 **Cara memilih:**\n"
-        selection_text += f"Gunakan: `!sn match {search_name} [nama_grup]`\n"
-        selection_text += f"Contoh: `!sn match {search_name} blackpink`, `!sn match {search_name} lovelyz`"
-        
-        # Store pending selection for this user
-        self.pending_selections[user_id] = {
-            'search_name': search_name,
-            'similar_members': similar_members,
-            'timestamp': datetime.now()
-        }
-        
-        return {
-            'is_selection_prompt': True,
-            'selection_text': selection_text,
-            'similar_members': similar_members,
-            'search_name': search_name
-        }
-    
-    def handle_member_selection(self, user_id: str, search_name: str, selection_number: int):
-        """Handle user's member selection by number"""
-        logger.info(f"handle_member_selection called: user_id={user_id}, search_name='{search_name}', selection_number={selection_number}")
-        
-        # Check if user has pending selection that matches
-        if user_id in self.pending_selections:
-            pending = self.pending_selections[user_id]
-            logger.info(f"Found pending selection for user {user_id}: {pending}")
-            
-            # Check if this matches the pending selection (case insensitive)
-            if pending['search_name'].lower() == search_name.lower():
-                similar_members = pending['similar_members']
-                logger.info(f"Matching pending selection found. Similar members: {similar_members}")
-                
-                if 1 <= selection_number <= len(similar_members):
-                    selected_member = similar_members[selection_number - 1]
-                    logger.info(f"User {user_id} selected member #{selection_number}: {selected_member} from pending selection")
-                    
-                    # Clear the pending selection
-                    del self.pending_selections[user_id]
-                    logger.info(f"Cleared pending selection for user {user_id}")
-                    logger.info(f"Returning selected member: '{selected_member}' (type: {type(selected_member)})")
-                    return selected_member
-                else:
-                    logger.warning(f"Invalid selection number {selection_number} for pending selection {search_name}")
-                    return None
-            else:
-                logger.warning(f"Search name '{search_name}' doesn't match pending '{pending['search_name']}'")
-        else:
-            logger.warning(f"No pending selection found for user {user_id}")
-            logger.info(f"Current pending_selections keys: {list(self.pending_selections.keys())}")
-        
-        # Fallback to fresh search if no pending selection
-        logger.info(f"No pending selection found, doing fresh search for '{search_name}'")
-        similar_members = self._find_similar_members(search_name)
-        logger.info(f"Fresh search found {len(similar_members)} members: {similar_members}")
-        
-        if 1 <= selection_number <= len(similar_members):
-            selected_member = similar_members[selection_number - 1]
-            logger.info(f"User {user_id} selected member #{selection_number}: {selected_member} from fresh search")
-            return selected_member
-        else:
-            logger.warning(f"Invalid selection number {selection_number} for {search_name} (available: 1-{len(similar_members)})")
-            return None
-    
-    async def fortune_teller(self, user_id: str, fortune_type: str = 'general'):
-        """Generate fortune reading for user"""
-        logger.info(f"🔮 Starting fortune reading for user {user_id}, type: {fortune_type}")
-        
-        try:
-            # Get random guide member
-            if self.members:
-                available_members = list(self.members.keys())
-                guide_key = random.choice(available_members)
-                guide_member = self.members[guide_key]
-            else:
-                available_members = list(self.sn_members.keys())
-                guide_key = random.choice(available_members)
-                guide_member = self.sn_members[guide_key]
-            
-            # Generate user-specific fortune elements
-            fortune_seed = f"{user_id}_fortune_{fortune_type}"
-            lucky_number = 1 + (hash(fortune_seed) % 99)
-            
-            # Fortune colors
-            fortune_colors = [0xFF69B4, 0x87CEEB, 0x98FB98, 0xDDA0DD, 0xF0E68C, 0xFFB6C1]
-            lucky_color = fortune_colors[hash(fortune_seed + "_color") % len(fortune_colors)]
-            
-            # Generate mystical fortune elements
-            zodiac_signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", 
-                           "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
-            tarot_cards = ["The Star", "The Sun", "The Moon", "The Lovers", "The Empress", 
-                          "The Magician", "Wheel of Fortune", "The World", "The Fool"]
-            
-            cosmic_sign = zodiac_signs[hash(f"{user_id}_zodiac") % len(zodiac_signs)]
-            tarot_card = tarot_cards[hash(f"{user_id}_tarot") % len(tarot_cards)]
-            
-            # Generate fortune based on type with mystical elements
-            fortune_prompts = {
-                'love': f"🌹 RAMALAN CINTA KOSMIK 🌹\n\n{guide_member['name']} sebagai spiritual guide kamu melihat energi cinta di sekitar kamu! Kartu tarot: {tarot_card}, Pengaruh: {cosmic_sign}",
-                'career': f"💼 RAMALAN KARIR & KESUKSESAN 💼\n\n{guide_member['name']} membaca aura kesuksesan kamu! Kartu tarot: {tarot_card}, Energi: {cosmic_sign}",
-                'friendship': f"👥 RAMALAN PERSAHABATAN 👥\n\n{guide_member['name']} merasakan getaran sosial di sekitar kamu! Kartu tarot: {tarot_card}, Vibe: {cosmic_sign}",
-                'general': f"✨ RAMALAN KOSMIK HARIAN ✨\n\n{guide_member['name']} menerima pesan dari alam semesta buat kamu! Kartu tarot: {tarot_card}, Energi: {cosmic_sign}"
-            }
-            
-            ai_prompt = f"""
-            FORTUNE TELLER MYSTICAL READING 🔮
-            
-            Kamu adalah peramal kosmik K-pop yang bisa melihat masa depan!
-            
-            {fortune_prompts.get(fortune_type, fortune_prompts['general'])}
-            Angka hoki: {lucky_number}
-            
-            Buat PREDIKSI MASA DEPAN yang spesifik untuk {fortune_type}:
-            1. Apa yang akan terjadi dalam 1-2 minggu ke depan
-            2. Peluang dan tantangan yang akan dihadapi
-            3. Saran mystical untuk memaksimalkan keberuntungan
-            
-            Gunakan bahasa Indonesia yang mystical, prophetic, tapi tetap fun dan optimis. 4-5 kalimat.
-            Fokus pada PREDIKSI MASA DEPAN, bukan analisis personality!
-            """
-            
-            fortune_text = await self.ai_handler.get_ai_response(ai_prompt)
-            
-            fortune_result = {
-                'fortune': fortune_text,
-                'guide_member': {
-                    'name': guide_member['name'],
-                    'emoji': guide_member.get('emoji', '✨')
-                },
-                'lucky_number': lucky_number,
-                'lucky_color': lucky_color,
-                'fortune_type': fortune_type
-            }
-            
-            logger.info(f"✅ Fortune reading completed for user {user_id}")
-            return fortune_result
-            
-        except Exception as e:
-            logger.error(f"❌ Fortune reading error for user {user_id}: {e}")
-            return {
-                'error': 'Fortune reading gagal, coba lagi ya! 🔮'
-            }
-    
-    async def ramalan_tradisional(self, user_id: str, ramalan_type: str = 'umum'):
-        """Generate traditional Indonesian fortune telling"""
-        logger.info(f"🌙 Starting ramalan tradisional for user {user_id}, type: {ramalan_type}")
-        
-        try:
-            # Get random dukun member (traditional fortune teller)
-            if self.members:
-                available_members = list(self.members.keys())
-                dukun_key = random.choice(available_members)
-                dukun_member = self.members[dukun_key]
-            else:
-                available_members = list(self.sn_members.keys())
-                dukun_key = random.choice(available_members)
-                dukun_member = self.sn_members[dukun_key]
-            
-            # Generate traditional Indonesian fortune elements
-            ramalan_seed = f"{user_id}_ramalan_{ramalan_type}"
-            
-            # Traditional Indonesian fortune elements
-            hari_baik = ["Senin Kliwon", "Selasa Pahing", "Rabu Wage", "Kamis Pon", "Jumat Legi", "Sabtu Kliwon", "Minggu Pahing"]
-            weton_baik = ["Manis", "Pahing", "Pon", "Wage", "Kliwon"]
-            rejeki_arah = ["Utara", "Selatan", "Timur", "Barat", "Tenggara", "Barat Daya", "Timur Laut", "Barat Laut"]
-            
-            hari_hoki = hari_baik[hash(ramalan_seed + "_hari") % len(hari_baik)]
-            weton_hoki = weton_baik[hash(ramalan_seed + "_weton") % len(weton_baik)]
-            arah_rejeki = rejeki_arah[hash(ramalan_seed + "_arah") % len(rejeki_arah)]
-            angka_jawa = 1 + (hash(ramalan_seed + "_angka") % 9)  # 1-9 traditional Javanese numbers
-            
-            # Traditional colors
-            ramalan_colors = [0x8B4513, 0x228B22, 0x800080, 0xFF8C00, 0x4B0082, 0x2F4F4F]
-            warna_hoki = ramalan_colors[hash(ramalan_seed + "_warna") % len(ramalan_colors)]
-            
-            # Generate ramalan based on type with traditional elements
-            ramalan_prompts = {
-                'cinta': f"🌺 RAMALAN CINTA TRADISIONAL 🌺\n\n{dukun_member['name']} sebagai dukun cinta melihat garis tangan dan membaca daun lontar tentang nasib asmara kamu! Hari baik: {hari_hoki}, Weton: {weton_hoki}",
-                'rejeki': f"💰 RAMALAN REJEKI & KEKAYAAN 💰\n\n{dukun_member['name']} membaca primbon dan melihat garis rejeki di telapak tangan kamu! Arah rejeki: {arah_rejeki}, Weton: {weton_hoki}",
-                'kesehatan': f"🌿 RAMALAN KESEHATAN & KESELAMATAN 🌿\n\n{dukun_member['name']} melihat aura kesehatan dari rasi bintang Jawa! Hari baik: {hari_hoki}, Weton: {weton_hoki}",
-                'umum': f"🌙 RAMALAN NASIB TRADISIONAL 🌙\n\n{dukun_member['name']} membaca kitab primbon dan melihat nasib kamu dari perhitungan Jawa kuno! Weton: {weton_hoki}, Arah baik: {arah_rejeki}"
-            }
-            
-            ai_prompt = f"""
-            RAMALAN TRADISIONAL INDONESIA 🌙
-            
-            Kamu adalah dukun/peramal tradisional Indonesia yang ahli primbon, weton, dan perhitungan Jawa!
-            
-            {ramalan_prompts.get(ramalan_type, ramalan_prompts['umum'])}
-            Angka Jawa: {angka_jawa}
-            
-            Buat RAMALAN TRADISIONAL INDONESIA yang berisi:
-            1. Analisis berdasarkan weton dan hari baik
-            2. Petunjuk dari primbon Jawa
-            3. Saran tradisional untuk menghindari sial dan meningkatkan hoki
-            4. Pantangan dan anjuran berdasarkan perhitungan Jawa
-            
-            Gunakan bahasa Indonesia dengan nuansa tradisional, bijaksana, tapi tetap modern dan fun. 4-5 kalimat.
-            Fokus pada TRADISI INDONESIA dan PRIMBON, bukan astrologi barat!
-            """
-            
-            ramalan_text = await self.ai_handler.get_ai_response(ai_prompt)
-            
-            ramalan_result = {
-                'ramalan': ramalan_text,
-                'dukun_member': {
-                    'name': dukun_member['name'],
-                    'emoji': dukun_member.get('emoji', '🌙')
-                },
-                'hari_baik': hari_hoki,
-                'weton_hoki': weton_hoki,
-                'arah_rejeki': arah_rejeki,
-                'angka_jawa': angka_jawa,
-                'warna_hoki': warna_hoki,
-                'ramalan_type': ramalan_type
-            }
-            
-            logger.info(f"✅ Ramalan tradisional completed for user {user_id}")
-            return ramalan_result
-            
-        except Exception as e:
-            logger.error(f"❌ Ramalan tradisional error for user {user_id}: {e}")
-            return {
-                'error': 'Ramalan tradisional gagal, coba lagi ya! 🌙'
-            }
-    
-    def get_member_info(self, member_name: str):
-        """Get member information by name"""
-        logger.debug(f"Getting member info for: {member_name}")
-        
-        # Search in full K-pop database first
-        if self.members:
-            for member_key, member_data in self.members.items():
-                if (member_data['name'].lower() == member_name.lower() or
-                    member_data.get('korean_name', '').lower() == member_name.lower() or
-                    member_key.lower() == member_name.lower()):
-                    logger.debug(f"Found member in database: {member_data['name']}")
-                    return member_data
-        
-        # Fallback to Secret Number members
-        for member_key, member_data in self.sn_members.items():
-            if (member_data['name'].lower() == member_name.lower() or
-                member_data.get('korean_name', '').lower() == member_name.lower() or
-                member_key.lower() == member_name.lower()):
-                logger.debug(f"Found member in SN fallback: {member_data['name']}")
-                return member_data
-        
-        logger.warning(f"Member not found: {member_name}")
-        return None
-    
-    def _create_bias_detection_prompt(self, member_data: dict, user_preferences: dict = None):
-        """Create AI prompt for bias detection"""
-        member_name = member_data['name']
-        group_name = member_data.get('group', 'Secret Number')
-        personality = member_data.get('personality', 'Talented and charming K-pop idol')
-        
-        prompt = f"""
-        Analisis mengapa {member_name} dari {group_name} cocok sebagai bias untuk user ini.
-        
-        Informasi member:
-        - Nama: {member_name}
-        - Group: {group_name}
-        - Kepribadian: {personality}
-        
-        Buat analisis yang fun, personal, dan encouraging dalam bahasa Indonesia yang cute.
-        Jelaskan mengapa member ini perfect match sebagai bias.
-        Panjang sekitar 2-3 kalimat yang sweet dan engaging.
-        """
-        
-        return prompt
+    def _create_error_embed(self, message: str):
+        """Create error embed"""
+        return discord.Embed(
+            title="❌ Error", 
+            description=message,
+            color=0xFF0000
+        )
