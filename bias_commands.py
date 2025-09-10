@@ -208,9 +208,22 @@ class BiasCommandsHandler:
                 await loading_message.edit(embed=info_embed)
                 return
             
-            member_name_display = match_result['member_name']
-            group_name_display = match_result['group_name']
-            score = match_result['score']
+            # Check if there's an error in the result
+            if isinstance(match_result, dict) and match_result.get('error'):
+                error_embed = self._create_error_embed(match_result['error'])
+                await loading_message.edit(embed=error_embed)
+                return
+            
+            # Validate match_result structure
+            if not match_result or not isinstance(match_result, dict):
+                logger.error(f"Invalid match_result: {match_result}")
+                error_embed = self._create_error_embed("Gagal mendapatkan hasil analisis")
+                await loading_message.edit(embed=error_embed)
+                return
+            
+            member_name_display = match_result.get('member_name', 'Unknown')
+            group_name_display = match_result.get('group_name', 'Unknown')
+            score = match_result.get('score', 0)
             
             # Create compatibility embed
             compatibility_embed = discord.Embed(
@@ -233,13 +246,13 @@ class BiasCommandsHandler:
             
             compatibility_embed.add_field(
                 name="🤖 Analisis AI",
-                value=match_result['ai_analysis'][:200] + "..." if len(match_result['ai_analysis']) > 200 else match_result['ai_analysis'],
+                value=match_result.get('ai_analysis', 'Analisis tidak tersedia')[:200] + "..." if len(match_result.get('ai_analysis', '')) > 200 else match_result.get('ai_analysis', 'Analisis tidak tersedia'),
                 inline=False
             )
             
             compatibility_embed.add_field(
                 name="💫 Kenapa Kalian Cocok",
-                value="\n".join([f"• {reason}" for reason in match_result['match_reasons']]),
+                value="\n".join([f"• {reason}" for reason in match_result.get('match_reasons', ['Chemistry yang bagus'])]),
                 inline=False
             )
             
