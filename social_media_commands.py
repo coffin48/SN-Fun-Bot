@@ -203,6 +203,8 @@ class SocialMediaCommandsHandler:
     
     async def _create_twitter_embed(self, info: dict, tweet_data: dict):
         """Create Twitter embed with latest tweet"""
+        is_screenshot = tweet_data.get('is_screenshot', False)
+        
         embed = discord.Embed(
             title=f"{info['emoji']} Latest Tweet - Secret Number",
             color=info['color'],
@@ -220,24 +222,44 @@ class SocialMediaCommandsHandler:
             inline=False
         )
         
+        # Add screenshot image if available
+        image_url = tweet_data.get('image_url')
+        if image_url and is_screenshot:
+            embed.set_image(url=image_url)
+            embed.add_field(
+                name="📸 Screenshot Info", 
+                value="Gambar diambil otomatis dari Twitter timeline", 
+                inline=False
+            )
+        
         # Tweet info
-        created_at = tweet_data.get('created_at', 'Unknown time')
-        likes = tweet_data.get('likes', 0)
-        retweets = tweet_data.get('retweets', 0)
+        if not is_screenshot:
+            created_at = tweet_data.get('created_at', 'Unknown time')
+            likes = tweet_data.get('likes', 0)
+            retweets = tweet_data.get('retweets', 0)
+            
+            embed.add_field(
+                name="📊 Stats",
+                value=f"❤️ {likes:,} likes • 🔄 {retweets:,} retweets",
+                inline=True
+            )
+            
+            embed.add_field(
+                name="🕒 Posted",
+                value=created_at,
+                inline=True
+            )
         
-        embed.add_field(
-            name="📊 Stats",
-            value=f"❤️ {likes:,} likes • 🔄 {retweets:,} retweets",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🕒 Posted",
-            value=created_at,
-            inline=True
-        )
-        
-        embed.set_footer(text="Secret Number Bot • Latest Tweet")
+        # Add footer and link
+        if is_screenshot:
+            embed.add_field(
+                name="🔗 Lihat Langsung",
+                value=f"[Buka Twitter]({tweet_data.get('url', info['url'])}) untuk konten real-time",
+                inline=False
+            )
+            embed.set_footer(text="Secret Number Bot • Screenshot Fallback")
+        else:
+            embed.set_footer(text="Secret Number Bot • Latest Tweet")
         
         return embed
     
@@ -315,16 +337,18 @@ class SocialMediaCommandsHandler:
         
         return embed
     
-    async def _create_instagram_embed(self, info: dict, post_data: dict):
+    async def _create_instagram_embed(self, info: dict, content_data: dict):
         """Create Instagram embed with latest post"""
+        is_screenshot = content_data.get('is_screenshot', False)
+        
         embed = discord.Embed(
-            title=f"{info['emoji']} Latest Post - Secret Number",
+            title=f"{info['emoji']} Latest Post - Secret Number Instagram",
             color=info['color'],
-            url=post_data.get('url', info['url'])
+            url=content_data.get('url', info['url'])
         )
         
-        # Instagram caption
-        caption = post_data.get('caption', 'No caption available')
+        # Post content
+        caption = content_data.get('caption', 'No caption available')
         if len(caption) > 1024:
             caption = caption[:1021] + "..."
         
@@ -334,22 +358,40 @@ class SocialMediaCommandsHandler:
             inline=False
         )
         
-        # Instagram stats
-        likes = post_data.get('likes', 0)
-        comments = post_data.get('comments', 0)
-        
-        embed.add_field(
-            name="📊 Stats",
-            value=f"❤️ {likes:,} likes • 💬 {comments:,} comments",
-            inline=True
-        )
-        
-        # Post image
-        image_url = post_data.get('image_url')
-        if image_url:
+        # Add screenshot image if available
+        image_url = content_data.get('image_url')
+        if image_url and is_screenshot:
             embed.set_image(url=image_url)
+            embed.add_field(
+                name="📸 Screenshot Info", 
+                value="Gambar diambil otomatis dari Instagram feed", 
+                inline=False
+            )
+        elif image_url and await self._is_valid_image_url(image_url):
+            embed.set_thumbnail(url=image_url)
         
-        embed.set_footer(text="Secret Number Bot • Latest Instagram Post")
+        # Post info
+        if not is_screenshot:
+            likes = content_data.get('likes', 0)
+            comments = content_data.get('comments', 0)
+            
+            if likes > 0 or comments > 0:
+                embed.add_field(
+                    name="📊 Stats",
+                    value=f"❤️ {likes:,} likes • 💬 {comments:,} comments",
+                    inline=True
+                )
+        
+        # Add footer and link
+        if is_screenshot:
+            embed.add_field(
+                name="🔗 Lihat Langsung",
+                value=f"[Buka Instagram]({content_data.get('url', info['url'])}) untuk konten real-time",
+                inline=False
+            )
+            embed.set_footer(text="Secret Number Bot • Screenshot Fallback")
+        else:
+            embed.set_footer(text="Secret Number Bot • Latest Post")
         
         return embed
     
