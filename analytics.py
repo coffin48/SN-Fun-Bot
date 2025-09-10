@@ -168,6 +168,33 @@ class BotAnalytics:
         
         return summary
     
+    def log_error(self, error_type, error_message, user_input=None):
+        """Log error untuk monitoring"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        if "errors" not in self.data:
+            self.data["errors"] = {}
+        
+        if today not in self.data["errors"]:
+            self.data["errors"][today] = []
+        
+        error_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "type": error_type,
+            "message": str(error_message),
+            "user_input": user_input
+        }
+        
+        self.data["errors"][today].append(error_entry)
+        
+        # Keep only last 7 days of errors
+        if len(self.data["errors"]) > 7:
+            oldest_date = min(self.data["errors"].keys())
+            del self.data["errors"][oldest_date]
+        
+        self._save_analytics()
+        logging.error(f"Analytics logged error: {error_type} - {error_message}")
+    
     def log_analytics_to_railway(self):
         """Log analytics summary to Railway logs"""
         summary = self.get_analytics_summary()
