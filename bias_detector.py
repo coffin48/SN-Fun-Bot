@@ -683,20 +683,22 @@ class BiasDetector:
             
             # Create AI prompt for traditional fortune telling
             ai_prompt = f"""
-            Kamu adalah dukun tradisional Indonesia yang bijaksana. Berikan ramalan tradisional untuk user dengan elemen:
+            Kamu adalah dukun tradisional Indonesia yang fun dan modern! Berikan ramalan tradisional untuk user dengan elemen:
             - Weton: {weton}
             - Elemen: {element}
             - Angka keberuntungan: {', '.join(map(str, lucky_numbers))}
             - Tipe ramalan: {ramalan_type}
             
-            Buat ramalan dalam gaya tradisional Indonesia yang:
-            1. Menggunakan bahasa Jawa/Indonesia tradisional yang sopan
-            2. Menyebutkan elemen weton dan primbon
-            3. Memberikan nasihat bijak dan positif
-            4. Panjang 3-4 kalimat
-            5. Tone yang mystical tapi encouraging
+            Buat ramalan yang:
+            1. 95% bahasa Indonesia yang lucu, fun, dan modern (kayak anak muda zaman now)
+            2. 5% bahasa Jawa untuk sentuhan tradisional (cuma 1-2 kata aja)
+            3. Tone yang mystical tapi cheerful dan encouraging
+            4. Panjang 3-4 kalimat yang engaging
+            5. Pakai emoji dan bahasa yang relatable
             
-            Contoh gaya: "Berdasarkan weton {weton} dan elemen {element}, nasib Anda..."
+            Contoh gaya: "Wah! Berdasarkan weton {weton} dan elemen {element}, nasib kamu bakal cerah banget nih! Rejeki nomplok dari arah yang nggak disangka-sangka. Sing sabar ya, waktunya belum tepat tapi pasti dateng! ✨"
+            
+            Jangan terlalu formal, bikin yang fun dan bikin pembaca happy!
             """
             
             # Get AI response
