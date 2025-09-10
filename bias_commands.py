@@ -190,7 +190,9 @@ class BiasCommandsHandler:
         
         try:
             # Get love match analysis
+            logger.info(f"Calling love_match with member_name: '{member_name}' for user {user_id}")
             match_result = await self.bias_detector.love_match(user_id, member_name)
+            logger.info(f"love_match returned: {type(match_result)} - {match_result.get('is_selection_prompt', 'not selection prompt')}")
             
             # Check if it's a selection prompt
             if isinstance(match_result, dict) and match_result.get('is_selection_prompt'):
