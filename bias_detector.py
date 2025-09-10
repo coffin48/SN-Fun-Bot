@@ -398,17 +398,19 @@ class BiasDetector:
         score_seed = f"{user_id}_{selected_member}_score"
         score = 30 + (hash(score_seed) % 70)  # 30-99%
         
+        # Generate AI analysis based on score threshold
+        ai_analysis = self._generate_ai_analysis_by_score(score, member_data['name'], user_id)
+        
+        # Generate match reasons based on score threshold
+        match_reasons = self._generate_match_reasons_by_score(score, user_id, selected_member)
+        
         # Generate match result
         match_result = {
             'member_name': member_data['name'],
             'group_name': member_data.get('group', 'Solo Artist'),
             'score': score,
-            'ai_analysis': f"Kalian berdua punya chemistry yang luar biasa! Kepribadian kamu yang unik sangat cocok dengan {member_data['name']}.",
-            'match_reasons': [
-                "Kalian punya vibe yang sama",
-                "Chemistry yang natural banget",
-                "Saling melengkapi satu sama lain"
-            ]
+            'ai_analysis': ai_analysis,
+            'match_reasons': match_reasons
         }
         
         # Cache the result
@@ -802,3 +804,99 @@ class BiasDetector:
         """
         
         return prompt
+    
+    def _generate_ai_analysis_by_score(self, score: int, member_name: str, user_id: str):
+        """Generate AI analysis based on compatibility score"""
+        import hashlib
+        
+        # Create consistent hash for user-member combination
+        hash_input = f"{user_id}{member_name}analysis".encode()
+        hash_value = int(hashlib.md5(hash_input).hexdigest(), 16)
+        
+        if score >= 90:
+            analyses = [
+                f"OMG! Kamu dan {member_name} tuh literally perfect match banget! Chemistry kalian kayak main character di drama Korea yang bikin baper semua orang. Vibes kalian tuh harmonis banget, kayak udah ditakdirkan dari sono! 💯✨",
+                f"Astaga! {member_name} dan kamu tuh soulmate level detected nih! Kepribadian kalian complement each other dengan sempurna. Ini mah bukan chemistry biasa, ini chemistry premium yang bikin iri malaikat! 🔥💕",
+                f"Wah! Kalian berdua tuh made for each other banget! {member_name} kayaknya udah nunggu kamu dari dulu deh. Chemistry kalian tuh epic level, kayak power couple yang bakal trending di Twitter! 💎👑"
+            ]
+        elif score >= 70:
+            analyses = [
+                f"Chemistry kamu sama {member_name} tuh bagus banget nih! Kalian punya connection yang strong dan vibes yang cocok. Tinggal upgrade skill komunikasi dikit lagi, bakal jadi power couple deh! 🔥💫",
+                f"{member_name} dan kamu tuh ada chemistry yang promising banget! Personality kalian complement each other dengan baik. Ada potensi besar buat jadi couple goals nih! 💖⚡",
+                f"Mantap! Kamu sama {member_name} punya chemistry yang solid. Vibes kalian tuh aesthetic banget dan ada connection yang natural. Relationship goals banget! 🎨👑"
+            ]
+        elif score >= 50:
+            analyses = [
+                f"Chemistry kamu sama {member_name} lumayan oke nih! Ada potensi yang bisa dikembangkan. Mungkin butuh effort lebih buat building connection, tapi definitely ada chemistry di sana! 💕⚡",
+                f"Not bad! Kamu dan {member_name} punya foundation yang decent. Tinggal upgrade skill flirting dan communication, bisa jadi something special kok! 💕🎨",
+                f"Ada chemistry antara kamu sama {member_name}, tapi masih perlu dipoles dikit. Dengan effort yang tepat, kalian bisa jadi couple yang sweet! 💕📈"
+            ]
+        elif score >= 40:
+            analyses = [
+                f"Hmm, chemistry kamu sama {member_name} butuh effort lebih nih. Mungkin personality kalian agak clash, tapi hey, opposites attract kan? Coba approach yang beda deh! 💸😅",
+                f"Secara fisik mungkin oke, tapi chemistry sama {member_name} masih kurang spark. Mungkin perlu invest di skill flirting atau upgrade glow up game kamu! 💸🤭",
+                f"Chemistry sama {member_name} masih work in progress nih. Butuh sedikit magic dan maybe budget lebih buat impress dia. Don't give up! 💸✨"
+            ]
+        elif score >= 30:
+            analyses = [
+                f"Oke, jujur aja chemistry kamu sama {member_name} masih... challenging. Tapi hey, every expert was once a beginner! Character development arc kamu baru dimulai nih! 💪✨",
+                f"Chemistry sama {member_name} butuh major improvement. Tapi jangan nyerah! Plot twist bisa datang kapan aja. Saatnya upgrade diri secara total! 💪🎬",
+                f"Hmm, {member_name} mungkin belum ready buat chemistry level kamu. Atau sebaliknya? Either way, time for some serious character development! 💪⏰"
+            ]
+        else:
+            analyses = [
+                f"Waduh! Chemistry kamu sama {member_name} butuh emergency intervention ASAP! Tapi plot twist: inner beauty is your secret weapon. Time for major glow up! 🧴😭",
+                f"Honestly, chemistry sama {member_name} masih... very challenging. Tapi hey, everyone has their own timeline! Mungkin saatnya konsultasi beauty guru? 🧴💆‍♂️",
+                f"SOS! Chemistry level sama {member_name} butuh miracle. Tapi jangan worry, dengan effort yang tepat dan maybe facial treatment, anything is possible! 🧴🚨"
+            ]
+        
+        selected_index = hash_value % len(analyses)
+        return analyses[selected_index]
+    
+    def _generate_match_reasons_by_score(self, score: int, user_id: str, member_key: str):
+        """Generate match reasons based on compatibility score"""
+        import hashlib
+        
+        # Create consistent hash for user-member combination
+        hash_input = f"{user_id}{member_key}reasons".encode()
+        hash_value = int(hashlib.md5(hash_input).hexdigest(), 16)
+        
+        if score >= 90:
+            reason_sets = [
+                ["Kalian punya soul connection yang deep banget", "Vibes kalian tuh literally in sync", "Chemistry natural yang bikin iri semua orang"],
+                ["Perfect personality match dari sono", "Komunikasi kalian flow banget tanpa effort", "Aesthetic couple goals yang trending"],
+                ["Soulmate energy yang kelihatan banget", "Complement each other dengan sempurna", "Power couple vibes yang epic"]
+            ]
+        elif score >= 70:
+            reason_sets = [
+                ["Chemistry yang promising dan bisa dikembangkan", "Personality traits yang complement", "Connection yang strong dan meaningful"],
+                ["Vibes yang cocok dan harmonis", "Communication style yang compatible", "Potensi relationship goals yang besar"],
+                ["Foundation yang solid buat relationship", "Similar interests dan values", "Chemistry yang growing dengan baik"]
+            ]
+        elif score >= 50:
+            reason_sets = [
+                ["Ada chemistry tapi butuh effort lebih", "Personality yang bisa di-adjust", "Potensi yang perlu dikembangkan"],
+                ["Foundation yang decent tapi perlu upgrade", "Communication yang bisa diperbaiki", "Chemistry yang work in progress"],
+                ["Compatibility yang lumayan dengan effort", "Connection yang bisa dibangun", "Potential yang ada tapi hidden"]
+            ]
+        elif score >= 40:
+            reason_sets = [
+                ["Chemistry butuh major improvement", "Personality clash yang challenging", "Butuh effort extra buat connection"],
+                ["Compatibility yang... questionable", "Communication gap yang significant", "Chemistry yang butuh miracle"],
+                ["Foundation yang shaky tapi not impossible", "Butuh glow up game yang serious", "Challenge level: expert mode"]
+            ]
+        elif score >= 30:
+            reason_sets = [
+                ["Chemistry level: emergency mode", "Personality yang... very different", "Butuh character development arc"],
+                ["Compatibility yang butuh major overhaul", "Communication yang challenging banget", "Chemistry yang butuh plot twist"],
+                ["Foundation yang butuh total reconstruction", "Challenge level: nightmare mode", "Butuh miracle dan effort maksimal"]
+            ]
+        else:
+            reason_sets = [
+                ["Chemistry level: SOS emergency", "Personality yang clash total", "Butuh intervention dari beauty guru"],
+                ["Compatibility yang... let's not talk about it", "Communication gap yang massive", "Chemistry yang butuh resurrection"],
+                ["Foundation yang non-existent", "Challenge level: impossible mode", "Butuh miracle, doa, dan facial treatment"]
+            ]
+        
+        selected_index = hash_value % len(reason_sets)
+        return reason_sets[selected_index]
