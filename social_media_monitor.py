@@ -192,15 +192,16 @@ class SocialMediaMonitor:
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 }
                 
-                # Try multiple Twitter alternatives
-                alternatives = [
-                    f"https://nitter.net/5ecretnumber/rss",
-                    f"https://nitter.it/5ecretnumber/rss", 
-                    f"https://nitter.privacydev.net/5ecretnumber/rss",
-                    f"https://nitter.fdn.fr/5ecretnumber/rss"
+                nitter_instances = [
+                    "nitter.poast.org",
+                    "nitter.privacydev.net",
+                    "nitter.ktachibana.party",
+                    "nitter.fdn.fr",
+                    "nitter.it"
                 ]
                 
-                for url in alternatives:
+                for instance in nitter_instances:
+                    url = f"https://{instance}/5ecretnumber/rss"
                     try:
                         async with session.get(url, headers=headers, timeout=10) as response:
                             if response.status == 200:
@@ -315,20 +316,182 @@ class SocialMediaMonitor:
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
                 }
                 
-                url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username=secretnumber.official"
+                # Try multiple Instagram alternatives
+                alternatives = [
+                    # Instagram RSS alternatives
+                    f"https://rsshub.app/instagram/user/secretnumber.official",
+                    f"https://picuki.com/profile/secretnumber.official",
+                    f"https://imginn.com/secretnumber.official/",
+                    # Direct Instagram (might be blocked)
+                    f"https://www.instagram.com/api/v1/users/web_profile_info/?username=secretnumber.official"
+                ]
                 
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return await self.parse_instagram_data_for_latest(data)
-                    else:
-                        return None
+                for url in alternatives:
+                    try:
+                        async with session.get(url, headers=headers, timeout=15) as response:
+                            if response.status == 200:
+                                content = await response.text()
+                                
+                                # Try different parsing methods based on URL
+                                if 'rsshub.app' in url:
+                                    result = await self.parse_instagram_rss(content)
+                                elif 'picuki.com' in url or 'imginn.com' in url:
+                                    result = await self.parse_instagram_html(content)
+                                else:
+                                    data = await response.json()
+                                    result = await self.parse_instagram_data_for_latest(data)
+                                
+                                if result:
+                                    logger.logger.info(f"✅ Instagram data retrieved from {url}")
+                                    return result
+                            else:
+                                logger.logger.warning(f"❌ {url} returned status {response.status}")
+                    except Exception as alt_error:
+                        logger.logger.warning(f"❌ Failed to fetch from {url}: {alt_error}")
+                        continue
+                
+                # Final fallback
+                logger.logger.warning("⚠️ All Instagram sources failed")
+                return await self._create_instagram_fallback()
                         
         except Exception as e:
             logger.logger.error(f"Get latest Instagram error: {e}")
+            return await self._create_instagram_fallback()
+    
+    async def parse_instagram_rss(self, rss_content):
+        """Parse Instagram RSS feed"""
+        try:
+            import re
+            
+            # Extract from RSS
+            title_pattern = r'<title><!\[CDATA\[(.*?)\]\]></title>'
+            link_pattern = r'<link>([^<]+)</link>'
+            desc_pattern = r'<description><!\[CDATA\[(.*?)\]\]></description>'
+            
+            titles = re.findall(title_pattern, rss_content, re.DOTALL)
+            links = re.findall(link_pattern, rss_content)
+            descriptions = re.findall(desc_pattern, rss_content, re.DOTALL)
+            
+            if len(titles) > 1 and len(links) > 1:  # Skip channel title
+                return {
+                    'caption': descriptions[1] if len(descriptions) > 1 else titles[1],
+                    'url': links[1],
+                    'image_url': None,  # RSS biasanya gak ada direct image
+                    'likes': 0,
+                    'comments': 0
+                }
+            return None
+            
+        except Exception as e:
+            logger.logger.error(f"Instagram RSS parsing error: {e}")
+            return None
+    
+    async def parse_instagram_html(self, html_content):
+        """Parse Instagram from HTML scraping sites"""
+        try:
+            import re
+            
+            # Extract post data from HTML
+            caption_pattern = r'<div[^>]*class="[^"]*caption[^"]*"[^>]*>(.*?)</div>'
+            image_pattern = r'<img[^>]*src="([^"]*)"[^>]*alt="[^"]*post[^"]*"'
+            
+            captions = re.findall(caption_pattern, html_content, re.DOTALL | re.IGNORECASE)
+            images = re.findall(image_pattern, html_content, re.IGNORECASE)
+            
+            if captions or images:
+                caption = captions[0] if captions else "Latest post from Secret Number"
+                caption = re.sub(r'<[^>]+>', '', caption).strip()  # Remove HTML tags
+                
+                return {
+                    'caption': caption[:300],  # Limit length
+                    'url': 'https://www.instagram.com/secretnumber.official/',
+                    'image_url': images[0] if images else None,
+                    'likes': 0,
+                    'comments': 0
+                }
+            return None
+            
+        except Exception as e:
+            logger.logger.error(f"Instagram HTML parsing error: {e}")
+            return None
+    
+    async def _create_instagram_fallback(self):
+        """Create fallback Instagram data when scraping fails"""
+        # Try to get screenshot as fallback
+        screenshot_url = await self._get_social_media_screenshot('instagram')
+        
+        return {
+            'caption': '📸 Screenshot terbaru dari Instagram @secretnumber.official',
+            'url': 'https://www.instagram.com/secretnumber.official/',
+            'image_url': screenshot_url,
+            'likes': 0,
+            'comments': 0,
+            'is_screenshot': True
+        }
+    
+    async def _get_social_media_screenshot(self, platform: str):
+        """Get screenshot of social media page as fallback"""
+        try:
+            # Use screenshot API services
+            screenshot_apis = [
+                f"https://api.screenshotmachine.com/?key=YOUR_API_KEY&url=",
+                f"https://htmlcsstoimage.com/demo_run?url=",
+                f"https://api.urlbox.io/v1/YOUR_API_KEY/png?url=",
+                f"https://shot.screenshotapi.net/screenshot?token=YOUR_TOKEN&url="
+            ]
+            
+            platform_urls = {
+                'instagram': 'https://www.instagram.com/secretnumber.official/',
+                'twitter': 'https://twitter.com/5ecretnumber',
+                'tiktok': 'https://www.tiktok.com/@secretnumber.official',
+                'youtube': 'https://www.youtube.com/@SECRETNUMBER_official'
+            }
+            
+            target_url = platform_urls.get(platform)
+            if not target_url:
+                return None
+            
+            # For now, return a placeholder - you'll need to configure API keys
+            # This is the structure for when you add screenshot APIs
+            
+            # Alternative: Use a simple webpage screenshot service
+            simple_screenshot_url = f"https://api.apiflash.com/v1/urltoimage?access_key=YOUR_KEY&url={target_url}&format=png&width=1200&height=800&crop_width=600&crop_height=400"
+            
+            # Try free screenshot services first
+            free_services = [
+                f"https://api.thumbnail.ws/api/YOUR_API_KEY/thumbnail/get?url={target_url}&width=600",
+                f"https://mini.s-shot.ru/1024x768/PNG/1024/Z100/?{target_url}",
+                f"https://www.googleapis.com/pagespeedonline/v5/runPagespeedApi?url={target_url}&screenshot=true"
+            ]
+            
+            async with aiohttp.ClientSession() as session:
+                # Try simple screenshot service (s-shot.ru is free)
+                # Security note: Only use for public social media pages
+                if target_url.startswith(('https://www.instagram.com/', 'https://twitter.com/', 'https://www.tiktok.com/', 'https://www.youtube.com/')):
+                    simple_url = f"https://mini.s-shot.ru/600x400/PNG/600/Z100/?{target_url}"
+                    try:
+                        async with session.get(simple_url, timeout=15) as response:
+                            if response.status == 200:
+                                logger.logger.info(f"✅ Screenshot captured from s-shot.ru for {platform}")
+                                return simple_url
+                    except Exception as e:
+                        logger.logger.warning(f"Free screenshot service failed: {e}")
+                else:
+                    logger.logger.warning(f"⚠️ Screenshot blocked for non-whitelisted URL: {target_url}")
+            
+            # Return None if all services fail
+            return None
+            
+        except Exception as e:
+            logger.logger.error(f"Screenshot capture error: {e}")
             return None
     
     # Helper methods for parsing content data
