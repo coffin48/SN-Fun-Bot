@@ -321,8 +321,11 @@ class BiasDetector:
             
             member_data = self.members[member_name]
             
-            # Calculate compatibility score (10-100%)
-            score = random.randint(10, 100)  # Always positive for fun
+            # Calculate compatibility score (10-100%) - user-specific but consistent per user-member pair
+            import hashlib
+            score_seed = f"{user_id}_{member_name}_score".encode()
+            score_hash = int(hashlib.md5(score_seed).hexdigest(), 16)
+            score = (score_hash % 91) + 10  # Range 10-100, consistent per user-member
             
             # Generate AI prompt for love match with score context
             prompt = self._create_love_match_prompt(user_id, member_data, score)
@@ -334,7 +337,7 @@ class BiasDetector:
                 'member': member_data,
                 'compatibility_score': score,
                 'ai_analysis': ai_response,
-                'match_reasons': self._generate_match_reasons(member_data, score)
+                'match_reasons': self._generate_match_reasons(member_data, score, user_id)
             }
             
             # Cache the result for first-time users or after cache expiry
@@ -452,8 +455,10 @@ Your response:"""
                 f"Oof... {member_data['name']} mungkin butuh kacamata buat bisa notice kamu. Chemistry kalian invisible level! 👓😭"
             ]
         
-        # Select consistent example based on hash
-        selected_example = examples[hash_value % len(examples)]
+        # Select user-specific example based on user_id hash (different from score hash)
+        example_seed = f"{user_id}_{member_data['name']}_example".encode()
+        example_hash = int(hashlib.md5(example_seed).hexdigest(), 16)
+        selected_example = examples[example_hash % len(examples)]
         
         return f"""
         Kamu adalah AI analis kompatibilitas cinta yang brutally honest! Skor kompatibilitas: {compatibility_score}%
@@ -530,29 +535,85 @@ Your response:"""
         logger.warning(f"No member found in AI response '{cleaned_response}', using fallback: {fallback_member}")
         return fallback_member
     
-    def _generate_match_reasons(self, member_data: dict, score: int):
+    def _generate_match_reasons(self, member_data: dict, score: int, user_id: str = None):
         """Generate match reasons based on compatibility score"""
         reasons = []
         
         if score >= 90:
-            reasons.append(f"Harmoni kepribadian yang sempurna sama {member_data['name']}")
-            reasons.append("Alignment kosmik terdeteksi! ✨")
+            reason_options = [
+                f"Harmoni kepribadian yang sempurna sama {member_data['name']}",
+                f"Vibes kosmik kalian dengan {member_data['name']} sync banget!",
+                f"Chemistry level maksimal terdeteksi dengan {member_data['name']}!"
+            ]
+            secondary_options = [
+                "Alignment kosmik terdeteksi! ✨",
+                "Ini mah jodoh dari langit! 👑",
+                "Perfect match energy! 💫"
+            ]
         elif score >= 80:
-            reasons.append(f"Koneksi yang kuat sama energi {member_data['name']}")
-            reasons.append("Potensi kompatibilitas yang kece!")
+            reason_options = [
+                f"Koneksi yang kuat sama energi {member_data['name']}",
+                f"Chemistry yang solid dengan {member_data['name']}",
+                f"Kompatibilitas tinggi sama {member_data['name']} detected!"
+            ]
+            secondary_options = [
+                "Potensi kompatibilitas yang kece!",
+                "Strong connection vibes! 🔥",
+                "High compatibility score! ⭐"
+            ]
         elif score >= 60:
-            reasons.append(f"Chemistry yang manis sama {member_data['name']}")
-            reasons.append("Potensi match yang menggemaskan!")
+            reason_options = [
+                f"Chemistry yang manis sama {member_data['name']}",
+                f"Ada koneksi menarik dengan {member_data['name']}",
+                f"Potensi bagus sama {member_data['name']} nih!"
+            ]
+            secondary_options = [
+                "Potensi match yang menggemaskan!",
+                "Sweet chemistry detected! 🌸",
+                "Promising connection! 💕"
+            ]
         elif score >= 40:
-            reasons.append(f"Ada spark chemistry sama {member_data['name']}")
-            reasons.append("Butuh sedikit effort tapi bisa kok!")
+            reason_options = [
+                f"Ada spark chemistry sama {member_data['name']}",
+                f"Koneksi yang challenging tapi menarik dengan {member_data['name']}",
+                f"Chemistry unik sama {member_data['name']} detected!"
+            ]
+            secondary_options = [
+                "Butuh sedikit effort tapi bisa kok!",
+                "Opposites attract situation! 🎭",
+                "Unique chemistry vibes! ⚡"
+            ]
         else:
-            reasons.append(f"Masih ada harapan sama {member_data['name']}")
-            reasons.append("Inner beauty is the key! 💎")
+            reason_options = [
+                f"Masih ada harapan sama {member_data['name']}",
+                f"Plot twist potential dengan {member_data['name']}",
+                f"Unexpected chemistry dengan {member_data['name']} mungkin?"
+            ]
+            secondary_options = [
+                "Inner beauty is the key! 💎",
+                "Miracle bisa terjadi! 🌟",
+                "Never say never! 🤞"
+            ]
         
-        # Add trait-based reason
-        trait = random.choice(member_data['traits'])
-        reasons.append(f"Kalian berdua punya vibes {trait} yang sama")
+        # Select user-specific reasons if user_id provided
+        if user_id:
+            import hashlib
+            reason_seed = f"{user_id}_{member_data['name']}_reason".encode()
+            reason_hash = int(hashlib.md5(reason_seed).hexdigest(), 16)
+            
+            reasons.append(reason_options[reason_hash % len(reason_options)])
+            reasons.append(secondary_options[(reason_hash + 1) % len(secondary_options)])
+            
+            # Add user-specific trait-based reason
+            trait_hash = int(hashlib.md5(f"{user_id}_{member_data['name']}_trait".encode()).hexdigest(), 16)
+            trait = member_data['traits'][trait_hash % len(member_data['traits'])]
+            reasons.append(f"Kalian berdua punya vibes {trait} yang sama")
+        else:
+            # Fallback to random selection
+            reasons.append(random.choice(reason_options))
+            reasons.append(random.choice(secondary_options))
+            trait = random.choice(member_data['traits'])
+            reasons.append(f"Kalian berdua punya vibes {trait} yang sama")
         
         return reasons
     
