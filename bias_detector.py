@@ -283,108 +283,109 @@ class BiasDetector:
             logger.warning(f"Using fallback member: {fallback}")
             return fallback
     
-    async def love_match(self, user_id: str, member_name: str = None):
-        """AI-powered love compatibility dengan Secret Number member"""
-        try:
-            if not member_name:
-                member_name = await self.detect_bias(user_id)
-            
-            member_name = member_name.lower()
-            logger.info(f"Processing love_match for user {user_id} with member_name: '{member_name}'")
-            
-            # Try exact match first (including full member keys like yuna_itzy)
-            if member_name in self.members:
-                logger.info(f"Found exact match for member_name: '{member_name}'")
-                # Found exact match - proceed directly to love match generation
-            else:
-                logger.info(f"No exact match for '{member_name}', searching similar members")
-                # Find all members with similar names
-                similar_members = self._find_similar_members(member_name)
-                logger.info(f"Similar members found: {similar_members}")
-                
-                if len(similar_members) > 1:
-                    # Multiple matches found, return selection prompt
-                    logger.info(f"Multiple matches ({len(similar_members)}) found for '{member_name}', returning selection prompt")
-                    return self._create_member_selection_prompt(similar_members, member_name, user_id)
-                elif len(similar_members) == 1:
-                    # Single match found
-                    member_name = similar_members[0]
-                    logger.info(f"Found single match for '{member_name}': {similar_members[0]}")
-                else:
-                    # No good match found, use random
-                    member_name = random.choice(list(self.members.keys()))
-                    logger.warning(f"No match for original input, using random: {member_name}")
-            
-            # Check cache for consistent results with 5-cycle system
-            if user_id in self.match_cache and member_name in self.match_cache[user_id]:
-                cached_data = self.match_cache[user_id][member_name]
-                current_cycle = (cached_data['count'] - 1) // 5  # Which 5-cycle we're in (0, 1, 2, ...)
-                cycle_position = (cached_data['count'] - 1) % 5  # Position within current cycle (0-4)
-                
-                if cycle_position < 4:  # Still within current 5-cycle (positions 0-3, need one more)
-                    # Return cached result and increment count
-                    cached_data['count'] += 1
-                    logger.info(f"Returning cached match result for {user_id}-{member_name} (use #{cached_data['count']}, cycle {current_cycle + 1}, position {cycle_position + 2}/5)")
-                    return cached_data['result']
-                else:
-                    # End of 5-cycle, need to generate new result for next cycle
-                    logger.info(f"End of cycle {current_cycle + 1} for {user_id}-{member_name}, generating new result")
-            
-            member_data = self.members[member_name]
-            
-            # Calculate compatibility score based on cycle number for variation
-            import hashlib
-            
-            # Determine current cycle number
-            if user_id in self.match_cache and member_name in self.match_cache[user_id]:
-                current_cycle = self.match_cache[user_id][member_name]['count'] // 5
-            else:
-                current_cycle = 0
-            
-            # Generate score based on user + member + cycle for different results per cycle
-            score_seed = f"{user_id}_{member_name}_cycle_{current_cycle}".encode()
-            score_hash = int(hashlib.md5(score_seed).hexdigest(), 16)
-            score = (score_hash % 91) + 10  # Range 10-100, different per cycle
-            
-            # Generate AI prompt for love match with score context (include cycle for variation)
-            prompt = self._create_love_match_prompt(user_id, member_data, score, current_cycle)
-            
-            # Get AI response
-            ai_response = await self.ai_handler.get_ai_response(prompt)
-            
-            result = {
-                'member': member_data,
-                'compatibility_score': score,
-                'ai_analysis': ai_response,
-                'match_reasons': self._generate_match_reasons(member_data, score, user_id, current_cycle)
+    def love_match(self, user_id: str, member_name: str, force_direct_match: bool = False):
+        """Generate love match result for user and member"""
+        logger.info(f"love_match called: user_id={user_id}, member_name='{member_name}', force_direct_match={force_direct_match}")
+        
+        # If force_direct_match is True, skip multiple choice detection
+        if force_direct_match and member_name in self.members:
+            logger.info(f"Force direct match enabled for: '{member_name}'")
+            similar_members = [member_name]
+        # Check if member_name contains underscore (member key format)
+        elif '_' in member_name and member_name in self.members:
+            logger.info(f"Direct member key detected: '{member_name}'")
+            similar_members = [member_name]
+        else:
+            # Find similar members
+            similar_members = self._find_similar_members(member_name)
+        
+        logger.info(f"Similar members found: {similar_members}")
+        
+        if len(similar_members) == 0:
+            return {
+                'is_selection_prompt': False,
+                'error': f"Member '{member_name}' tidak ditemukan!"
             }
+        elif len(similar_members) == 1:
+            # Single member found, proceed with match
+            selected_member = similar_members[0]
+            logger.info(f"Single member selected: '{selected_member}'")
+        else:
+            # Multiple members found, show selection prompt
+            logger.info(f"Multiple members found ({len(similar_members)}), showing selection prompt")
+            return self._create_member_selection_prompt(similar_members, member_name, user_id)
+        
+        # Check cache for consistent results with 5-cycle system
+        if user_id in self.match_cache and selected_member in self.match_cache[user_id]:
+            cached_data = self.match_cache[user_id][selected_member]
+            current_cycle = (cached_data['count'] - 1) // 5  # Which 5-cycle we're in (0, 1, 2, ...)
+            cycle_position = (cached_data['count'] - 1) % 5  # Position within current cycle (0-4)
             
-            # Cache the result for first-time users or after cache expiry
-            if user_id not in self.match_cache:
-                self.match_cache[user_id] = {}
-            
-            # Update cache with new result and count
-            if member_name not in self.match_cache[user_id]:
-                # First time for this user-member combination
-                self.match_cache[user_id][member_name] = {
-                    'result': result,
-                    'count': 1,
-                    'cycle': 0
-                }
-                logger.info(f"Cached new match result for {user_id}-{member_name} (cycle 1, use 1/5)")
+            if cycle_position < 4:  # Still within current 5-cycle (positions 0-3, need one more)
+                # Return cached result and increment count
+                cached_data['count'] += 1
+                logger.info(f"Returning cached match result for {user_id}-{selected_member} (use #{cached_data['count']}, cycle {current_cycle + 1}, position {cycle_position + 2}/5)")
+                return cached_data['result']
             else:
-                # Update existing cache with new cycle result
-                self.match_cache[user_id][member_name]['result'] = result
-                self.match_cache[user_id][member_name]['count'] += 1
-                new_cycle = (self.match_cache[user_id][member_name]['count'] - 1) // 5
-                self.match_cache[user_id][member_name]['cycle'] = new_cycle
-                logger.info(f"Updated cache for {user_id}-{member_name} (cycle {new_cycle + 1}, use {((self.match_cache[user_id][member_name]['count'] - 1) % 5) + 1}/5)")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Love match error: {e}")
-            return self._fallback_love_match(member_name)
+                # End of 5-cycle, need to generate new result for next cycle
+                logger.info(f"End of cycle {current_cycle + 1} for {user_id}-{selected_member}, generating new result")
+        
+        member_data = self.members[selected_member]
+        
+        # Calculate compatibility score based on cycle number for variation
+        import hashlib
+        
+        # Determine current cycle number
+        if user_id in self.match_cache and selected_member in self.match_cache[user_id]:
+            current_cycle = self.match_cache[user_id][selected_member]['count'] // 5
+        else:
+            current_cycle = 0
+        
+        # Generate score based on user + member + cycle for different results per cycle
+        score_seed = f"{user_id}_{selected_member}_cycle_{current_cycle}".encode()
+        score_hash = int(hashlib.md5(score_seed).hexdigest(), 16)
+        score = (score_hash % 91) + 10  # Range 10-100, different per cycle
+        
+        # Generate AI prompt for love match with score context (include cycle for variation)
+        prompt = self._create_love_match_prompt(user_id, member_data, score, current_cycle)
+        
+        # Get AI response
+        try:
+            ai_response = self.ai_handler.get_ai_response(prompt)
+        except:
+            ai_response = "AI analysis unavailable"
+        
+        result = {
+            'is_selection_prompt': False,
+            'member_name': member_data['name'],
+            'group_name': member_data.get('group', 'Solo Artist'),
+            'score': score,
+            'ai_analysis': ai_response,
+            'match_reasons': self._generate_match_reasons(member_data, score, user_id, current_cycle)
+        }
+        
+        # Cache the result for first-time users or after cache expiry
+        if user_id not in self.match_cache:
+            self.match_cache[user_id] = {}
+        
+        # Update cache with new result and count
+        if selected_member not in self.match_cache[user_id]:
+            # First time for this user-member combination
+            self.match_cache[user_id][selected_member] = {
+                'result': result,
+                'count': 1,
+                'cycle': 0
+            }
+            logger.info(f"Cached new match result for {user_id}-{selected_member} (cycle 1, use 1/5)")
+        else:
+            # Update existing cache with new cycle result
+            self.match_cache[user_id][selected_member]['result'] = result
+            self.match_cache[user_id][selected_member]['count'] += 1
+            new_cycle = (self.match_cache[user_id][selected_member]['count'] - 1) // 5
+            self.match_cache[user_id][selected_member]['cycle'] = new_cycle
+            logger.info(f"Updated cache for {user_id}-{selected_member} (cycle {new_cycle + 1}, use {((self.match_cache[user_id][selected_member]['count'] - 1) % 5) + 1}/5)")
+        
+        return result
     
     async def fortune_teller(self, user_id: str, question_type: str = 'general'):
         """AI fortune teller dengan Secret Number theme"""
