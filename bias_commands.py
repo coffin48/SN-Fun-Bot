@@ -158,7 +158,7 @@ class BiasCommandsHandler:
             member_name_input = args[0].lower()
             group_name_input = ' '.join(args[1:]).lower()
             
-            logger.debug(f"Processing direct group selection: member='{member_name_input}', group='{group_name_input}'")
+            logger.info(f"🎯 Direct selection: '{member_name_input}' from '{group_name_input}'")
             
             # Try to find member by name and group
             direct_match = self.bias_detector._find_member_by_name_and_group(member_name_input, group_name_input)
@@ -193,7 +193,7 @@ class BiasCommandsHandler:
         
         try:
             # Get love match analysis
-            logger.debug(f"Calling love_match with member_name: '{member_name}' for user {user_id}, force_direct: {force_direct}")
+            logger.info(f"💕 Love match analysis: {member_name} for user {user_id}")
             match_result = await self.bias_detector.love_match(user_id, member_name, force_direct_match=force_direct)
             
             # Check if it's a selection prompt (just show info, don't wait for selection)
