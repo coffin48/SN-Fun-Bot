@@ -146,7 +146,23 @@ class BiasCommandsHandler:
     
     async def _handle_love_match(self, ctx, user_id: str, args):
         """Handle !sn bias match command"""
-        member_name = args[0].lower() if args else None
+        if not args:
+            await ctx.send("❌ Sebutkan nama member! Contoh: `!sn match jisoo`")
+            return
+        
+        # Check if user is selecting by number (e.g., "jisoo 2")
+        if len(args) >= 2 and args[1].isdigit():
+            member_name = args[0].lower()
+            selection_number = int(args[1])
+            
+            # Handle member selection by number
+            selected_member = self.bias_detector.handle_member_selection(user_id, member_name, selection_number)
+            if not selected_member:
+                await ctx.send(f"❌ Nomor pilihan tidak valid! Coba lagi dengan nomor yang benar.")
+                return
+            member_name = selected_member
+        else:
+            member_name = args[0].lower()
         
         # Show loading embed
         loading_embed = discord.Embed(
@@ -159,6 +175,18 @@ class BiasCommandsHandler:
         try:
             # Get love match analysis
             match_result = await self.bias_detector.love_match(user_id, member_name)
+            
+            # Check if it's a selection prompt
+            if isinstance(match_result, dict) and match_result.get('is_selection_prompt'):
+                # Create selection embed
+                selection_embed = discord.Embed(
+                    title="🔍 Multiple Members Found",
+                    description=match_result['selection_text'],
+                    color=0xFF69B4
+                )
+                await loading_message.edit(embed=selection_embed)
+                return
+            
             member_data = match_result['member']
             score = match_result['compatibility_score']
             
