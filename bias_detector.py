@@ -809,7 +809,9 @@ Your response:"""
                         group_var == member_group or  # Exact match
                         group_var in member_group or  # Contains
                         member_group.replace(' ', '') == group_var or  # No spaces match
-                        member_group.replace(' ', '').replace('-', '') == group_var  # No spaces/dashes
+                        member_group.replace(' ', '').replace('-', '') == group_var or  # No spaces/dashes
+                        member_group.lower() == group_var.lower() or  # Case insensitive exact
+                        group_var.lower() in member_group.lower()  # Case insensitive contains
                     )
                     
                     if group_match:
