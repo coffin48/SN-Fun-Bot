@@ -283,24 +283,16 @@ class BiasDetector:
             if member_name in self.members:
                 pass  # Found exact match
             else:
-                # Try fuzzy matching for similar names
-                best_match = None
-                best_score = 0
+                # Find all members with similar names
+                similar_members = self._find_similar_members(member_name)
                 
-                for key in self.members.keys():
-                    # Extract just the name part (before underscore if exists)
-                    key_name = key.split('_')[0] if '_' in key else key
-                    
-                    # Simple similarity check
-                    if member_name in key_name or key_name in member_name:
-                        score = len(member_name) / max(len(key_name), len(member_name))
-                        if score > best_score:
-                            best_score = score
-                            best_match = key
-                
-                if best_match and best_score > 0.5:
-                    member_name = best_match
-                    logger.info(f"Fuzzy matched '{member_name}' to '{best_match}'")
+                if len(similar_members) > 1:
+                    # Multiple matches found, return selection prompt
+                    return self._create_member_selection_prompt(similar_members, member_name)
+                elif len(similar_members) == 1:
+                    # Single match found
+                    member_name = similar_members[0]
+                    logger.info(f"Found single match for '{member_name}': {similar_members[0]}")
                 else:
                     # No good match found, use random
                     member_name = random.choice(list(self.members.keys()))
@@ -710,3 +702,61 @@ Your response:"""
     def get_all_members(self):
         """Get all member data"""
         return self.members
+    
+    def _find_similar_members(self, search_name: str):
+        """Find all members with similar names"""
+        similar_members = []
+        search_name = search_name.lower()
+        
+        for member_key, member_data in self.members.items():
+            # Check stage name
+            stage_name = member_data['name'].lower()
+            if search_name in stage_name or stage_name in search_name:
+                similar_members.append(member_key)
+                continue
+            
+            # Check if member_key contains the search term
+            if search_name in member_key or member_key in search_name:
+                similar_members.append(member_key)
+                continue
+                
+            # Check Korean name if available
+            korean_name = member_data.get('korean_name', '').lower()
+            if korean_name and (search_name in korean_name or korean_name in search_name):
+                similar_members.append(member_key)
+        
+        return similar_members
+    
+    def _create_member_selection_prompt(self, similar_members: list, search_name: str):
+        """Create selection prompt when multiple members found"""
+        selection_text = f"🔍 Ditemukan beberapa member dengan nama '{search_name}':\n\n"
+        
+        for i, member_key in enumerate(similar_members[:10], 1):  # Limit to 10 options
+            member_data = self.members[member_key]
+            group_name = member_data.get('group', 'Solo Artist')
+            korean_name = member_data.get('korean_name', '')
+            korean_display = f" ({korean_name})" if korean_name else ""
+            
+            selection_text += f"**{i}.** {member_data['name']}{korean_display} - {group_name}\n"
+        
+        selection_text += f"\n💡 Ketik `!sn match {search_name} [nomor]` untuk memilih!\n"
+        selection_text += f"Contoh: `!sn match {search_name} 1`"
+        
+        return {
+            'is_selection_prompt': True,
+            'selection_text': selection_text,
+            'similar_members': similar_members,
+            'search_name': search_name
+        }
+    
+    def handle_member_selection(self, user_id: str, search_name: str, selection_number: int):
+        """Handle user's member selection by number"""
+        similar_members = self._find_similar_members(search_name)
+        
+        if 1 <= selection_number <= len(similar_members):
+            selected_member = similar_members[selection_number - 1]
+            logger.info(f"User {user_id} selected member #{selection_number}: {selected_member}")
+            return selected_member
+        else:
+            logger.warning(f"Invalid selection number {selection_number} for {search_name}")
+            return None
