@@ -817,6 +817,7 @@ Your response:"""
                     # Clear the pending selection
                     del self.pending_selections[user_id]
                     logger.info(f"Cleared pending selection for user {user_id}")
+                    logger.info(f"Returning selected member: '{selected_member}' (type: {type(selected_member)})")
                     return selected_member
                 else:
                     logger.warning(f"Invalid selection number {selection_number} for pending selection {search_name}")
@@ -825,14 +826,17 @@ Your response:"""
                 logger.warning(f"Search name '{search_name}' doesn't match pending '{pending['search_name']}'")
         else:
             logger.warning(f"No pending selection found for user {user_id}")
+            logger.info(f"Current pending_selections keys: {list(self.pending_selections.keys())}")
         
         # Fallback to fresh search if no pending selection
+        logger.info(f"No pending selection found, doing fresh search for '{search_name}'")
         similar_members = self._find_similar_members(search_name)
+        logger.info(f"Fresh search found {len(similar_members)} members: {similar_members}")
         
         if 1 <= selection_number <= len(similar_members):
             selected_member = similar_members[selection_number - 1]
             logger.info(f"User {user_id} selected member #{selection_number}: {selected_member} from fresh search")
             return selected_member
         else:
-            logger.warning(f"Invalid selection number {selection_number} for {search_name}")
+            logger.warning(f"Invalid selection number {selection_number} for {search_name} (available: 1-{len(similar_members)})")
             return None
