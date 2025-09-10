@@ -13,8 +13,8 @@ class BiasDetector:
         self.ai_handler = ai_handler
         self.kpop_df = kpop_df
         
-        # Cache for consistent match results
-        # Format: {user_id: {member_name: {'result': match_result, 'count': usage_count}}}
+        # Cache for consistent match results with 5-cycle system
+        # Format: {user_id: {member_name: {'result': match_result, 'count': usage_count, 'cycle': cycle_number}}}
         self.match_cache = {}
         
         # Secret Number member data (fallback)
@@ -306,29 +306,39 @@ class BiasDetector:
                     member_name = random.choice(list(self.members.keys()))
                     logger.warning(f"No match for original input, using random: {member_name}")
             
-            # Check cache for consistent results (first 5 uses)
-            cache_key = f"{user_id}_{member_name}"
+            # Check cache for consistent results with 5-cycle system
             if user_id in self.match_cache and member_name in self.match_cache[user_id]:
                 cached_data = self.match_cache[user_id][member_name]
-                if cached_data['count'] < 5:
+                current_cycle = (cached_data['count'] - 1) // 5  # Which 5-cycle we're in (0, 1, 2, ...)
+                cycle_position = (cached_data['count'] - 1) % 5  # Position within current cycle (0-4)
+                
+                if cycle_position < 4:  # Still within current 5-cycle (positions 0-3, need one more)
                     # Return cached result and increment count
                     cached_data['count'] += 1
-                    logger.info(f"Returning cached match result for {user_id}-{member_name} (use #{cached_data['count']}/5)")
+                    logger.info(f"Returning cached match result for {user_id}-{member_name} (use #{cached_data['count']}, cycle {current_cycle + 1}, position {cycle_position + 2}/5)")
                     return cached_data['result']
                 else:
-                    # After 5 uses, generate new result but don't cache it
-                    logger.info(f"Cache limit reached for {user_id}-{member_name}, generating new result")
+                    # End of 5-cycle, need to generate new result for next cycle
+                    logger.info(f"End of cycle {current_cycle + 1} for {user_id}-{member_name}, generating new result")
             
             member_data = self.members[member_name]
             
-            # Calculate compatibility score (10-100%) - user-specific but consistent per user-member pair
+            # Calculate compatibility score based on cycle number for variation
             import hashlib
-            score_seed = f"{user_id}_{member_name}_score".encode()
-            score_hash = int(hashlib.md5(score_seed).hexdigest(), 16)
-            score = (score_hash % 91) + 10  # Range 10-100, consistent per user-member
             
-            # Generate AI prompt for love match with score context
-            prompt = self._create_love_match_prompt(user_id, member_data, score)
+            # Determine current cycle number
+            if user_id in self.match_cache and member_name in self.match_cache[user_id]:
+                current_cycle = self.match_cache[user_id][member_name]['count'] // 5
+            else:
+                current_cycle = 0
+            
+            # Generate score based on user + member + cycle for different results per cycle
+            score_seed = f"{user_id}_{member_name}_cycle_{current_cycle}".encode()
+            score_hash = int(hashlib.md5(score_seed).hexdigest(), 16)
+            score = (score_hash % 91) + 10  # Range 10-100, different per cycle
+            
+            # Generate AI prompt for love match with score context (include cycle for variation)
+            prompt = self._create_love_match_prompt(user_id, member_data, score, current_cycle)
             
             # Get AI response
             ai_response = await self.ai_handler.get_ai_response(prompt)
@@ -337,19 +347,29 @@ class BiasDetector:
                 'member': member_data,
                 'compatibility_score': score,
                 'ai_analysis': ai_response,
-                'match_reasons': self._generate_match_reasons(member_data, score, user_id)
+                'match_reasons': self._generate_match_reasons(member_data, score, user_id, current_cycle)
             }
             
             # Cache the result for first-time users or after cache expiry
             if user_id not in self.match_cache:
                 self.match_cache[user_id] = {}
             
-            if member_name not in self.match_cache[user_id] or self.match_cache[user_id][member_name]['count'] >= 5:
+            # Update cache with new result and count
+            if member_name not in self.match_cache[user_id]:
+                # First time for this user-member combination
                 self.match_cache[user_id][member_name] = {
                     'result': result,
-                    'count': 1
+                    'count': 1,
+                    'cycle': 0
                 }
-                logger.info(f"Cached new match result for {user_id}-{member_name}")
+                logger.info(f"Cached new match result for {user_id}-{member_name} (cycle 1, use 1/5)")
+            else:
+                # Update existing cache with new cycle result
+                self.match_cache[user_id][member_name]['result'] = result
+                self.match_cache[user_id][member_name]['count'] += 1
+                new_cycle = (self.match_cache[user_id][member_name]['count'] - 1) // 5
+                self.match_cache[user_id][member_name]['cycle'] = new_cycle
+                logger.info(f"Updated cache for {user_id}-{member_name} (cycle {new_cycle + 1}, use {((self.match_cache[user_id][member_name]['count'] - 1) % 5) + 1}/5)")
             
             return result
             
@@ -412,7 +432,7 @@ Example valid responses: "iu", "jimin_bts", "taeyeon_girls_generation"
 
 Your response:"""
     
-    def _create_love_match_prompt(self, user_id: str, member_data: dict, compatibility_score: int):
+    def _create_love_match_prompt(self, user_id: str, member_data: dict, compatibility_score: int, cycle: int = 0):
         """Create AI prompt for love compatibility based on score"""
         import random
         import hashlib
@@ -455,8 +475,8 @@ Your response:"""
                 f"Oof... {member_data['name']} mungkin butuh kacamata buat bisa notice kamu. Chemistry kalian invisible level! 👓😭"
             ]
         
-        # Select user-specific example based on user_id hash (different from score hash)
-        example_seed = f"{user_id}_{member_data['name']}_example".encode()
+        # Select user-specific example based on user_id + cycle hash for variation per cycle
+        example_seed = f"{user_id}_{member_data['name']}_cycle_{cycle}_example".encode()
         example_hash = int(hashlib.md5(example_seed).hexdigest(), 16)
         selected_example = examples[example_hash % len(examples)]
         
@@ -535,7 +555,7 @@ Your response:"""
         logger.warning(f"No member found in AI response '{cleaned_response}', using fallback: {fallback_member}")
         return fallback_member
     
-    def _generate_match_reasons(self, member_data: dict, score: int, user_id: str = None):
+    def _generate_match_reasons(self, member_data: dict, score: int, user_id: str = None, cycle: int = 0):
         """Generate match reasons based on compatibility score"""
         reasons = []
         
@@ -595,17 +615,17 @@ Your response:"""
                 "Never say never! 🤞"
             ]
         
-        # Select user-specific reasons if user_id provided
+        # Select user-specific reasons if user_id provided (include cycle for variation)
         if user_id:
             import hashlib
-            reason_seed = f"{user_id}_{member_data['name']}_reason".encode()
+            reason_seed = f"{user_id}_{member_data['name']}_cycle_{cycle}_reason".encode()
             reason_hash = int(hashlib.md5(reason_seed).hexdigest(), 16)
             
             reasons.append(reason_options[reason_hash % len(reason_options)])
             reasons.append(secondary_options[(reason_hash + 1) % len(secondary_options)])
             
-            # Add user-specific trait-based reason
-            trait_hash = int(hashlib.md5(f"{user_id}_{member_data['name']}_trait".encode()).hexdigest(), 16)
+            # Add user-specific trait-based reason (also cycle-dependent)
+            trait_hash = int(hashlib.md5(f"{user_id}_{member_data['name']}_cycle_{cycle}_trait".encode()).hexdigest(), 16)
             trait = member_data['traits'][trait_hash % len(member_data['traits'])]
             reasons.append(f"Kalian berdua punya vibes {trait} yang sama")
         else:
