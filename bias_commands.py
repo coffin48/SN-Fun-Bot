@@ -189,12 +189,15 @@ class BiasCommandsHandler:
             if direct_match:
                 member_name = direct_match
                 logger.info(f"Found direct match: '{member_name}' for '{member_name_input}' from '{group_name_input}'")
+                # Set flag to force direct match and bypass multiple choice
+                force_direct = True
             else:
                 await ctx.send(f"❌ Tidak ditemukan member '{member_name_input}' dari grup '{group_name_input}'!\n💡 Coba: `!sn match {member_name_input}` untuk melihat pilihan yang tersedia.")
                 return
         
         else:
             member_name = args[0].lower()
+            force_direct = False
             
             # Validate member name is not just a number
             if member_name.isdigit():
@@ -211,8 +214,8 @@ class BiasCommandsHandler:
         
         try:
             # Get love match analysis
-            logger.info(f"Calling love_match with member_name: '{member_name}' for user {user_id}")
-            match_result = await self.bias_detector.love_match(user_id, member_name)
+            logger.info(f"Calling love_match with member_name: '{member_name}' for user {user_id}, force_direct: {force_direct}")
+            match_result = self.bias_detector.love_match(user_id, member_name, force_direct_match=force_direct)
             logger.info(f"love_match returned: {type(match_result)} - {match_result.get('is_selection_prompt', 'not selection prompt')}")
             
             # Check if it's a selection prompt
@@ -226,25 +229,26 @@ class BiasCommandsHandler:
                 await loading_message.edit(embed=selection_embed)
                 return
             
-            member_data = match_result['member']
-            score = match_result['compatibility_score']
+            member_name_display = match_result['member_name']
+            group_name_display = match_result['group_name']
+            score = match_result['score']
             
             # Create compatibility embed
             compatibility_embed = discord.Embed(
-                title=f"💖 Chemistry Kalian: Kamu & {member_data['name']}",
+                title=f"💖 Chemistry Kalian: Kamu & {member_name_display}",
                 description=f"**Skor Kecocokan: {score}%** {self._get_score_emoji(score)} - Wah mantap nih! 🥳",
-                color=member_data['color']
+                color=0xFF69B4
             )
             
             compatibility_embed.add_field(
-                name=f"{member_data['emoji']} Si Doi Kamu",
-                value=f"**{member_data['name']}** ({member_data.get('korean_name', '')})\n{member_data['position']}",
+                name=f"💫 Si Doi Kamu",
+                value=f"**{member_name_display}** dari **{group_name_display}**",
                 inline=True
             )
             
             compatibility_embed.add_field(
                 name="🔥 Level Kecocokan",
-                value=self._get_compatibility_level(score, user_id, member_data['name']),
+                value=self._get_compatibility_level(score, user_id, member_name_display),
                 inline=True
             )
             
