@@ -158,17 +158,29 @@ class BiasCommandsHandler:
             member_name_input = args[0].lower()
             group_name_input = ' '.join(args[1:]).lower()
             
-            logger.info(f"Processing direct group selection: member='{member_name_input}', group='{group_name_input}'")
+            logger.info(f"🔍 Processing direct group selection: member='{member_name_input}', group='{group_name_input}'")
+            logger.info(f"📝 Raw args: {args}")
+            logger.info(f"📝 Args length: {len(args)}")
             
             # Try to find member by name and group
             direct_match = self.bias_detector._find_member_by_name_and_group(member_name_input, group_name_input)
             
             if direct_match:
                 member_name = direct_match
-                logger.info(f"Found direct match: '{member_name}' for '{member_name_input}' from '{group_name_input}'")
+                logger.info(f"✅ Found direct match: '{member_name}' for '{member_name_input}' from '{group_name_input}'")
                 # Set flag to force direct match and bypass multiple choice
                 force_direct = True
             else:
+                logger.warning(f"❌ Direct match failed for '{member_name_input}' from '{group_name_input}'")
+                
+                # Debug: Show available members with similar names
+                similar_members = self.bias_detector._find_similar_members(member_name_input)
+                logger.info(f"🔍 Available similar members: {similar_members}")
+                
+                for member_key in similar_members:
+                    member_data = self.bias_detector.members[member_key]
+                    logger.info(f"   • {member_data['name']} from {member_data['group']} (key: {member_key})")
+                
                 await ctx.send(f"❌ Tidak ditemukan member '{member_name_input}' dari grup '{group_name_input}'!\n💡 Coba: `!sn match {member_name_input}` untuk melihat pilihan yang tersedia.")
                 return
         
