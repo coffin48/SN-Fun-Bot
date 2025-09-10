@@ -565,7 +565,7 @@ class BiasDetector:
             Buat analisis yang fun dan personal dalam bahasa Indonesia yang cute.
             """
             
-            ai_analysis = await self.ai_handler.generate_response(ai_prompt)
+            ai_analysis = await self.ai_handler.get_ai_response(ai_prompt)
             
             bias_result = {
                 'member_name': member_data['name'],
@@ -624,7 +624,7 @@ class BiasDetector:
             Panjang sekitar 2-3 kalimat.
             """
             
-            fortune_text = await self.ai_handler.generate_response(ai_prompt)
+            fortune_text = await self.ai_handler.get_ai_response(ai_prompt)
             
             fortune_result = {
                 'fortune': fortune_text,
@@ -645,3 +645,48 @@ class BiasDetector:
             return {
                 'error': 'Fortune reading gagal, coba lagi ya! 🔮'
             }
+    
+    def get_member_info(self, member_name: str):
+        """Get member information by name"""
+        logger.debug(f"Getting member info for: {member_name}")
+        
+        # Search in full K-pop database first
+        if self.members:
+            for member_key, member_data in self.members.items():
+                if (member_data['name'].lower() == member_name.lower() or
+                    member_data.get('korean_name', '').lower() == member_name.lower() or
+                    member_key.lower() == member_name.lower()):
+                    logger.debug(f"Found member in database: {member_data['name']}")
+                    return member_data
+        
+        # Fallback to Secret Number members
+        for member_key, member_data in self.sn_members.items():
+            if (member_data['name'].lower() == member_name.lower() or
+                member_data.get('korean_name', '').lower() == member_name.lower() or
+                member_key.lower() == member_name.lower()):
+                logger.debug(f"Found member in SN fallback: {member_data['name']}")
+                return member_data
+        
+        logger.warning(f"Member not found: {member_name}")
+        return None
+    
+    def _create_bias_detection_prompt(self, member_data: dict, user_preferences: dict = None):
+        """Create AI prompt for bias detection"""
+        member_name = member_data['name']
+        group_name = member_data.get('group', 'Secret Number')
+        personality = member_data.get('personality', 'Talented and charming K-pop idol')
+        
+        prompt = f"""
+        Analisis mengapa {member_name} dari {group_name} cocok sebagai bias untuk user ini.
+        
+        Informasi member:
+        - Nama: {member_name}
+        - Group: {group_name}
+        - Kepribadian: {personality}
+        
+        Buat analisis yang fun, personal, dan encouraging dalam bahasa Indonesia yang cute.
+        Jelaskan mengapa member ini perfect match sebagai bias.
+        Panjang sekitar 2-3 kalimat yang sweet dan engaging.
+        """
+        
+        return prompt
