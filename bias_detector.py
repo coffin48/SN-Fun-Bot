@@ -782,7 +782,7 @@ Your response:"""
         member_name = member_name.lower().strip()
         group_name = group_name.lower().strip()
         
-        logger.info(f"Searching for member: '{member_name}' in group: '{group_name}'")
+        logger.info(f"🔍 _find_member_by_name_and_group: Searching for member: '{member_name}' in group: '{group_name}'")
         
         # Clean group name variations
         group_variations = [
@@ -791,6 +791,8 @@ Your response:"""
             group_name.replace('-', ''),
             group_name.replace('&', 'and')
         ]
+        
+        logger.info(f"📝 Group variations to test: {group_variations}")
         
         for member_key, member_data in self.members.items():
             stage_name = member_data['name'].lower()
