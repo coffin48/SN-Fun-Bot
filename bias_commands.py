@@ -150,10 +150,20 @@ class BiasCommandsHandler:
             await ctx.send("❌ Sebutkan nama member! Contoh: `!sn match jisoo`")
             return
         
+        # Check if first argument is just a number (invalid input)
+        if len(args) == 1 and args[0].isdigit():
+            await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member>` atau `!sn match <nama_member> <nomor>`")
+            return
+        
         # Check if user is selecting by number (e.g., "jisoo 2")
         if len(args) >= 2 and args[1].isdigit():
             member_name = args[0].lower()
             selection_number = int(args[1])
+            
+            # Validate member name is not just a number
+            if member_name.isdigit():
+                await ctx.send("❌ Format salah! Gunakan: `!sn match <nama_member> <nomor>`")
+                return
             
             # Handle member selection by number
             selected_member = self.bias_detector.handle_member_selection(user_id, member_name, selection_number)
@@ -163,6 +173,11 @@ class BiasCommandsHandler:
             member_name = selected_member
         else:
             member_name = args[0].lower()
+            
+            # Validate member name is not just a number
+            if member_name.isdigit():
+                await ctx.send("❌ Nama member tidak boleh hanya angka! Contoh: `!sn match jisoo`")
+                return
         
         # Show loading embed
         loading_embed = discord.Embed(
