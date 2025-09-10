@@ -285,7 +285,7 @@ class BiasDetector:
             
             member_name = member_name.lower()
             
-            # Try exact match first
+            # Try exact match first (including full member keys like yuna_itzy)
             if member_name in self.members:
                 pass  # Found exact match
             else:
