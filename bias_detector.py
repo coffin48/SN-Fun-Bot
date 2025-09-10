@@ -143,7 +143,8 @@ class BiasDetector:
     
     def _create_member_key(self, stage_name, group):
         """Create unique key for member"""
-        return f"{stage_name.lower().replace(' ', '_')}_{group.lower().replace(' ', '_')}"
+        # Use only stage name for key to avoid confusion
+        return stage_name.lower().replace(' ', '_')
     
     def _generate_member_traits(self, row):
         """Generate personality traits based on member data"""
@@ -269,8 +270,33 @@ class BiasDetector:
                 member_name = await self.detect_bias(user_id)
             
             member_name = member_name.lower()
-            if member_name not in self.members:
-                member_name = random.choice(list(self.members.keys()))
+            
+            # Try exact match first
+            if member_name in self.members:
+                pass  # Found exact match
+            else:
+                # Try fuzzy matching for similar names
+                best_match = None
+                best_score = 0
+                
+                for key in self.members.keys():
+                    # Extract just the name part (before underscore if exists)
+                    key_name = key.split('_')[0] if '_' in key else key
+                    
+                    # Simple similarity check
+                    if member_name in key_name or key_name in member_name:
+                        score = len(member_name) / max(len(key_name), len(member_name))
+                        if score > best_score:
+                            best_score = score
+                            best_match = key
+                
+                if best_match and best_score > 0.5:
+                    member_name = best_match
+                    logger.info(f"Fuzzy matched '{member_name}' to '{best_match}'")
+                else:
+                    # No good match found, use random
+                    member_name = random.choice(list(self.members.keys()))
+                    logger.warning(f"No match for original input, using random: {member_name}")
             
             member_data = self.members[member_name]
             
