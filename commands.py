@@ -11,7 +11,14 @@ from ai_handler import AIHandler
 from data_fetcher import DataFetcher
 from analytics import analytics
 from social_media_commands import SocialMediaCommandsHandler
-from bias_commands import BiasCommandsHandler
+# Conditional import for bias commands to avoid startup errors
+try:
+    from bias_commands import BiasCommandsHandler
+    BIAS_COMMANDS_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Bias commands not available: {e}")
+    BIAS_COMMANDS_AVAILABLE = False
+    BiasCommandsHandler = None
 
 class CommandsHandler:
     def __init__(self, bot_core):
@@ -29,12 +36,22 @@ class CommandsHandler:
         # Initialize social media commands handler
         self.social_media_handler = SocialMediaCommandsHandler(self.social_monitor)
         
-        # Initialize bias detector first
-        from bias_detector import BiasDetector
-        self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
+        # Initialize bias detector and commands handler with error handling
+        self.bias_detector = None
+        self.bias_handler = None
         
-        # Initialize bias commands handler
-        self.bias_handler = BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
+        if BIAS_COMMANDS_AVAILABLE:
+            try:
+                from bias_detector import BiasDetector
+                self.bias_detector = BiasDetector(self.ai_handler, self.kpop_df)
+                self.bias_handler = BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
+                logger.info("✅ Bias commands initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize bias commands: {e}")
+                self.bias_detector = None
+                self.bias_handler = None
+        else:
+            logger.warning("⚠️ Bias commands disabled due to import errors")
         
         # Conversation memory untuk obrolan santai (per user)
         self.conversation_memory = {}  # {user_id: [messages]}
@@ -96,9 +113,12 @@ class CommandsHandler:
                         await self._handle_monitor_command(ctx, action, platform)
                         return
                     
-                    # Bias detector commands
+                    # Bias detector commands (with availability check)
                     if user_input.lower().startswith(("bias", "match", "fortune", "ramalan")):
-                        await self.bias_handler.handle_bias_command(ctx, user_input)
+                        if self.bias_handler:
+                            await self.bias_handler.handle_bias_command(ctx, user_input)
+                        else:
+                            await ctx.send("⚠️ Bias commands sedang tidak tersedia. Coba command lain ya!")
                         return
                     
                     # Social media commands
