@@ -136,9 +136,14 @@ class BiasCommandsHandler:
                 inline=True
             )
             
+            # Truncate AI analysis to fit Discord limits (max 1024 characters)
+            ai_analysis = bias_result.get('ai_analysis', 'Kalian cocok banget! 💕')
+            if len(ai_analysis) > 1000:  # Leave some buffer
+                ai_analysis = ai_analysis[:997] + "..."
+            
             result_embed.add_field(
                 name="✨ AI Analysis",
-                value=bias_result.get('ai_analysis', 'Kalian cocok banget! 💕'),
+                value=ai_analysis,
                 inline=False
             )
             
