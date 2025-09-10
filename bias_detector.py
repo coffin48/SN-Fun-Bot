@@ -737,6 +737,7 @@ Your response:"""
         for member_key, member_data in self.members.items():
             # Check stage name - prioritize exact match, then starts with, then contains
             stage_name = member_data['name'].lower()
+            group_name = member_data.get('group', '').lower()
             
             # Exact match (highest priority)
             if search_name == stage_name:
@@ -767,6 +768,33 @@ Your response:"""
         logger.info(f"Found {len(similar_members)} similar members for '{search_name}': {similar_members}")
         return similar_members
     
+    def _find_member_by_name_and_group(self, member_name: str, group_name: str):
+        """Find specific member by name and group"""
+        member_name = member_name.lower().strip()
+        group_name = group_name.lower().strip()
+        
+        # Clean group name variations
+        group_variations = [
+            group_name,
+            group_name.replace(' ', ''),
+            group_name.replace('-', ''),
+            group_name.replace('&', 'and')
+        ]
+        
+        for member_key, member_data in self.members.items():
+            stage_name = member_data['name'].lower()
+            member_group = member_data.get('group', '').lower()
+            
+            # Check if member name matches
+            if member_name == stage_name or stage_name.startswith(member_name):
+                # Check if group matches any variation
+                for group_var in group_variations:
+                    if group_var in member_group or member_group.replace(' ', '') == group_var:
+                        logger.info(f"Found direct match: {member_key} for '{member_name}' from '{group_name}'")
+                        return member_key
+        
+        return None
+    
     def _create_member_selection_prompt(self, similar_members: list, search_name: str, user_id: str):
         """Create selection prompt when multiple members found"""
         selection_text = f"🔍 Ditemukan beberapa member dengan nama '{search_name}':\n\n"
@@ -779,8 +807,9 @@ Your response:"""
             
             selection_text += f"**{i}.** {member_data['name']}{korean_display} - {group_name}\n"
         
-        selection_text += f"\n💡 Ketik `!sn match {search_name} [nomor]` untuk memilih!\n"
-        selection_text += f"Contoh: `!sn match {search_name} 1`"
+        selection_text += f"\n💡 **Cara memilih:**\n"
+        selection_text += f"• `!sn match {search_name} [nomor]` - Contoh: `!sn match {search_name} 1`\n"
+        selection_text += f"• `!sn match {search_name} [grup]` - Contoh: `!sn match {search_name} blackpink`"
         
         # Store pending selection for this user
         self.pending_selections[user_id] = {
