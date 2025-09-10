@@ -171,6 +171,7 @@ class BiasCommandsHandler:
                 await ctx.send(f"❌ Nomor pilihan tidak valid! Coba lagi dengan nomor yang benar.")
                 return
             member_name = selected_member
+            logger.info(f"User {user_id} selected member: {member_name} from selection")
         else:
             member_name = args[0].lower()
             
