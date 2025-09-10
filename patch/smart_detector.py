@@ -506,7 +506,7 @@ class SmartKPopDetector:
                 if len(member_data) == 1:
                     # Hanya satu member dengan nama ini
                     member_name, idx = member_data[0]
-                    logging.debug(f"✅ Single member fallback: {member_name}")
+                    logger.debug(f"✅ Single member fallback: {member_name}")
                     return "MEMBER", member_name, []
                 else:
                     # Multiple members dengan nama yang sama
@@ -515,7 +515,7 @@ class SmartKPopDetector:
                         member_row = self.kpop_df.iloc[idx]
                         member_group = str(member_row.get('Group', '')).strip()
                         multiple_matches.append((f"{member_name} ({member_group})", "MEMBER"))
-                    logging.debug(f"✅ Multiple member matches: {multiple_matches}")
+                    logger.debug(f"✅ Multiple member matches: {multiple_matches}")
                     return "MULTIPLE", word_lower, multiple_matches
         
         # Cek apakah ada grup dengan nama yang cocok
@@ -524,10 +524,10 @@ class SmartKPopDetector:
             if word_lower in self.group_names:
                 group_data = self.group_names[word_lower]
                 group_name = group_data[0][0]
-                logging.debug(f"✅ Group fallback: {group_name}")
+                logger.debug(f"✅ Group fallback: {group_name}")
                 return "GROUP", group_name, []
         
-        logging.debug("❌ No matches found in _detect_member_group")
+        logger.debug("❌ No matches found in _detect_member_group")
         return None
     
     def _check_aliases(self, input_lower):
