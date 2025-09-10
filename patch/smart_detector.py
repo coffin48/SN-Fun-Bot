@@ -3,6 +3,13 @@ from rapidfuzz import fuzz
 from patch.stopwordlist import STOPWORDS
 import re
 
+# Import logger at module level to avoid circular imports
+try:
+    from logger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
 class SmartKPopDetector:
     def __init__(self, kpop_df, threshold=85):
         self.threshold = threshold
@@ -120,18 +127,28 @@ class SmartKPopDetector:
         """
         # Check additional groups first
         input_lower = user_input.lower().strip()
-        logger.debug(f"🔍 Checking additional_groups for '{input_lower}'")
-        logger.debug(f"📋 Available additional_groups: {list(self.additional_groups.keys())}")
+        try:
+            logger.debug(f"🔍 Checking additional_groups for '{input_lower}'")
+            logger.debug(f"📋 Available additional_groups: {list(self.additional_groups.keys())}")
+        except:
+            pass  # Skip debug if logger not available
+        
         if input_lower in self.additional_groups:
-            logger.debug(f"✅ Found in additional_groups: {self.additional_groups[input_lower]}")
+            try:
+                logger.debug(f"✅ Found in additional_groups: {self.additional_groups[input_lower]}")
+            except:
+                pass
             return "GROUP", self.additional_groups[input_lower], []
+        
         input_norm = user_input.strip()
         input_lower = input_norm.lower()
         
         # Debug logging
-        from logger import logger
-        logger.debug(f"🔍 Detecting: '{input_norm}' (lower: '{input_lower}')")
-        logger.debug(f"📊 Priority names contains '{input_lower}': {input_lower in self.priority_kpop_names}")
+        try:
+            logger.debug(f"🔍 Detecting: '{input_norm}' (lower: '{input_lower}')")
+            logger.debug(f"📊 Priority names contains '{input_lower}': {input_lower in self.priority_kpop_names}")
+        except:
+            pass  # Skip debug if logger not available
         
         # Context-aware transition detection
         if conversation_context:
