@@ -473,48 +473,62 @@ class CommandsHandler:
                 summary = summary[:1900] + "..."
             
             # Cache response untuk 1 jam
-            self.redis_client.setex(cache_key, 3600, summary)
-            logger.log_cache_set("CASUAL", user_input[:30])
+            from logger import log_cache_set
+            log_cache_set("CASUAL", user_input[:30])
+            self.redis_client.setex(cache_key, 3600, summary)  # 1 hour cache
             
-            # Kirim dengan chunked message untuk safety
+            # Kirim response
             await self._send_chunked_message(ctx, summary)
             
+            # Tambahkan ke conversation memory
+            self._add_to_memory(user_id, "user", user_input)
+            self._add_to_memory(user_id, "assistant", summary)
+            
         except Exception as e:
-            logger.log_error("CASUAL_CONV", str(e), user_input)
-            await ctx.send("Maaf, ada masalah teknis. Coba lagi nanti ya! 😅")
+            from logger import log_error
+            log_error("CASUAL_CONV", str(e), user_input)
+            await ctx.send("Maaf, ada kesalahan saat memproses pesan Anda. Coba lagi nanti ya! 😢")
+        finally:
+            # Selalu hapus message ID dari processing set
+            if message_id in self.processing_messages:
+                self.processing_messages.remove(message_id)
     
     async def _handle_recommendation_request(self, ctx, user_input):
         """Handle request rekomendasi - langsung AI tanpa cache"""
         try:
             start_time = time.time()
-            logger.log_ai_request("RECOMMENDATION", len(user_input))
+            from logger import log_ai_request, log_ai_response
+            log_ai_request("RECOMMENDATION", len(user_input))
             
             # Langsung AI response dengan max_tokens terbatas
             summary = await self.ai_handler.chat_async(user_input, max_tokens=1500, category="REKOMENDASI")
             ai_duration = int((time.time() - start_time) * 1000)
-            logger.log_ai_response("RECOMMENDATION", len(summary) if summary else 0, ai_duration)
+            log_ai_response("RECOMMENDATION", len(summary) if summary else 0, ai_duration)
             
             # Kirim dalam chunks untuk menghindari Discord limit
             await self._send_chunked_message(ctx, summary)
             
         except Exception as e:
-            logger.log_error("RECOMMENDATION", str(e), user_input)
+            from logger import log_error
+            log_error("RECOMMENDATION", str(e), user_input)
             await ctx.send("Maaf, ada masalah dalam memberikan rekomendasi. Coba lagi nanti ya! 😅")
     
     async def _handle_general_query(self, ctx, user_input):
         """Handle general queries"""
         try:
             start_time = time.time()
-            logger.log_ai_request("GENERAL", len(user_input))
+            from logger import log_ai_request, log_ai_response
+            log_ai_request("GENERAL", len(user_input))
             
             summary = await self.ai_handler.handle_general_query(user_input)
             ai_duration = int((time.time() - start_time) * 1000)
-            logger.log_ai_response("GENERAL", len(summary) if summary else 0, ai_duration)
+            log_ai_response("GENERAL", len(summary) if summary else 0, ai_duration)
             
             await ctx.send(summary)
             
         except Exception as e:
-            logger.log_error("GENERAL_QUERY", str(e), user_input)
+            from logger import log_error
+            log_error("GENERAL_QUERY", str(e), user_input)
             await ctx.send(f"Gagal memproses query: {e}")
     
     async def _handle_help_command(self, ctx):
