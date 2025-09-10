@@ -692,7 +692,7 @@ class BiasCommandsHandler:
         # Create consistent hash for user-member combination
         cache_key = f"{user_id}:{member_name}"
         
-        if score >= 95:
+        if score >= 90:
             messages = [
                 "**Astaga! Kalian tuh literally jodoh dari planet lain!** 💯✨",
                 "**OMG! Chemistry kalian bikin iri malaikat!** 💯🔥", 
@@ -700,7 +700,7 @@ class BiasCommandsHandler:
                 "**Wah! Ini mah chemistry level dewa-dewi!** 💯🌟",
                 "**Gila sih! Kalian tuh made for each other banget!** 💯💎"
             ]
-        elif score >= 90:
+        elif score >= 70:
             messages = [
                 "**Soulmate level detected! Ini mah takdir!** 🔥💫",
                 "**Wah, vibes kalian tuh harmonis banget kayak lagu ballad!** 🔥🎵",
@@ -708,45 +708,29 @@ class BiasCommandsHandler:
                 "**Mantap! Kalian tuh power couple sejati!** 🔥👑",
                 "**Epic match! Kayak main character di webtoon!** 🔥📚"
             ]
-        elif score >= 80:
+        elif score >= 50:
             messages = [
-                "**Chemistry kalian kece badai! Bikin thunder!** 💖⚡",
-                "**Cocok banget! Kayak peanut butter sama jelly!** 💖🥜",
-                "**Mantap jiwa! Kalian tuh couple goals banget!** 💖👑",
-                "**Wah seru! Vibes kalian tuh aesthetic banget!** 💖🎨",
-                "**Chemistry solid! Kayak duo superhero!** 💖🦸‍♂️"
-            ]
-        elif score >= 70:
-            messages = [
-                "**Potensi gede banget! Tinggal poles dikit lagi!** 💕✨",
-                "**Lumayan oke nih! Ada chemistry yang promising!** 💕🌟",
-                "**Not bad! Kalian bisa jadi power couple!** 💕💪",
-                "**Oke lah! Tinggal upgrade skill komunikasi!** 💕📱",
+                "**Chemistry kalian lumayan oke! Ada potensi nih!** 💕⚡",
+                "**Not bad! Kalian bisa jadi power couple!** 💕🥜",
+                "**Mantap jiwa! Tinggal upgrade skill komunikasi!** 💕👑",
+                "**Wah seru! Vibes kalian ada chemistry!** 💕🎨",
                 "**Bagus! Chemistry kalian ada progress nih!** 💕📈"
             ]
-        elif score >= 60:
+        elif score >= 40:
             messages = [
-                "**Wajahmu udah cukup tampan, mungkin dompetmu yang perlu di-upgrade** 💸😅",
-                "**Secara fisik oke, tapi mungkin skill flirting-nya yang kurang** 💸🤭",
+                "**Hmm, butuh effort lebih nih buat chemistry!** 💸😅",
+                "**Secara fisik oke, tapi mungkin skill flirting kurang** 💸🤭",
                 "**Lumayan lah, cuma butuh sedikit magic dan duit lebih** 💸✨",
                 "**Hmm, mungkin perlu invest di skincare premium** 💸🧴",
                 "**Oke sih, tapi kayaknya butuh glow up budget** 💸💄"
             ]
-        elif score >= 40:
+        elif score >= 30:
             messages = [
                 "**Ayo semangat! Rome wasn't built in a day!** 💪✨",
                 "**Jangan nyerah! Setiap expert pernah jadi beginner!** 💪🌱",
                 "**Keep fighting! Plot twist bisa datang kapan aja!** 💪🎬",
                 "**Sabar ya! Character development butuh waktu!** 💪⏰",
                 "**Tetep optimis! Main character energy!** 💪🌟"
-            ]
-        elif score >= 20:
-            messages = [
-                "**Hmm... mungkin perlu konsultasi sama beauty guru dulu** 😂💄",
-                "**Kayaknya butuh glow up session yang intense nih** 😂✨",
-                "**Sabar ya, everyone has their own timeline** 😂⏰",
-                "**Mungkin saatnya belajar dari tutorial YouTube** 😂📺",
-                "**Oke, time for major character development!** 😂📖"
             ]
         else:
             messages = [
