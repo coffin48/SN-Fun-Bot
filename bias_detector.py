@@ -535,3 +535,113 @@ class BiasDetector:
         else:
             logger.warning(f"Invalid selection number {selection_number} for {search_name} (available: 1-{len(similar_members)})")
             return None
+    
+    async def bias_detect(self, user_id: str, preferences: dict = None):
+        """Detect user's K-pop bias based on preferences"""
+        logger.info(f"🔍 Starting bias detection for user {user_id}")
+        
+        try:
+            # Get random member from database or fallback to SN members
+            if self.members:
+                # Use full K-pop database
+                available_members = list(self.members.keys())
+                selected_key = random.choice(available_members)
+                member_data = self.members[selected_key]
+            else:
+                # Fallback to Secret Number members
+                available_members = list(self.sn_members.keys())
+                selected_key = random.choice(available_members)
+                member_data = self.sn_members[selected_key]
+            
+            # Generate user-specific compatibility score
+            score_seed = f"{user_id}_bias_detect_{selected_key}"
+            compatibility_score = 75 + (hash(score_seed) % 25)  # 75-99%
+            
+            # Generate AI analysis
+            ai_prompt = f"""
+            Analisis mengapa {member_data['name']} cocok sebagai bias untuk user ini.
+            Skor kompatibilitas: {compatibility_score}%
+            
+            Buat analisis yang fun dan personal dalam bahasa Indonesia yang cute.
+            """
+            
+            ai_analysis = await self.ai_handler.generate_response(ai_prompt)
+            
+            bias_result = {
+                'member_name': member_data['name'],
+                'group_name': member_data.get('group', 'Secret Number'),
+                'compatibility_score': compatibility_score,
+                'ai_analysis': ai_analysis,
+                'member_traits': member_data.get('traits', ['charming', 'talented', 'beautiful']),
+                'reason': f"Kepribadian kamu sangat cocok dengan vibe {member_data['name']}! ✨"
+            }
+            
+            logger.info(f"✅ Bias detection completed for user {user_id}: {member_data['name']}")
+            return bias_result
+            
+        except Exception as e:
+            logger.error(f"❌ Bias detection error for user {user_id}: {e}")
+            return {
+                'error': 'Bias detection gagal, coba lagi ya! 💕'
+            }
+    
+    async def fortune_teller(self, user_id: str, fortune_type: str = 'general'):
+        """Generate fortune reading for user"""
+        logger.info(f"🔮 Starting fortune reading for user {user_id}, type: {fortune_type}")
+        
+        try:
+            # Get random guide member
+            if self.members:
+                available_members = list(self.members.keys())
+                guide_key = random.choice(available_members)
+                guide_member = self.members[guide_key]
+            else:
+                available_members = list(self.sn_members.keys())
+                guide_key = random.choice(available_members)
+                guide_member = self.sn_members[guide_key]
+            
+            # Generate user-specific fortune elements
+            fortune_seed = f"{user_id}_fortune_{fortune_type}"
+            lucky_number = 1 + (hash(fortune_seed) % 99)
+            
+            # Fortune colors
+            fortune_colors = [0xFF69B4, 0x87CEEB, 0x98FB98, 0xDDA0DD, 0xF0E68C, 0xFFB6C1]
+            lucky_color = fortune_colors[hash(fortune_seed + "_color") % len(fortune_colors)]
+            
+            # Generate fortune based on type
+            fortune_prompts = {
+                'love': f"Ramalan cinta untuk hari ini. {guide_member['name']} lagi bantuin ramalin nasib cinta kamu!",
+                'career': f"Ramalan karir dan kesuksesan. {guide_member['name']} punya insight tentang masa depan kamu!",
+                'friendship': f"Ramalan persahabatan dan hubungan sosial. {guide_member['name']} tau gimana cara bikin friendship kamu makin solid!",
+                'general': f"Ramalan umum untuk hari ini. {guide_member['name']} punya pesan kosmik buat kamu!"
+            }
+            
+            ai_prompt = f"""
+            {fortune_prompts.get(fortune_type, fortune_prompts['general'])}
+            Angka hoki: {lucky_number}
+            
+            Buat ramalan yang positif, fun, dan encouraging dalam bahasa Indonesia yang cute dan optimis.
+            Panjang sekitar 2-3 kalimat.
+            """
+            
+            fortune_text = await self.ai_handler.generate_response(ai_prompt)
+            
+            fortune_result = {
+                'fortune': fortune_text,
+                'guide_member': {
+                    'name': guide_member['name'],
+                    'emoji': guide_member.get('emoji', '✨')
+                },
+                'lucky_number': lucky_number,
+                'lucky_color': lucky_color,
+                'fortune_type': fortune_type
+            }
+            
+            logger.info(f"✅ Fortune reading completed for user {user_id}")
+            return fortune_result
+            
+        except Exception as e:
+            logger.error(f"❌ Fortune reading error for user {user_id}: {e}")
+            return {
+                'error': 'Fortune reading gagal, coba lagi ya! 🔮'
+            }
