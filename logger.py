@@ -73,17 +73,17 @@ def log_csv_loaded(df):
 def log_cache_set(category, name):
     icon = "💾" if USE_EMOJI else "[C]"
     sep = "|"
-    logger.info(f"{icon} CACHE {sep} Saved {category}:{name}")
+    logger.debug(f"{icon} CACHE {sep} Saved {category}:{name}")
 
 def log_cache_hit(category, name):
     icon = "⚡" if USE_EMOJI else "[H]"
     sep = "|"
-    logger.info(f"{icon} CACHE {sep} Retrieved {category}:{name}")
+    logger.debug(f"{icon} CACHE {sep} Retrieved {category}:{name}")
 
 def log_cache_miss(category, name):
     icon = "🔍" if USE_EMOJI else "[M]"
     sep = "|"
-    logger.info(f"{icon} CACHE {sep} Miss {category}:{name} - generating new")
+    logger.debug(f"{icon} CACHE {sep} Miss {category}:{name} - generating new")
 
 # ---- Detection System ----
 def log_detection(user_input, category, detected_name=None, confidence=None):
@@ -93,10 +93,10 @@ def log_detection(user_input, category, detected_name=None, confidence=None):
     if category in ["GROUP", "MEMBER", "MEMBER_GROUP"]:
         conf_str = f" ({confidence:.1f}%)" if confidence else ""
         icon = "🎯" if USE_EMOJI else "[D]"
-        logger.info(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}:{detected_name}{conf_str}")
+        logger.debug(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}:{detected_name}{conf_str}")
     elif category == "MULTIPLE":
         icon = "🤔" if USE_EMOJI else "[D]"
-        logger.info(f"{icon} DETECT {sep} '{user_input}' {arrow} {category} (multiple matches)")
+        logger.debug(f"{icon} DETECT {sep} '{user_input}' {arrow} {category} (multiple matches)")
     elif category == "REKOMENDASI":
         icon = "💡" if USE_EMOJI else "[D]"
         logger.info(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}")
@@ -105,7 +105,7 @@ def log_detection(user_input, category, detected_name=None, confidence=None):
         logger.info(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}")
     else:
         icon = "🔍" if USE_EMOJI else "[D]"
-        logger.info(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}")
+        logger.debug(f"{icon} DETECT {sep} '{user_input}' {arrow} {category}")
 
 # ---- Command Processing ----
 def log_sn_command(user, user_input, category, detected_name=None):
@@ -146,7 +146,7 @@ def log_transition(context, user_input, result_category):
     icon = "🔄" if USE_EMOJI else "[T]"
     sep = "|"
     arrow = "->"
-    logger.info(f"{icon} TRANSIT {sep} '{context_short}' + '{user_input}' {arrow} {result_category}")
+    logger.debug(f"{icon} TRANSIT {sep} '{context_short}' + '{user_input}' {arrow} {result_category}")
 
 # ---- Performance ----
 def log_performance(operation, duration_ms, details=None):
@@ -168,9 +168,9 @@ def log_error(component, error_msg, user_input=None):
     sep = "|"
     input_str = f" {sep} Input: '{user_input}'" if user_input else ""
     icon = "🔍" if USE_EMOJI else "[X]"
-    logger.info(f"{icon} ISSUE {sep} {component}: {error_msg}{input_str}")
+    logger.error(f"{icon} ISSUE {sep} {component}: {error_msg}{input_str}")
 
 def log_warning(component, warning_msg):
     icon = "🔍" if USE_EMOJI else "[W]"
     sep = "|"
-    logger.info(f"{icon} NOTICE {sep} {component}: {warning_msg}")
+    logger.warning(f"{icon} NOTICE {sep} {component}: {warning_msg}")
