@@ -753,8 +753,9 @@ Your response:"""
                 similar_members.append(member_key)
                 continue
             
-            # Contains search term but only if search is 3+ chars (lower priority)
-            if len(search_name) >= 3 and search_name in stage_name:
+            # Contains search term but only if search is 4+ chars to avoid false matches
+            # Skip partial matches that are likely different names (like jisook vs jisoo)
+            if len(search_name) >= 4 and search_name in stage_name and not stage_name.startswith(search_name):
                 similar_members.append(member_key)
                 continue
                 
