@@ -2,6 +2,7 @@
 Commands Module - Menangani semua Discord commands
 """
 import asyncio
+import time
 import discord
 from datetime import datetime
 from logger import logger
@@ -10,6 +11,7 @@ from database_manager import DatabaseManager
 from patch.smart_detector import SmartKPopDetector
 from social_media_commands import SocialMediaCommandsHandler
 from bias_commands import BiasCommandsHandler
+from analytics import analytics
 
 class CommandsHandler:
     def __init__(self, bot_core):
