@@ -321,15 +321,20 @@ class AIHandler:
             logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
             info = info[:max_input_length] + "...[truncated]"
         
-        return f"""Buat info K-pop member berikut:
+        return f"""Buat info K-pop member berikut dengan BANYAK emoji dan emoticon yang colorful:
 Format:
-- Nama: [nama lengkap]
-- Tanggal Lahir: [tanggal lahir] 
-- Fun Fact: [fakta menarik]
-- Rumor: [rumor atau "Gak ada rumor yang kesebut di sini, aman!"]
-- Social Media: [akun social media dengan emoji yang sesuai, contoh: "𝕏 @username, 📸 @username, 📺 YouTube Channel"]
+- 👤 Nama: [nama lengkap] ✨
+- 🎂 Tanggal Lahir: [tanggal lahir] 🎉
+- 🌟 Fun Fact: [fakta menarik dengan emoji relevan] 💫
+- 👀 Rumor: [rumor dengan emoji atau "Gak ada rumor yang kesebut di sini, aman! ✅"]
+- 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
-Awali dengan intro singkat natural (contoh: "Ini info tentang [nama]" atau "Berikut data [nama]"), lalu langsung ke format. Natural + emoticon. Hindari intro berlebihan seperti "gaya santai dan fun". Hanya dari konten yang diberikan.
+PENTING: 
+1. Gunakan BANYAK emoji di setiap bagian! Tambahkan emoji yang relevan untuk setiap informasi (🎶🎵🎤🎸🥁🎹💃🕺✨🌟💫⭐🔥💎💖💕❤️🧡💛💚💙💜🖤🤍💯🎉🎊🌈🦄👑🏆🥇🎯😍🥰😊😎🤩)
+2. Social Media: WAJIB hanya tampilkan 4 platform ini jika ada: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵. Jangan tambahkan platform lain seperti Facebook, Weibo, VLive, dll.
+3. Format: "📸 @instagram_handle, 🐦 @twitter_handle, 📺 YouTube Channel Name, 🎵 @tiktok_handle"
+
+Awali dengan intro singkat natural penuh emoji (contoh: "✨ Ini info tentang [nama] 🌟" atau "🎤 Berikut data [nama] 💫"), lalu langsung ke format. Buat summary yang colorful dan menarik dengan emoji di mana-mana! Hanya dari konten yang diberikan.
 
 {info}"""
     
@@ -341,16 +346,21 @@ Awali dengan intro singkat natural (contoh: "Ini info tentang [nama]" atau "Beri
             logger.warning(f"Input too long ({len(info)} chars), truncating to {max_input_length}")
             info = info[:max_input_length] + "...[truncated]"
         
-        return f"""Buat info K-pop grup berikut:
+        return f"""Buat info K-pop grup berikut dengan BANYAK emoji dan emoticon yang colorful:
 Format:
-- Debut: [tanggal debut dan agensi]
-- Members: [Nama (1 posisi), contoh: "Jisoo (Visual), Jennie (Rapper)"]
-- Discography: [album dan lagu hits]
-- Prestasi: [penghargaan penting]
-- Fandom: [nama fandom dan facts]
-- Social Media: [akun official grup dengan emoji, contoh: "𝕏 @official_account, 📸 @official_account, 📺 YouTube Channel"]
+- 🎤 Debut: [tanggal debut dan agensi] ✨
+- 👥 Members: [Nama (1 posisi), contoh: "Jisoo (Visual) 💎, Jennie (Rapper) 🔥"]
+- 💿 Discography: [album dan lagu hits dengan emoji musik] 🎵
+- 🏆 Prestasi: [penghargaan penting dengan emoji trophy] 🌟
+- 💖 Fandom: [nama fandom dan facts dengan emoji love] 💕
+- 📱 Social Media: [HANYA 4 platform: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵 - jika ada official account]
 
-Members: HANYA 1 posisi per nama. Awali dengan intro singkat natural (contoh: "Ini info tentang [nama grup]" atau "Berikut data [nama grup]"), lalu langsung ke format. Natural + emoticon. Hindari intro berlebihan seperti "gaya santai dan fun". Hanya dari konten yang diberikan.
+PENTING: 
+1. Gunakan BANYAK emoji di setiap bagian! Tambahkan emoji yang relevan untuk setiap informasi (🎶🎵🎤🎸🥁🎹💃🕺✨🌟💫⭐🔥💎💖💕❤️🧡💛💚💙💜🖤🤍💯🎉🎊🌈🦄👑🏆🥇🎯)
+2. Social Media: WAJIB hanya tampilkan 4 platform ini jika ada: Instagram 📸, Twitter/X 🐦, YouTube 📺, TikTok 🎵. Jangan tambahkan platform lain seperti Facebook, Weibo, VLive, dll.
+3. Format: "📸 @instagram_handle, 🐦 @twitter_handle, 📺 YouTube Channel Name, 🎵 @tiktok_handle"
+
+Members: HANYA 1 posisi per nama dengan emoji yang sesuai. Awali dengan intro singkat natural penuh emoji (contoh: "✨ Ini info tentang [nama grup] 🎤✨" atau "🌟 Berikut data [nama grup] 💫"), lalu langsung ke format. Buat summary yang colorful dan menarik dengan emoji di mana-mana! Hanya dari konten yang diberikan.
 
 {info}"""
     
