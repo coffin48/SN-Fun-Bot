@@ -110,11 +110,59 @@ class SocialMediaCommandsHandler:
         elif platform == 'youtube':
             return await self._create_youtube_embed(info, content)
         elif platform == 'tiktok':
-            return await self._create_tiktok_embed(info, content)
+            if is_screenshot:
+                embed.description = f"📸 **Screenshot dari TikTok**\n{content_data.get('description', 'Tampilan terbaru dari @secretnumber.official')}"
+            else:
+                embed.description = f"🎵 **Latest TikTok**\n{content_data.get('description', 'No description available')}"
+            
+            if content_data.get('likes', 0) > 0:
+                embed.add_field(name="❤️ Likes", value=f"{content_data.get('likes', 0):,}", inline=True)
+                
         elif platform == 'instagram':
-            return await self._create_instagram_embed(info, content)
+            if is_screenshot:
+                embed.description = f"📸 **Screenshot dari Instagram**\n{content_data.get('caption', 'Tampilan terbaru dari @secretnumber.official')}"
+            else:
+                embed.description = f"📸 **Latest Post**\n{content_data.get('caption', 'No caption available')}"
+            
+            if content_data.get('likes', 0) > 0:
+                embed.add_field(name="❤️ Likes", value=f"{content_data.get('likes', 0):,}", inline=True)
+        
+        # Add image/screenshot
+        image_url = content_data.get('image_url')
+        if image_url:
+            if is_screenshot:
+                # For screenshots, use as main image
+                embed.set_image(url=image_url)
+                embed.add_field(
+                    name="📸 Screenshot Info", 
+                    value="Gambar diambil otomatis karena konten tidak bisa di-scrape langsung", 
+                    inline=False
+                )
+            elif await self._is_valid_image_url(image_url):
+                # For regular content, use as thumbnail
+                embed.set_thumbnail(url=image_url)
+        
+        # Add timestamp if available
+        if content_data.get('timestamp'):
+            embed.add_field(name="🕒 Posted", value=content_data['timestamp'], inline=True)
+        
+        # Different footer for screenshots
+        if is_screenshot:
+            embed.add_field(
+                name="🔗 Lihat Langsung",
+                value=f"[Buka {info['name']}]({content_data.get('url', info['url'])}) untuk konten real-time",
+                inline=False
+            )
+            embed.set_footer(text="Secret Number Bot • Screenshot Fallback")
         else:
-            return await self._create_no_content_embed(platform, info)
+            embed.add_field(
+                name="🔗 View Original",
+                value=f"[Open {info['name']}]({content_data.get('url', info['url'])})",
+                inline=False
+            )
+            embed.set_footer(text="Secret Number Bot • Latest Content")
+        
+        return embed
     
     async def _create_twitter_embed(self, info: dict, tweet_data: dict):
         """Create Twitter embed with latest tweet"""
@@ -318,15 +366,32 @@ class SocialMediaCommandsHandler:
             url=info['url']
         )
         
+        # Platform-specific messages
+        if platform == 'twitter':
+            status_msg = "⚠️ Twitter/X membatasi akses otomatis. Nitter servers mungkin sedang down."
+            tips = "💡 **Tips**: Coba lagi nanti atau cek langsung di X/Twitter"
+        elif platform == 'instagram':
+            status_msg = "⚠️ Instagram membatasi scraping otomatis untuk melindungi privasi user."
+            tips = "💡 **Tips**: Instagram Stories dan post terbaru bisa dilihat langsung di app"
+        else:
+            status_msg = "Tidak ada post baru ditemukan atau belum ada konten tersedia."
+            tips = "💡 **Tips**: Coba lagi dalam beberapa menit"
+        
         embed.add_field(
             name="ℹ️ Status",
-            value="Tidak ada post baru ditemukan atau belum ada konten tersedia.",
+            value=status_msg,
             inline=False
         )
         
         embed.add_field(
-            name="🔗 Visit Platform",
-            value=f"[Kunjungi {info['name']}]({info['url']}) untuk melihat konten terbaru",
+            name="🔗 Akses Langsung",
+            value=f"[Buka {info['name']}]({info['url']}) • [Secret Number Official](https://linktr.ee/secretnumber_official)",
+            inline=False
+        )
+        
+        embed.add_field(
+            name=tips.split(':')[0],
+            value=tips.split(': ')[1] if ': ' in tips else tips,
             inline=False
         )
         
