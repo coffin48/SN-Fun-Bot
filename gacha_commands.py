@@ -77,48 +77,62 @@ class GachaCommandsHandler:
             await self._handle_smart_gacha(ctx, search_term)
     
     async def _handle_gacha_random(self, ctx):
-        """Handle gacha random member"""
+        """Handle gacha pack 5 kartu dengan guaranteed rarity"""
         try:
             async with ctx.typing():
                 loading_embed = discord.Embed(
-                    title="🎴 Membuka Pack Gacha...",
-                    description="Sedang mengacak member dari database...",
-                    color=0x00ff00
+                    title="🎴 Membuka 5-Card Gacha Pack...",
+                    description="🎯 **Guaranteed:** 2 Common • 2 Rare/Epic • 1 Legendary/FullArt\n⏳ Sedang generate 5 kartu...",
+                    color=0xffd700
                 )
                 loading_msg = await ctx.send(embed=loading_embed)
                 
-                # Generate random gacha
-                card_image, card_data = self.gacha_system.gacha_random()
+                # Generate 5-card pack
+                cards, pack_summary = self.gacha_system.gacha_pack_5()
                 
-                if card_image:
-                    # Parse card data from message
-                    lines = card_data.split('\n')
-                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
-                    member_name = member_info[0]
-                    group_name = member_info[1] if len(member_info) > 1 else "Unknown"
-                    rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
-                    
-                    # Create beautiful embed
+                if cards and len(cards) == 5:
+                    # Create pack result embed
                     embed = discord.Embed(
-                        title="🎴 Random Gacha Result",
-                        color=self._get_rarity_color(rarity)
+                        title="🎴 5-Card Gacha Pack Results",
+                        description="✨ **Guaranteed Rarity Distribution Achieved!**",
+                        color=0xffd700
                     )
                     
+                    # Count rarities for display
+                    rarity_counts = {}
+                    for card in cards:
+                        rarity = card['rarity']
+                        rarity_counts[rarity] = rarity_counts.get(rarity, 0) + 1
+                    
+                    # Add rarity summary
+                    rarity_summary = ""
+                    for rarity, count in rarity_counts.items():
+                        emoji = self._get_rarity_emoji(rarity)
+                        rarity_summary += f"{emoji} **{rarity}:** {count}x\n"
+                    
                     embed.add_field(
-                        name="👤 Member",
-                        value=f"**{member_name}**",
+                        name="📊 Rarity Distribution",
+                        value=rarity_summary,
                         inline=True
                     )
                     
+                    # Add pack contents
+                    pack_contents = ""
+                    for i, card in enumerate(cards, 1):
+                        emoji = self._get_rarity_emoji(card['rarity'])
+                        pack_contents += f"{i}. {emoji} **{card['member_name']}** ({card['group_name']})\n"
+                    
                     embed.add_field(
-                        name="🎵 Group", 
-                        value=f"**{group_name}**",
+                        name="📦 Pack Contents",
+                        value=pack_contents,
                         inline=True
                     )
                     
+                    # Calculate total luck
+                    total_luck = self._calculate_pack_luck(cards)
                     embed.add_field(
-                        name="✨ Rarity",
-                        value=f"**{rarity}**",
+                        name="🍀 Pack Luck",
+                        value=total_luck,
                         inline=True
                     )
                     
@@ -130,13 +144,13 @@ class GachaCommandsHandler:
                     
                     embed.add_field(
                         name="🎯 Type",
-                        value="Random Gacha",
+                        value="5-Card Guaranteed Pack",
                         inline=True
                     )
                     
                     embed.add_field(
-                        name="🎲 Luck",
-                        value=self._get_luck_message(rarity),
+                        name="💎 Value",
+                        value="Premium Pack",
                         inline=True
                     )
                     
@@ -145,41 +159,45 @@ class GachaCommandsHandler:
                         icon_url=ctx.author.avatar.url if ctx.author.avatar else None
                     )
                     
-                    # Save kartu ke temporary file
-                    temp_path = self.gacha_system.save_card_temp(card_image)
+                    # Save all cards and create collage or send individually
+                    files = []
+                    for i, card in enumerate(cards):
+                        temp_path = self.gacha_system.save_card_temp(card['image'], f"card_{i+1}")
+                        if temp_path:
+                            files.append(discord.File(temp_path, filename=f"card_{i+1}_{card['rarity'].lower()}.png"))
                     
-                    if temp_path:
-                        # Kirim kartu sebagai file dengan embed
-                        with open(temp_path, 'rb') as f:
-                            file = discord.File(f, filename="gacha_card.png")
-                            embed.set_image(url="attachment://gacha_card.png")
-                            await loading_msg.edit(embed=embed, attachments=[file])
+                    if files:
+                        await loading_msg.edit(embed=embed, attachments=files)
                         
-                        # Cleanup temporary file
+                        # Cleanup temporary files
                         import os
-                        try:
-                            os.unlink(temp_path)
-                        except:
-                            pass
+                        for card in cards:
+                            for i in range(5):
+                                try:
+                                    temp_path = f"temp_card_{i+1}.png"
+                                    if os.path.exists(temp_path):
+                                        os.unlink(temp_path)
+                                except:
+                                    pass
                     else:
                         await loading_msg.edit(embed=discord.Embed(
                             title="❌ Error",
-                            description="Gagal menyimpan kartu gacha.",
+                            description="Gagal menyimpan kartu pack.",
                             color=0xff0000
                         ))
                 else:
                     error_embed = discord.Embed(
-                        title="❌ Gacha Failed",
-                        description=card_data,
+                        title="❌ Pack Generation Failed",
+                        description=pack_summary,
                         color=0xff0000
                     )
                     await loading_msg.edit(embed=error_embed)
                     
         except Exception as e:
-            logger.error(f"Error in gacha random: {e}")
+            logger.error(f"Error in gacha pack: {e}")
             error_embed = discord.Embed(
                 title="❌ System Error",
-                description="Gagal melakukan gacha random.",
+                description="Gagal melakukan gacha pack.",
                 color=0xff0000
             )
             await ctx.send(embed=error_embed)
@@ -808,3 +826,37 @@ class GachaCommandsHandler:
             "FullArt": "🏆 JACKPOT LEGENDARY!!!"
         }
         return luck_messages.get(rarity, "🎲 Unknown")
+    
+    def _get_rarity_emoji(self, rarity):
+        """Get emoji based on rarity"""
+        rarity_emojis = {
+            "Common": "⚪",      # White circle
+            "Rare": "🔵",        # Blue circle
+            "Epic": "🟣",        # Purple circle  
+            "Legendary": "🔴",   # Red circle
+            "FullArt": "🟡"      # Yellow circle
+        }
+        return rarity_emojis.get(rarity, "⚫")  # Default black
+    
+    def _calculate_pack_luck(self, cards):
+        """Calculate overall pack luck based on rarities"""
+        luck_scores = {
+            "Common": 1,
+            "Rare": 3,
+            "Epic": 5,
+            "Legendary": 8,
+            "FullArt": 10
+        }
+        
+        total_score = sum(luck_scores.get(card['rarity'], 0) for card in cards)
+        
+        if total_score >= 25:
+            return "🏆 INCREDIBLE LUCK!"
+        elif total_score >= 20:
+            return "💎 AMAZING LUCK!"
+        elif total_score >= 15:
+            return "🌟 GREAT LUCK!"
+        elif total_score >= 10:
+            return "✨ GOOD LUCK!"
+        else:
+            return "🍀 NORMAL LUCK"
