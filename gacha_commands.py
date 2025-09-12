@@ -32,7 +32,10 @@ class GachaCommandsHandler:
             user_input: Input dari user setelah !sn
         """
         if not self.gacha_system:
-            await ctx.send("❌ Sistem gacha sedang tidak tersedia. Coba lagi nanti!")
+            await ctx.send("❌ **Sistem gacha tidak tersedia!**\n"
+                          "🔧 **Penyebab:** Missing dependency `Pillow`\n"
+                          "💡 **Solusi:** Install dengan `pip install Pillow`\n"
+                          "📋 **Atau:** `pip install -r requirements.txt`")
             return
         
         try:
