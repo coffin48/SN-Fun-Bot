@@ -72,7 +72,9 @@ class GachaCommandsHandler:
         elif subcommand == "stats":
             await self._handle_gacha_stats(ctx)
         else:
-            await ctx.send(f"❌ Subcommand `{subcommand}` tidak dikenali. Gunakan `!sn gacha help` untuk bantuan.")
+            # Try to interpret as direct member name or group name
+            search_term = " ".join(args)
+            await self._handle_smart_gacha(ctx, search_term)
     
     async def _handle_gacha_random(self, ctx):
         """Handle gacha random member"""
@@ -357,3 +359,70 @@ class GachaCommandsHandler:
         except Exception as e:
             logger.error(f"Error in gacha stats: {e}")
             await ctx.send("❌ Gagal menampilkan statistik gacha.")
+    
+    async def _handle_smart_gacha(self, ctx, search_term):
+        """Handle smart gacha - detect if member name or group name"""
+        try:
+            async with ctx.typing():
+                loading_msg = await ctx.send(f"🔍 Mencari {search_term}...")
+                
+                # First try as member name
+                member_result = self.gacha_system.search_member(search_term)
+                
+                if member_result:
+                    # Found member, generate member card
+                    card_image, message = self.gacha_system.generate_member_card(search_term)
+                    
+                    if card_image:
+                        # Save kartu ke temporary file
+                        temp_path = self.gacha_system.save_card_temp(card_image)
+                        
+                        if temp_path:
+                            # Kirim kartu sebagai file
+                            with open(temp_path, 'rb') as f:
+                                file = discord.File(f, filename="gacha_card.png")
+                                await loading_msg.edit(content=message, attachments=[file])
+                            
+                            # Cleanup temporary file
+                            import os
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+                        else:
+                            await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                    else:
+                        await loading_msg.edit(content=message)
+                else:
+                    # Try as group name
+                    card_image, message = self.gacha_system.gacha_by_group(search_term)
+                    
+                    if card_image:
+                        # Save kartu ke temporary file
+                        temp_path = self.gacha_system.save_card_temp(card_image)
+                        
+                        if temp_path:
+                            # Kirim kartu sebagai file
+                            with open(temp_path, 'rb') as f:
+                                file = discord.File(f, filename="gacha_card.png")
+                                await loading_msg.edit(content=message, attachments=[file])
+                            
+                            # Cleanup temporary file
+                            import os
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+                        else:
+                            await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                    else:
+                        # Neither member nor group found
+                        await loading_msg.edit(content=f"❌ **Member atau grup '{search_term}' tidak ditemukan!**\n\n"
+                                             f"💡 **Tips:**\n"
+                                             f"• Coba `!sn gacha member {search_term}` untuk member spesifik\n"
+                                             f"• Coba `!sn gacha group {search_term}` untuk grup spesifik\n"
+                                             f"• Gunakan `!sn gacha help` untuk bantuan lengkap")
+                    
+        except Exception as e:
+            logger.error(f"Error in smart gacha: {e}")
+            await ctx.send(f"❌ Gagal memproses gacha untuk '{search_term}'.")
