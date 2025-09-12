@@ -33,7 +33,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class KpopGachaSystem:
-    def __init__(self, json_path="Path Foto_Fixed.json", database_path="Database/DATABASE_KPOP (1).csv"):
+    def __init__(self, json_path="Path_Foto_DriveIDs_Real.json", database_path="Database/DATABASE_KPOP (1).csv"):
         """
         Initialize Kpop Gacha System
         
@@ -66,8 +66,10 @@ class KpopGachaSystem:
             "FullArt": 1       # 1%
         }
         
-        # Load database sebagai backup
+        # Load data
+        self._load_json_data()
         self._load_database()
+        self._integrate_csv_data()
         
     def _load_json_data(self):
         """Load JSON mapping foto yang sudah diperbaiki"""
@@ -88,10 +90,12 @@ class KpopGachaSystem:
     def _load_database(self):
         """Load database K-pop sebagai backup"""
         try:
-            self.df = pd.read_csv(self.database_path)
-            logger.info(f"Backup database loaded: {len(self.df)} members")
+            self.database = pd.read_csv(self.database_path)
+            self.df = self.database  # Keep backward compatibility
+            logger.info(f"Backup database loaded: {len(self.database)} members")
         except Exception as e:
             logger.error(f"Failed to load backup database: {e}")
+            self.database = pd.DataFrame()
             self.df = pd.DataFrame()
     
     def _get_random_rarity(self):
@@ -326,5 +330,176 @@ class KpopGachaSystem:
             card_image.save(temp_file.name, 'PNG')
             return temp_file.name
         except Exception as e:
-            logger.error(f"Error saving temp card: {e}")
+            logger.error(f"Error loading database: {e}")
+            self.database = None
+    
+    def _integrate_csv_data(self):
+        """Integrate CSV database with JSON data for better member mapping"""
+        try:
+            if not hasattr(self, 'database') or self.database is None:
+                logger.warning("CSV database not loaded, skipping integration")
+                return
+            
+            # Create stage name to member key mapping
+            self.stage_name_mapping = {}
+            self.full_name_mapping = {}
+            
+            for _, row in self.database.iterrows():
+                group = str(row.get('Group', '')).strip()
+                stage_name = str(row.get('Stage Name', '')).strip()
+                full_name = str(row.get('Full Name', '')).strip()
+                korean_name = str(row.get('Korean Stage Name', '')).strip()
+                
+                if not group or not stage_name:
+                    continue
+                
+                # Generate member key (same format as JSON)
+                member_key = f"{stage_name.lower().replace(' ', '_')}_{group.lower().replace(' ', '_')}"
+                
+                # Store mappings
+                self.stage_name_mapping[stage_name.lower()] = {
+                    'member_key': member_key,
+                    'stage_name': stage_name,
+                    'full_name': full_name,
+                    'korean_name': korean_name,
+                    'group': group
+                }
+                
+                if full_name:
+                    self.full_name_mapping[full_name.lower()] = {
+                        'member_key': member_key,
+                        'stage_name': stage_name,
+                        'full_name': full_name,
+                        'korean_name': korean_name,
+                        'group': group
+                    }
+                
+                # Update JSON member data with CSV info if member exists
+                if member_key in self.members_data:
+                    self.members_data[member_key].update({
+                        'stage_name': stage_name,
+                        'full_name': full_name,
+                        'korean_name': korean_name,
+                        'birth_date': str(row.get('Date of Birth', '')).strip(),
+                        'instagram': str(row.get('Instagram', '')).strip()
+                    })
+            
+            logger.info(f"CSV integration completed: {len(self.stage_name_mapping)} stage names mapped")
+            
+        except Exception as e:
+            logger.error(f"Error integrating CSV data: {e}")
+            self.stage_name_mapping = {}
+            self.full_name_mapping = {}
+    
+    # Wrapper methods for compatibility with test scripts
+    def search_member(self, member_name):
+        """Search for members by name using both JSON and CSV data"""
+        results = []
+        search_name = member_name.lower().strip()
+        
+        # First try stage name mapping from CSV
+        if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
+            csv_info = self.stage_name_mapping[search_name]
+            member_key = csv_info['member_key']
+            
+            # Check if member exists in JSON data (has photos)
+            if member_key in self.members_data:
+                results.append({
+                    'member_key': member_key,
+                    'name': csv_info['stage_name'],
+                    'full_name': csv_info['full_name'],
+                    'korean_name': csv_info['korean_name'],
+                    'group': csv_info['group']
+                })
+        
+        # Try full name mapping from CSV
+        if hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
+            csv_info = self.full_name_mapping[search_name]
+            member_key = csv_info['member_key']
+            
+            # Check if not already added and exists in JSON
+            if member_key in self.members_data and not any(r['member_key'] == member_key for r in results):
+                results.append({
+                    'member_key': member_key,
+                    'name': csv_info['stage_name'],
+                    'full_name': csv_info['full_name'],
+                    'korean_name': csv_info['korean_name'],
+                    'group': csv_info['group']
+                })
+        
+        # Fallback to original JSON-based search
+        if not results:
+            member_keys = self._find_member_key(member_name)
+            for member_key in member_keys:
+                member_info = self.members_data[member_key]
+                results.append({
+                    'member_key': member_key,
+                    'name': member_info.get('stage_name', member_info.get('name', 'Unknown')),
+                    'full_name': member_info.get('full_name', ''),
+                    'korean_name': member_info.get('korean_name', ''),
+                    'group': member_info.get('group', 'Unknown')
+                })
+        
+        return results
+    
+    def generate_random_card(self):
+        """Generate random card (wrapper for gacha_random)"""
+        try:
+            # Get random member
+            if not self.members_data:
+                return None
+            
+            member_key = random.choice(self._get_all_member_keys())
+            member_info = self.members_data[member_key]
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None
+            
+            # Get rarity
+            rarity = self._get_random_rarity()
+            
+            return {
+                'member_info': {
+                    'name': member_info.get('name', 'Unknown'),
+                    'group': member_info.get('group', 'Unknown'),
+                    'member_key': member_key
+                },
+                'photo_url': photo_url,
+                'rarity': rarity
+            }
+        except Exception as e:
+            logger.error(f"Error generating random card: {e}")
+            return None
+    
+    def generate_member_card(self, member_key):
+        """Generate card for specific member"""
+        try:
+            if member_key not in self.members_data:
+                return None
+            
+            member_info = self.members_data[member_key]
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None
+            
+            # Get rarity
+            rarity = self._get_random_rarity()
+            
+            return {
+                'member_info': {
+                    'name': member_info.get('name', 'Unknown'),
+                    'group': member_info.get('group', 'Unknown'),
+                    'member_key': member_key
+                },
+                'photo_url': photo_url,
+                'rarity': rarity
+            }
+        except Exception as e:
+            logger.error(f"Error generating member card: {e}")
             return None
