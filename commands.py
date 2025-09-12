@@ -36,6 +36,15 @@ class CommandsHandler:
         # Initialize social media commands handler
         self.social_media_handler = SocialMediaCommandsHandler(self.social_monitor)
         
+        # Initialize gacha commands handler
+        try:
+            from gacha_commands import GachaCommandsHandler
+            self.gacha_handler = GachaCommandsHandler()
+            logger.info("✅ Gacha commands initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize gacha commands: {e}")
+            self.gacha_handler = None
+        
         # Initialize bias detector and commands handler with error handling
         self.bias_detector = None
         self.bias_handler = None
@@ -136,6 +145,14 @@ class CommandsHandler:
                             await self.bias_handler.handle_bias_command(ctx, user_input)
                         else:
                             await ctx.send("⚠️ Bias commands sedang tidak tersedia. Coba command lain ya!")
+                        return
+                    
+                    # Gacha commands
+                    if user_input.lower().startswith("gacha"):
+                        if self.gacha_handler:
+                            await self.gacha_handler.handle_gacha_command(ctx, user_input)
+                        else:
+                            await ctx.send("⚠️ Sistem gacha sedang tidak tersedia. Coba lagi nanti!")
                         return
                     
                     # Social media commands
@@ -631,6 +648,18 @@ class CommandsHandler:
                 name="📝 Contoh Commands",
                 value=examples,
                 inline=False
+            )
+            
+            # Gacha Trading Cards section
+            gacha_commands = """• `!sn gacha` 🎲 Random gacha
+• `!sn gacha group [nama]` 🎵 Gacha grup
+• `!sn gacha member [nama]` 👤 Gacha member
+• `!sn gacha stats` 📊 Statistik gacha
+• `!sn gacha help` 📋 Help gacha"""
+            embed.add_field(
+                name="🎴 Gacha Cards",
+                value=gacha_commands,
+                inline=True
             )
             
             # Bias Detector section

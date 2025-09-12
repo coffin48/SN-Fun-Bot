@@ -7,3 +7,4 @@ rapidfuzz==3.9.7
 aiohttp==3.9.1
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
+Pillow==10.0.1
