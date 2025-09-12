@@ -80,20 +80,80 @@ class GachaCommandsHandler:
         """Handle gacha random member"""
         try:
             async with ctx.typing():
-                loading_msg = await ctx.send("🎴 Membuka pack gacha...")
+                loading_embed = discord.Embed(
+                    title="🎴 Membuka Pack Gacha...",
+                    description="Sedang mengacak member dari database...",
+                    color=0x00ff00
+                )
+                loading_msg = await ctx.send(embed=loading_embed)
                 
                 # Generate random gacha
-                card_image, message = self.gacha_system.gacha_random()
+                card_image, card_data = self.gacha_system.gacha_random()
                 
                 if card_image:
+                    # Parse card data from message
+                    lines = card_data.split('\n')
+                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
+                    member_name = member_info[0]
+                    group_name = member_info[1] if len(member_info) > 1 else "Unknown"
+                    rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
+                    
+                    # Create beautiful embed
+                    embed = discord.Embed(
+                        title="🎴 Random Gacha Result",
+                        color=self._get_rarity_color(rarity)
+                    )
+                    
+                    embed.add_field(
+                        name="👤 Member",
+                        value=f"**{member_name}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎵 Group", 
+                        value=f"**{group_name}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="✨ Rarity",
+                        value=f"**{rarity}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="📸 Source",
+                        value="Google Drive CDN",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎯 Type",
+                        value="Random Gacha",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎲 Luck",
+                        value=self._get_luck_message(rarity),
+                        inline=True
+                    )
+                    
+                    embed.set_footer(
+                        text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
+                        icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+                    )
+                    
                     # Save kartu ke temporary file
                     temp_path = self.gacha_system.save_card_temp(card_image)
                     
                     if temp_path:
-                        # Kirim kartu sebagai file
+                        # Kirim kartu sebagai file dengan embed
                         with open(temp_path, 'rb') as f:
                             file = discord.File(f, filename="gacha_card.png")
-                            await loading_msg.edit(content=message, attachments=[file])
+                            embed.set_image(url="attachment://gacha_card.png")
+                            await loading_msg.edit(embed=embed, attachments=[file])
                         
                         # Cleanup temporary file
                         import os
@@ -102,13 +162,27 @@ class GachaCommandsHandler:
                         except:
                             pass
                     else:
-                        await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                        await loading_msg.edit(embed=discord.Embed(
+                            title="❌ Error",
+                            description="Gagal menyimpan kartu gacha.",
+                            color=0xff0000
+                        ))
                 else:
-                    await loading_msg.edit(content=message)
+                    error_embed = discord.Embed(
+                        title="❌ Gacha Failed",
+                        description=card_data,
+                        color=0xff0000
+                    )
+                    await loading_msg.edit(embed=error_embed)
                     
         except Exception as e:
             logger.error(f"Error in gacha random: {e}")
-            await ctx.send("❌ Gagal melakukan gacha random.")
+            error_embed = discord.Embed(
+                title="❌ System Error",
+                description="Gagal melakukan gacha random.",
+                color=0xff0000
+            )
+            await ctx.send(embed=error_embed)
     
     async def _handle_gacha_by_group(self, ctx, group_name):
         """Handle gacha by group"""
@@ -118,20 +192,80 @@ class GachaCommandsHandler:
         
         try:
             async with ctx.typing():
-                loading_msg = await ctx.send(f"🎴 Membuka pack gacha {group_name}...")
+                loading_embed = discord.Embed(
+                    title=f"🎴 Membuka Pack Gacha {group_name}...",
+                    description="Sedang mengacak member dari grup...",
+                    color=0x00ff00
+                )
+                loading_msg = await ctx.send(embed=loading_embed)
                 
                 # Generate gacha by group
-                card_image, message = self.gacha_system.gacha_by_group(group_name)
+                card_image, card_data = self.gacha_system.gacha_by_group(group_name)
                 
                 if card_image:
+                    # Parse card data from message
+                    lines = card_data.split('\n')
+                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
+                    member_name = member_info[0]
+                    actual_group = member_info[1] if len(member_info) > 1 else group_name
+                    rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
+                    
+                    # Create beautiful embed
+                    embed = discord.Embed(
+                        title=f"🎴 {group_name} Gacha Result",
+                        color=self._get_rarity_color(rarity)
+                    )
+                    
+                    embed.add_field(
+                        name="👤 Member",
+                        value=f"**{member_name}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎵 Group", 
+                        value=f"**{actual_group}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="✨ Rarity",
+                        value=f"**{rarity}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="📸 Source",
+                        value="Google Drive CDN",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎯 Type",
+                        value=f"Group Gacha: {group_name}",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎲 Luck",
+                        value=self._get_luck_message(rarity),
+                        inline=True
+                    )
+                    
+                    embed.set_footer(
+                        text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
+                        icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+                    )
+                    
                     # Save kartu ke temporary file
                     temp_path = self.gacha_system.save_card_temp(card_image)
                     
                     if temp_path:
-                        # Kirim kartu sebagai file
+                        # Kirim kartu sebagai file dengan embed
                         with open(temp_path, 'rb') as f:
                             file = discord.File(f, filename="gacha_card.png")
-                            await loading_msg.edit(content=message, attachments=[file])
+                            embed.set_image(url="attachment://gacha_card.png")
+                            await loading_msg.edit(embed=embed, attachments=[file])
                         
                         # Cleanup temporary file
                         import os
@@ -140,13 +274,27 @@ class GachaCommandsHandler:
                         except:
                             pass
                     else:
-                        await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                        await loading_msg.edit(embed=discord.Embed(
+                            title="❌ Error",
+                            description="Gagal menyimpan kartu gacha.",
+                            color=0xff0000
+                        ))
                 else:
-                    await loading_msg.edit(content=message)
+                    error_embed = discord.Embed(
+                        title="❌ Group Gacha Failed",
+                        description=card_data,
+                        color=0xff0000
+                    )
+                    await loading_msg.edit(embed=error_embed)
                     
         except Exception as e:
             logger.error(f"Error in gacha by group: {e}")
-            await ctx.send(f"❌ Gagal melakukan gacha untuk grup {group_name}.")
+            error_embed = discord.Embed(
+                title="❌ System Error",
+                description=f"Gagal melakukan gacha untuk grup {group_name}.",
+                color=0xff0000
+            )
+            await ctx.send(embed=error_embed)
     
     async def _handle_gacha_by_member(self, ctx, member_name):
         """Handle gacha by member"""
@@ -156,20 +304,80 @@ class GachaCommandsHandler:
         
         try:
             async with ctx.typing():
-                loading_msg = await ctx.send(f"🎴 Membuka pack gacha {member_name}...")
+                loading_embed = discord.Embed(
+                    title=f"🎴 Membuka Pack Gacha {member_name}...",
+                    description="Sedang mencari member dan generate kartu...",
+                    color=0x00ff00
+                )
+                loading_msg = await ctx.send(embed=loading_embed)
                 
                 # Generate gacha by member
-                card_image, message = self.gacha_system.gacha_by_member(member_name)
+                card_image, card_data = self.gacha_system.gacha_by_member(member_name)
                 
                 if card_image:
+                    # Parse card data from message
+                    lines = card_data.split('\n')
+                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
+                    actual_member = member_info[0]
+                    group_name = member_info[1] if len(member_info) > 1 else "Unknown"
+                    rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
+                    
+                    # Create beautiful embed
+                    embed = discord.Embed(
+                        title=f"🎴 {member_name} Gacha Result",
+                        color=self._get_rarity_color(rarity)
+                    )
+                    
+                    embed.add_field(
+                        name="👤 Member",
+                        value=f"**{actual_member}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎵 Group", 
+                        value=f"**{group_name}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="✨ Rarity",
+                        value=f"**{rarity}**",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="📸 Source",
+                        value="Google Drive CDN",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎯 Type",
+                        value=f"Member Gacha: {member_name}",
+                        inline=True
+                    )
+                    
+                    embed.add_field(
+                        name="🎲 Luck",
+                        value=self._get_luck_message(rarity),
+                        inline=True
+                    )
+                    
+                    embed.set_footer(
+                        text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
+                        icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+                    )
+                    
                     # Save kartu ke temporary file
                     temp_path = self.gacha_system.save_card_temp(card_image)
                     
                     if temp_path:
-                        # Kirim kartu sebagai file
+                        # Kirim kartu sebagai file dengan embed
                         with open(temp_path, 'rb') as f:
                             file = discord.File(f, filename="gacha_card.png")
-                            await loading_msg.edit(content=message, attachments=[file])
+                            embed.set_image(url="attachment://gacha_card.png")
+                            await loading_msg.edit(embed=embed, attachments=[file])
                         
                         # Cleanup temporary file
                         import os
@@ -178,13 +386,27 @@ class GachaCommandsHandler:
                         except:
                             pass
                     else:
-                        await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                        await loading_msg.edit(embed=discord.Embed(
+                            title="❌ Error",
+                            description="Gagal menyimpan kartu gacha.",
+                            color=0xff0000
+                        ))
                 else:
-                    await loading_msg.edit(content=message)
+                    error_embed = discord.Embed(
+                        title="❌ Member Gacha Failed",
+                        description=card_data,
+                        color=0xff0000
+                    )
+                    await loading_msg.edit(embed=error_embed)
                     
         except Exception as e:
             logger.error(f"Error in gacha by member: {e}")
-            await ctx.send(f"❌ Gagal melakukan gacha untuk member {member_name}.")
+            error_embed = discord.Embed(
+                title="❌ System Error",
+                description=f"Gagal melakukan gacha untuk member {member_name}.",
+                color=0xff0000
+            )
+            await ctx.send(embed=error_embed)
     
     async def _handle_gacha_help(self, ctx):
         """Handle gacha help command"""
@@ -371,17 +593,72 @@ class GachaCommandsHandler:
                 
                 if member_result:
                     # Found member, generate member card
-                    card_image, message = self.gacha_system.generate_member_card(search_term)
+                    card_image, card_data = self.gacha_system.generate_member_card(search_term)
                     
                     if card_image:
+                        # Parse card data from message
+                        lines = card_data.split('\n')
+                        member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
+                        member_name = member_info[0]
+                        group_name = member_info[1] if len(member_info) > 1 else "Unknown"
+                        rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
+                        
+                        # Create beautiful embed
+                        embed = discord.Embed(
+                            title=f"🎴 {search_term} Gacha Result",
+                            color=self._get_rarity_color(rarity)
+                        )
+                        
+                        embed.add_field(
+                            name="👤 Member",
+                            value=f"**{member_name}**",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="🎵 Group", 
+                            value=f"**{group_name}**",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="✨ Rarity",
+                            value=f"**{rarity}**",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="📸 Source",
+                            value="Google Drive CDN",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="🎯 Type",
+                            value=f"Smart Search: {search_term}",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="🎲 Luck",
+                            value=self._get_luck_message(rarity),
+                            inline=True
+                        )
+                        
+                        embed.set_footer(
+                            text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
+                            icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+                        )
+                        
                         # Save kartu ke temporary file
                         temp_path = self.gacha_system.save_card_temp(card_image)
                         
                         if temp_path:
-                            # Kirim kartu sebagai file
+                            # Kirim kartu sebagai file dengan embed
                             with open(temp_path, 'rb') as f:
                                 file = discord.File(f, filename="gacha_card.png")
-                                await loading_msg.edit(content=message, attachments=[file])
+                                embed.set_image(url="attachment://gacha_card.png")
+                                await loading_msg.edit(embed=embed, attachments=[file])
                             
                             # Cleanup temporary file
                             import os
@@ -390,22 +667,86 @@ class GachaCommandsHandler:
                             except:
                                 pass
                         else:
-                            await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                            await loading_msg.edit(embed=discord.Embed(
+                                title="❌ Error",
+                                description="Gagal menyimpan kartu gacha.",
+                                color=0xff0000
+                            ))
                     else:
-                        await loading_msg.edit(content=message)
+                        error_embed = discord.Embed(
+                            title="❌ Member Card Failed",
+                            description=card_data,
+                            color=0xff0000
+                        )
+                        await loading_msg.edit(embed=error_embed)
                 else:
                     # Try as group name
-                    card_image, message = self.gacha_system.gacha_by_group(search_term)
+                    card_image, card_data = self.gacha_system.gacha_by_group(search_term)
                     
                     if card_image:
+                        # Parse card data from message
+                        lines = card_data.split('\n')
+                        member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
+                        member_name = member_info[0]
+                        group_name = member_info[1] if len(member_info) > 1 else search_term
+                        rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
+                        
+                        # Create beautiful embed
+                        embed = discord.Embed(
+                            title=f"🎴 {search_term} Group Gacha Result",
+                            color=self._get_rarity_color(rarity)
+                        )
+                        
+                        embed.add_field(
+                            name="👤 Member",
+                            value=f"**{member_name}**",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="🎵 Group", 
+                            value=f"**{group_name}**",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="✨ Rarity",
+                            value=f"**{rarity}**",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="📸 Source",
+                            value="Google Drive CDN",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="🎯 Type",
+                            value=f"Smart Search: {search_term}",
+                            inline=True
+                        )
+                        
+                        embed.add_field(
+                            name="🎲 Luck",
+                            value=self._get_luck_message(rarity),
+                            inline=True
+                        )
+                        
+                        embed.set_footer(
+                            text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
+                            icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+                        )
+                        
                         # Save kartu ke temporary file
                         temp_path = self.gacha_system.save_card_temp(card_image)
                         
                         if temp_path:
-                            # Kirim kartu sebagai file
+                            # Kirim kartu sebagai file dengan embed
                             with open(temp_path, 'rb') as f:
                                 file = discord.File(f, filename="gacha_card.png")
-                                await loading_msg.edit(content=message, attachments=[file])
+                                embed.set_image(url="attachment://gacha_card.png")
+                                await loading_msg.edit(embed=embed, attachments=[file])
                             
                             # Cleanup temporary file
                             import os
@@ -414,15 +755,56 @@ class GachaCommandsHandler:
                             except:
                                 pass
                         else:
-                            await loading_msg.edit(content="❌ Gagal menyimpan kartu gacha.")
+                            await loading_msg.edit(embed=discord.Embed(
+                                title="❌ Error",
+                                description="Gagal menyimpan kartu gacha.",
+                                color=0xff0000
+                            ))
                     else:
                         # Neither member nor group found
-                        await loading_msg.edit(content=f"❌ **Member atau grup '{search_term}' tidak ditemukan!**\n\n"
-                                             f"💡 **Tips:**\n"
-                                             f"• Coba `!sn gacha member {search_term}` untuk member spesifik\n"
-                                             f"• Coba `!sn gacha group {search_term}` untuk grup spesifik\n"
-                                             f"• Gunakan `!sn gacha help` untuk bantuan lengkap")
+                        error_embed = discord.Embed(
+                            title="❌ Search Failed",
+                            description=f"**Member atau grup '{search_term}' tidak ditemukan!**",
+                            color=0xff0000
+                        )
+                        
+                        error_embed.add_field(
+                            name="💡 Tips",
+                            value=f"• Coba `!sn gacha member {search_term}` untuk member spesifik\n"
+                                  f"• Coba `!sn gacha group {search_term}` untuk grup spesifik\n"
+                                  f"• Gunakan `!sn gacha help` untuk bantuan lengkap",
+                            inline=False
+                        )
+                        
+                        await loading_msg.edit(embed=error_embed)
                     
         except Exception as e:
             logger.error(f"Error in smart gacha: {e}")
-            await ctx.send(f"❌ Gagal memproses gacha untuk '{search_term}'.")
+            error_embed = discord.Embed(
+                title="❌ System Error",
+                description=f"Gagal memproses gacha untuk '{search_term}'.",
+                color=0xff0000
+            )
+            await ctx.send(embed=error_embed)
+    
+    def _get_rarity_color(self, rarity):
+        """Get Discord embed color based on rarity"""
+        rarity_colors = {
+            "Common": 0x808080,      # Gray
+            "Rare": 0x0099ff,        # Blue  
+            "Epic": 0x9932cc,        # Purple
+            "Legendary": 0xff0000,   # Red
+            "FullArt": 0xffd700      # Gold
+        }
+        return rarity_colors.get(rarity, 0x00ff00)  # Default green
+    
+    def _get_luck_message(self, rarity):
+        """Get luck message based on rarity"""
+        luck_messages = {
+            "Common": "🍀 Biasa aja",
+            "Rare": "✨ Lumayan beruntung!",
+            "Epic": "🌟 Wah beruntung banget!",
+            "Legendary": "💎 SUPER LUCKY!!!",
+            "FullArt": "🏆 JACKPOT LEGENDARY!!!"
+        }
+        return luck_messages.get(rarity, "🎲 Unknown")
