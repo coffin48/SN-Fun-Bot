@@ -287,6 +287,82 @@ class KpopGachaSystem:
             logger.error(f"Error in gacha_random: {e}")
             return None, f"❌ Error saat random gacha: {str(e)}"
     
+    def gacha_pack_5(self):
+        """
+        Gacha pack 5 kartu dengan guaranteed rarity:
+        - 2 Common
+        - 2 Rare/Epic  
+        - 1 Legendary/FullArt
+        """
+        if not self.members_data:
+            return [], "❌ Data member tidak tersedia"
+        
+        try:
+            cards = []
+            all_member_keys = self._get_all_member_keys()
+            
+            if len(all_member_keys) < 5:
+                return [], "❌ Tidak cukup member untuk pack 5 kartu"
+            
+            # Guaranteed rarity distribution
+            guaranteed_rarities = [
+                "Common", "Common",           # 2 Common
+                "Rare", "Epic",              # 2 Rare/Epic
+                random.choice(["Legendary", "FullArt"])  # 1 Legendary/FullArt
+            ]
+            
+            # Shuffle untuk random order
+            random.shuffle(guaranteed_rarities)
+            
+            # Generate 5 unique members
+            selected_members = random.sample(all_member_keys, 5)
+            
+            for i, member_key in enumerate(selected_members):
+                member_info = self.members_data[member_key]
+                member_name = member_info.get('name', 'Unknown')
+                group_name = member_info.get('group', 'Unknown')
+                rarity = guaranteed_rarities[i]
+                
+                # Get photo URL
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if photo_url:
+                    # Generate card
+                    card_image = self.generate_card(member_name, group_name, rarity)
+                    
+                    if card_image:
+                        card_data = {
+                            'image': card_image,
+                            'member_name': member_name,
+                            'group_name': group_name,
+                            'rarity': rarity,
+                            'member_key': member_key
+                        }
+                        cards.append(card_data)
+            
+            if len(cards) == 5:
+                # Create pack summary message
+                rarity_counts = {}
+                for card in cards:
+                    rarity = card['rarity']
+                    rarity_counts[rarity] = rarity_counts.get(rarity, 0) + 1
+                
+                summary = "🎴 **5-Card Gacha Pack Results:**\n"
+                for rarity, count in rarity_counts.items():
+                    summary += f"✨ **{rarity}:** {count}x\n"
+                
+                summary += f"\n📦 **Pack Contents:**\n"
+                for i, card in enumerate(cards, 1):
+                    summary += f"{i}. **{card['member_name']}** ({card['group_name']}) - {card['rarity']}\n"
+                
+                return cards, summary
+            else:
+                return [], f"❌ Gagal generate pack lengkap (hanya {len(cards)}/5 kartu)"
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_pack_5: {e}")
+            return [], f"❌ Error saat generate pack: {str(e)}"
+    
     def gacha_by_group(self, group_name):
         """Gacha member dari grup tertentu"""
         if not self.members_data:
@@ -356,20 +432,34 @@ class KpopGachaSystem:
         else:
             return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
     
-    def save_card_temp(self, card_image):
+    def save_card_temp(self, card_image, prefix="gacha_card"):
         """
         Save kartu ke temporary file untuk Discord
         
+        Args:
+            card_image: PIL Image object
+            prefix: Prefix untuk filename
+            
         Returns:
-            Path ke temporary file
+            str: Path ke temporary file atau None jika gagal
         """
         try:
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-            card_image.save(temp_file.name, 'PNG')
-            return temp_file.name
+            import tempfile
+            import os
+            
+            # Create temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png', prefix=f"{prefix}_")
+            temp_path = temp_file.name
+            temp_file.close()
+            
+            # Save image
+            card_image.save(temp_path, 'PNG')
+            
+            return temp_path
+            
         except Exception as e:
-            logger.error(f"Error loading database: {e}")
-            self.database = None
+            logger.error(f"Error saving card to temp file: {e}")
+            return None
     
     def _integrate_csv_data(self):
         """Integrate CSV database with JSON data for better member mapping"""
