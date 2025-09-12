@@ -280,6 +280,11 @@ class KpopGachaSystem:
         
         return matching_keys
     
+    def _get_all_member_keys(self):
+        """Get all available member keys from JSON data"""
+        if not self.members_data:
+            return []
+        return list(self.members_data.keys())
     
     def generate_card(self, member_name, group_name, rarity=None, photo_num=None):
         """
