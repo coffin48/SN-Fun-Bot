@@ -159,41 +159,55 @@ class GachaCommandsHandler:
                         icon_url=ctx.author.avatar.url if ctx.author.avatar else None
                     )
                     
-                    # Untuk 5-card pack, kirim satu per satu untuk mobile compatibility
-                    await loading_msg.edit(embed=embed)
+                    # NEW: Progressive loading dengan progress indicator
+                    progress_embed = discord.Embed(
+                        title="🎴 Generating Your 5-Card Pack...",
+                        description="⏳ **Processing cards:** 0/5",
+                        color=0xFFD700
+                    )
+                    await loading_msg.edit(embed=progress_embed)
                     
-                    # Kirim kartu satu per satu dengan delay
+                    # Kirim kartu satu per satu dengan progress updates
                     import asyncio
                     for i, card in enumerate(cards, 1):
                         try:
+                            # Update progress
+                            progress_embed.description = f"⏳ **Processing cards:** {i}/5\n🎯 **Current:** {card['member_name']} ({card['rarity']})"
+                            await loading_msg.edit(embed=progress_embed)
+                            
                             temp_path = self.gacha_system.save_card_temp(card['image'], f"card_{i}")
                             if temp_path:
-                                # Create simple embed untuk setiap kartu
+                                # Create enhanced embed untuk setiap kartu
+                                rarity_color = self._get_rarity_color(card['rarity'])
                                 card_embed = discord.Embed(
-                                    title=f"Card {i}/5",
-                                    color=0xFFD700
+                                    title=f"Card {i}/5: {card['member_name']}",
+                                    color=rarity_color
                                 )
                                 card_embed.add_field(
-                                    name="Member", 
+                                    name="👤 Member", 
                                     value=f"**{card['member_name']}**",
                                     inline=True
                                 )
                                 card_embed.add_field(
-                                    name="Group",
+                                    name="🎵 Group",
                                     value=f"**{card['group_name']}**", 
                                     inline=True
                                 )
                                 card_embed.add_field(
-                                    name="Rarity",
-                                    value=f"**{card['rarity']}**",
+                                    name="✨ Rarity",
+                                    value=f"{self._get_rarity_emoji(card['rarity'])} **{card['rarity']}**",
                                     inline=True
+                                )
+                                
+                                card_embed.set_footer(
+                                    text=f"Pack Progress: {i}/5 • {self._get_luck_message(card['rarity'])}"
                                 )
                                 
                                 with open(temp_path, 'rb') as f:
                                     file = discord.File(f, filename=f"card_{i}.png")
                                     await ctx.send(embed=card_embed, file=file)
                                 
-                                # Cleanup
+                                # Enhanced cleanup
                                 import os
                                 try:
                                     os.unlink(temp_path)
@@ -206,6 +220,14 @@ class GachaCommandsHandler:
                         except Exception as e:
                             logger.error(f"Error sending card {i}: {e}")
                             continue
+                    
+                    # Final pack summary
+                    final_embed = discord.Embed(
+                        title="🎉 Pack Complete!",
+                        description=f"**Pack Luck:** {self._calculate_pack_luck(cards)}",
+                        color=0x00FF00
+                    )
+                    await loading_msg.edit(embed=final_embed)
                 else:
                     error_embed = discord.Embed(
                         title="❌ Pack Generation Failed",
