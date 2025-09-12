@@ -251,47 +251,109 @@ class KpopGachaSystem:
     def gacha_random(self):
         """Gacha random member dari semua grup"""
         if not self.members_data:
-            return None, "Data member tidak tersedia"
+            return None, "❌ Data member tidak tersedia"
         
-        # Pilih member random dari JSON
-        member_key = random.choice(self._get_all_member_keys())
-        member_info = self.members_data[member_key]
-        
-        member_name = member_info.get('name', 'Unknown')
-        group_name = member_info.get('group', 'Unknown')
-        
-        # Generate kartu
-        card = self.generate_card(member_name, group_name)
-        
-        if card:
-            return card, f"🎴 Kamu mendapat kartu **{member_name}** dari **{group_name}**!"
-        else:
-            return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+        try:
+            # Pilih member random dari JSON
+            member_key = random.choice(self._get_all_member_keys())
+            member_info = self.members_data[member_key]
+            
+            member_name = member_info.get('name', 'Unknown')
+            group_name = member_info.get('group', 'Unknown')
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None, f"❌ Foto untuk {member_name} tidak dapat diakses!"
+            
+            # Get rarity
+            rarity = self._get_random_rarity()
+            
+            # Generate card using design_kartu
+            from design_kartu import generate_card
+            
+            card_data = {
+                'member_info': {
+                    'name': member_name,
+                    'group': group_name,
+                    'member_key': member_key
+                },
+                'photo_url': photo_url,
+                'rarity': rarity
+            }
+            
+            card_image = generate_card(card_data)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🎯 **Random Gacha**"
+                
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_random: {e}")
+            return None, f"❌ Error saat random gacha: {str(e)}"
     
     def gacha_by_group(self, group_name):
         """Gacha member dari grup tertentu"""
         if not self.members_data:
-            return None, "Data member tidak tersedia"
+            return None, "❌ Data member tidak tersedia"
         
-        # Cari member dari grup
-        group_member_keys = self._get_member_keys_by_group(group_name)
-        
-        if not group_member_keys:
-            return None, f"❌ Grup **{group_name}** tidak ditemukan di database"
-        
-        # Pilih member random dari grup
-        member_key = random.choice(group_member_keys)
-        member_info = self.members_data[member_key]
-        
-        member_name = member_info.get('name', 'Unknown')
-        
-        # Generate kartu
-        card = self.generate_card(member_name, group_name)
-        
-        if card:
-            return card, f"🎴 Kamu mendapat kartu **{member_name}** dari **{group_name}**!"
-        else:
-            return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+        try:
+            # Cari member dari grup
+            group_member_keys = self._get_member_keys_by_group(group_name)
+            
+            if not group_member_keys:
+                return None, f"❌ Grup **{group_name}** tidak ditemukan di database"
+            
+            # Pilih member random dari grup
+            member_key = random.choice(group_member_keys)
+            member_info = self.members_data[member_key]
+            
+            member_name = member_info.get('name', 'Unknown')
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None, f"❌ Foto untuk {member_name} tidak dapat diakses!"
+            
+            # Get rarity
+            rarity = self._get_random_rarity()
+            
+            # Generate card using design_kartu
+            from design_kartu import generate_card
+            
+            card_data = {
+                'member_info': {
+                    'name': member_name,
+                    'group': group_name,
+                    'member_key': member_key
+                },
+                'photo_url': photo_url,
+                'rarity': rarity
+            }
+            
+            card_image = generate_card(card_data)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🎯 **Group Gacha:** {group_name}"
+                
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_by_group: {e}")
+            return None, f"❌ Error saat group gacha: {str(e)}"
     
     def gacha_by_member(self, member_name):
         """Gacha kartu member tertentu"""
@@ -474,11 +536,21 @@ class KpopGachaSystem:
             logger.error(f"Error generating random card: {e}")
             return None
     
-    def generate_member_card(self, member_key):
-        """Generate card for specific member"""
+    def generate_member_card(self, member_name):
+        """Generate card for specific member by name"""
         try:
+            # Search for member first
+            search_results = self.search_member(member_name)
+            
+            if not search_results:
+                return None, f"❌ Member '{member_name}' tidak ditemukan!"
+            
+            # Use first result
+            member_data = search_results[0]
+            member_key = member_data['member_key']
+            
             if member_key not in self.members_data:
-                return None
+                return None, f"❌ Data foto untuk '{member_name}' tidak tersedia!"
             
             member_info = self.members_data[member_key]
             
@@ -486,20 +558,36 @@ class KpopGachaSystem:
             photo_url, _ = self._get_member_photo_url(member_key)
             
             if not photo_url:
-                return None
+                return None, f"❌ Foto untuk '{member_name}' tidak dapat diakses!"
             
             # Get rarity
             rarity = self._get_random_rarity()
             
-            return {
+            # Generate card using design_kartu
+            from design_kartu import generate_card
+            
+            card_data = {
                 'member_info': {
-                    'name': member_info.get('name', 'Unknown'),
-                    'group': member_info.get('group', 'Unknown'),
+                    'name': member_data.get('name', member_info.get('name', 'Unknown')),
+                    'group': member_data.get('group', member_info.get('group', 'Unknown')),
                     'member_key': member_key
                 },
                 'photo_url': photo_url,
                 'rarity': rarity
             }
+            
+            card_image = generate_card(card_data)
+            
+            if card_image:
+                success_msg = f"🎴 **{card_data['member_info']['name']}** dari **{card_data['member_info']['group']}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🎯 **Generated for:** {member_name}"
+                
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu untuk '{member_name}'"
+            
         except Exception as e:
-            logger.error(f"Error generating member card: {e}")
-            return None
+            logger.error(f"Error generating member card for '{member_name}': {e}")
+            return None, f"❌ Error saat generate kartu: {str(e)}"
