@@ -159,39 +159,53 @@ class GachaCommandsHandler:
                         icon_url=ctx.author.avatar.url if ctx.author.avatar else None
                     )
                     
-                    # Save all cards dengan optimasi mobile
-                    files = []
-                    temp_paths = []
+                    # Untuk 5-card pack, kirim satu per satu untuk mobile compatibility
+                    await loading_msg.edit(embed=embed)
                     
-                    for i, card in enumerate(cards):
-                        temp_path = self.gacha_system.save_card_temp(card['image'], f"card_{i+1}")
-                        if temp_path:
-                            # Gunakan .jpg extension karena sudah dioptimasi
-                            filename = f"card_{i+1}_{card['rarity'].lower()}.jpg"
-                            files.append(discord.File(temp_path, filename=filename))
-                            temp_paths.append(temp_path)
-                    
-                    if files:
-                        # Kirim dengan delay kecil untuk mobile compatibility
-                        await loading_msg.edit(embed=embed, attachments=files)
-                        
-                        # Cleanup temporary files setelah kirim
-                        import os
-                        import asyncio
-                        await asyncio.sleep(1)  # Wait for Discord to process
-                        
-                        for temp_path in temp_paths:
-                            try:
-                                if os.path.exists(temp_path):
+                    # Kirim kartu satu per satu dengan delay
+                    import asyncio
+                    for i, card in enumerate(cards, 1):
+                        try:
+                            temp_path = self.gacha_system.save_card_temp(card['image'], f"card_{i}")
+                            if temp_path:
+                                # Create simple embed untuk setiap kartu
+                                card_embed = discord.Embed(
+                                    title=f"Card {i}/5",
+                                    color=0xFFD700
+                                )
+                                card_embed.add_field(
+                                    name="Member", 
+                                    value=f"**{card['member_name']}**",
+                                    inline=True
+                                )
+                                card_embed.add_field(
+                                    name="Group",
+                                    value=f"**{card['group_name']}**", 
+                                    inline=True
+                                )
+                                card_embed.add_field(
+                                    name="Rarity",
+                                    value=f"**{card['rarity']}**",
+                                    inline=True
+                                )
+                                
+                                with open(temp_path, 'rb') as f:
+                                    file = discord.File(f, filename=f"card_{i}.png")
+                                    await ctx.send(embed=card_embed, file=file)
+                                
+                                # Cleanup
+                                import os
+                                try:
                                     os.unlink(temp_path)
-                            except:
-                                pass
-                    else:
-                        await loading_msg.edit(embed=discord.Embed(
-                            title="❌ Error",
-                            description="Gagal menyimpan kartu pack.",
-                            color=0xff0000
-                        ))
+                                except:
+                                    pass
+                                
+                                # Small delay untuk mobile
+                                await asyncio.sleep(0.5)
+                                
+                        except Exception as e:
+                            logger.error(f"Error sending card {i}: {e}")
+                            continue
                 else:
                     error_embed = discord.Embed(
                         title="❌ Pack Generation Failed",
