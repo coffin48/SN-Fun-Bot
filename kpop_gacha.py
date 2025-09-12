@@ -9,11 +9,25 @@ import random
 import requests
 from io import BytesIO
 import pandas as pd
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import math
 import tempfile
 import logging
-from design_kartu import *
+
+# Try to import PIL with error handling
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("Warning: Pillow (PIL) not installed. Gacha system will not work.")
+
+# Try to import design_kartu with error handling
+try:
+    from design_kartu import *
+    DESIGN_KARTU_AVAILABLE = True
+except ImportError:
+    DESIGN_KARTU_AVAILABLE = False
+    print("Warning: design_kartu module not available.")
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -27,6 +41,13 @@ class KpopGachaSystem:
             json_path: Path ke JSON mapping foto yang sudah diperbaiki
             database_path: Path ke database K-pop CSV (backup)
         """
+        # Check dependencies first
+        if not PIL_AVAILABLE:
+            raise ImportError("Pillow (PIL) is required for gacha system. Install with: pip install Pillow")
+        
+        if not DESIGN_KARTU_AVAILABLE:
+            raise ImportError("design_kartu module is required for gacha system.")
+        
         self.json_path = json_path
         self.database_path = database_path
         self.font_path = "Gill Sans/Gill Sans Bold Italic.otf"
