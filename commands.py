@@ -152,7 +152,10 @@ class CommandsHandler:
                         if self.gacha_handler:
                             await self.gacha_handler.handle_gacha_command(ctx, user_input)
                         else:
-                            await ctx.send("⚠️ Sistem gacha sedang tidak tersedia. Coba lagi nanti!")
+                            await ctx.send("❌ **Sistem gacha tidak tersedia!**\n"
+                                          "🔧 **Penyebab:** Missing dependency `Pillow`\n"
+                                          "💡 **Solusi:** Install dengan `pip install Pillow`\n"
+                                          "📋 **Atau:** `pip install -r requirements.txt`")
                         return
                     
                     # Social media commands
