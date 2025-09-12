@@ -159,26 +159,33 @@ class GachaCommandsHandler:
                         icon_url=ctx.author.avatar.url if ctx.author.avatar else None
                     )
                     
-                    # Save all cards and create collage or send individually
+                    # Save all cards dengan optimasi mobile
                     files = []
+                    temp_paths = []
+                    
                     for i, card in enumerate(cards):
                         temp_path = self.gacha_system.save_card_temp(card['image'], f"card_{i+1}")
                         if temp_path:
-                            files.append(discord.File(temp_path, filename=f"card_{i+1}_{card['rarity'].lower()}.png"))
+                            # Gunakan .jpg extension karena sudah dioptimasi
+                            filename = f"card_{i+1}_{card['rarity'].lower()}.jpg"
+                            files.append(discord.File(temp_path, filename=filename))
+                            temp_paths.append(temp_path)
                     
                     if files:
+                        # Kirim dengan delay kecil untuk mobile compatibility
                         await loading_msg.edit(embed=embed, attachments=files)
                         
-                        # Cleanup temporary files
+                        # Cleanup temporary files setelah kirim
                         import os
-                        for card in cards:
-                            for i in range(5):
-                                try:
-                                    temp_path = f"temp_card_{i+1}.png"
-                                    if os.path.exists(temp_path):
-                                        os.unlink(temp_path)
-                                except:
-                                    pass
+                        import asyncio
+                        await asyncio.sleep(1)  # Wait for Discord to process
+                        
+                        for temp_path in temp_paths:
+                            try:
+                                if os.path.exists(temp_path):
+                                    os.unlink(temp_path)
+                            except:
+                                pass
                     else:
                         await loading_msg.edit(embed=discord.Embed(
                             title="❌ Error",
@@ -826,37 +833,3 @@ class GachaCommandsHandler:
             "FullArt": "🏆 JACKPOT LEGENDARY!!!"
         }
         return luck_messages.get(rarity, "🎲 Unknown")
-    
-    def _get_rarity_emoji(self, rarity):
-        """Get emoji based on rarity"""
-        rarity_emojis = {
-            "Common": "⚪",      # White circle
-            "Rare": "🔵",        # Blue circle
-            "Epic": "🟣",        # Purple circle  
-            "Legendary": "🔴",   # Red circle
-            "FullArt": "🟡"      # Yellow circle
-        }
-        return rarity_emojis.get(rarity, "⚫")  # Default black
-    
-    def _calculate_pack_luck(self, cards):
-        """Calculate overall pack luck based on rarities"""
-        luck_scores = {
-            "Common": 1,
-            "Rare": 3,
-            "Epic": 5,
-            "Legendary": 8,
-            "FullArt": 10
-        }
-        
-        total_score = sum(luck_scores.get(card['rarity'], 0) for card in cards)
-        
-        if total_score >= 25:
-            return "🏆 INCREDIBLE LUCK!"
-        elif total_score >= 20:
-            return "💎 AMAZING LUCK!"
-        elif total_score >= 15:
-            return "🌟 GREAT LUCK!"
-        elif total_score >= 10:
-            return "✨ GOOD LUCK!"
-        else:
-            return "🍀 NORMAL LUCK"
