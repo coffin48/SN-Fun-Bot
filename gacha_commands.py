@@ -847,3 +847,37 @@ class GachaCommandsHandler:
             "FullArt": "🏆 JACKPOT LEGENDARY!!!"
         }
         return luck_messages.get(rarity, "🎲 Unknown")
+    
+    def _get_rarity_emoji(self, rarity):
+        """Get emoji based on rarity"""
+        rarity_emojis = {
+            "Common": "⚪",      # White circle
+            "Rare": "🔵",        # Blue circle
+            "Epic": "🟣",        # Purple circle  
+            "Legendary": "🔴",   # Red circle
+            "FullArt": "🟡"      # Yellow circle
+        }
+        return rarity_emojis.get(rarity, "⚫")  # Default black
+    
+    def _calculate_pack_luck(self, cards):
+        """Calculate overall pack luck based on rarities"""
+        luck_scores = {
+            "Common": 1,
+            "Rare": 3,
+            "Epic": 5,
+            "Legendary": 8,
+            "FullArt": 10
+        }
+        
+        total_score = sum(luck_scores.get(card['rarity'], 0) for card in cards)
+        
+        if total_score >= 25:
+            return "🏆 INCREDIBLE LUCK!"
+        elif total_score >= 20:
+            return "💎 AMAZING LUCK!"
+        elif total_score >= 15:
+            return "🌟 GREAT LUCK!"
+        elif total_score >= 10:
+            return "✨ GOOD LUCK!"
+        else:
+            return "🍀 NORMAL LUCK"
