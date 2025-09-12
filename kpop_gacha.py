@@ -271,19 +271,7 @@ class KpopGachaSystem:
             rarity = self._get_random_rarity()
             
             # Generate card using design_kartu
-            from design_kartu import generate_card
-            
-            card_data = {
-                'member_info': {
-                    'name': member_name,
-                    'group': group_name,
-                    'member_key': member_key
-                },
-                'photo_url': photo_url,
-                'rarity': rarity
-            }
-            
-            card_image = generate_card(card_data)
+            card_image = self.generate_card(member_name, group_name, rarity)
             
             if card_image:
                 success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
@@ -327,19 +315,7 @@ class KpopGachaSystem:
             rarity = self._get_random_rarity()
             
             # Generate card using design_kartu
-            from design_kartu import generate_card
-            
-            card_data = {
-                'member_info': {
-                    'name': member_name,
-                    'group': group_name,
-                    'member_key': member_key
-                },
-                'photo_url': photo_url,
-                'rarity': rarity
-            }
-            
-            card_image = generate_card(card_data)
+            card_image = self.generate_card(member_name, group_name, rarity)
             
             if card_image:
                 success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
@@ -564,22 +540,17 @@ class KpopGachaSystem:
             rarity = self._get_random_rarity()
             
             # Generate card using design_kartu
-            from design_kartu import generate_card
-            
-            card_data = {
-                'member_info': {
-                    'name': member_data.get('name', member_info.get('name', 'Unknown')),
-                    'group': member_data.get('group', member_info.get('group', 'Unknown')),
-                    'member_key': member_key
-                },
-                'photo_url': photo_url,
-                'rarity': rarity
-            }
-            
-            card_image = generate_card(card_data)
+            card_image = self.generate_card(
+                member_data.get('name', member_info.get('name', 'Unknown')),
+                member_data.get('group', member_info.get('group', 'Unknown')),
+                rarity
+            )
             
             if card_image:
-                success_msg = f"🎴 **{card_data['member_info']['name']}** dari **{card_data['member_info']['group']}**\n"
+                member_display_name = member_data.get('name', member_info.get('name', 'Unknown'))
+                group_display_name = member_data.get('group', member_info.get('group', 'Unknown'))
+                
+                success_msg = f"🎴 **{member_display_name}** dari **{group_display_name}**\n"
                 success_msg += f"✨ **Rarity:** {rarity}\n"
                 success_msg += f"📸 **Photo:** Google Drive\n"
                 success_msg += f"🎯 **Generated for:** {member_name}"
