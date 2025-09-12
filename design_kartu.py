@@ -1,7 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import numpy as np
 import os
-from IPython.display import display
 import math
 import random
 
@@ -18,20 +16,20 @@ BG_W, BG_H = CARD_W - 2*(BORDER_WIDTH + BG_MARGIN), CARD_H - 2*(BORDER_WIDTH + B
 ART_XY = (BG_XY[0]+ART_MARGIN, BG_XY[1]+ART_MARGIN)
 ART_W, ART_H = BG_W - 2*ART_MARGIN, BG_H - 2*ART_MARGIN
 
-# --- File foto sample ---
-sample_photo_path = "/content/aespa_Giselle_1.jpg"
-idol_photo_original = Image.open(sample_photo_path).convert("RGBA")
+# --- Rarity list ---
+RARITIES = ["Common","Rare","Epic","Legendary","FullArt"]
 
-# --- Folder output ---
-output_folder = "templates_final_safe_ruby_textpos"
-rarities = ["Common","Rare","Epic","Legendary","FullArt"]
-variations_per_rarity = 2
-os.makedirs(output_folder, exist_ok=True)
+# --- Font configuration ---
+FONT_PATH = "Gill Sans/Gill Sans Bold Italic.otf"
+FONT_SIZE = 24
 
-# --- Load font Gill Sans Bold Italic ---
-font_path = "/content/Font/Gill Sans Bold Italic.otf"
-font_size = 24
-font = ImageFont.truetype(font_path, font_size)
+def get_font():
+    """Load font dengan error handling"""
+    try:
+        return ImageFont.truetype(FONT_PATH, FONT_SIZE)
+    except Exception:
+        # Fallback ke default font jika font tidak ditemukan
+        return ImageFont.load_default()
 
 # --- Resize cover tanpa padding ---
 def resize_cover(img, target_w, target_h):
@@ -100,71 +98,69 @@ def add_fullart_final(img):
     return img
 
 # --- Gradient & background colors per rarity (Legendary = merah ruby) ---
-rarity_gradients = {
+RARITY_GRADIENTS = {
     "Common": [(180,180,180),(220,220,220)],
     "Rare": [(50,150,255),(100,200,255)],
     "Epic": [(180,0,255),(220,50,255)],
-    "Legendary": [(204,0,0),(255,100,100)]  # merah ruby
+    "Legendary": [(204,0,0),(255,100,100)],  # merah ruby
+    "FullArt": [(255,215,0),(255,255,0)]     # gold untuk FullArt
 }
-bg_colors = {
+
+BG_COLORS = {
     "Common": [(200,200,200),(150,150,150)],
     "Rare": [(80,180,255),(30,100,255)],
     "Epic": [(200,50,255),(120,0,200)],
-    "Legendary": [(255,180,180),(150,0,0)]  # merah ruby
+    "Legendary": [(255,180,180),(150,0,0)],  # merah ruby
+    "FullArt": [(255,248,220),(255,215,0)]   # gold untuk FullArt
 }
 
-all_images = []
-
-for rarity in rarities:
-    folder_rarity = os.path.join(output_folder, rarity)
-    os.makedirs(folder_rarity, exist_ok=True)
+def generate_card_template(idol_photo, rarity):
+    """
+    Generate template kartu berdasarkan rarity
     
-    for i in range(variations_per_rarity):
-        if rarity != "FullArt":
-            template = Image.new("RGBA",(CARD_W,CARD_H),(255,255,255,255))
-            draw = ImageDraw.Draw(template)
-            
-            # Gradient border
-            draw_gradient_border(draw,[0,0,CARD_W,CARD_H],BORDER_WIDTH,rarity_gradients[rarity])
-            
-            # Background termasuk area teks rarity
-            template = draw_rectangular_radial_bg(template,
-                                                  [BG_XY[0], BG_XY[1], BG_XY[0]+BG_W, BG_XY[1]+BG_H+TEXT_HEIGHT],
-                                                  bg_colors[rarity][0], bg_colors[rarity][1])
-            
-            # Paste area art
-            idol_photo = resize_cover(idol_photo_original, ART_W, ART_H)
-            template.paste(idol_photo, ART_XY, idol_photo)
-            
-            # --- Tulis teks rarity ---
-            if rarity in ["Common", "Rare"]:
-                # Bawah kiri
-                text_x = ART_XY[0] + 5
-                text_y = ART_XY[1] + ART_H + 5
-            else:
-                # Atas kanan
-                bbox = font.getbbox(rarity)
-                text_w = bbox[2] - bbox[0]
-                text_h = bbox[3] - bbox[1]
-                text_x = CARD_W - text_w - 10
-                text_y = 10
-            
-            draw.text((text_x, text_y), rarity, fill=(255,255,255), font=font)
-            
-        else:
-            # Full Art: holo + sparkle overlay
-            template = resize_cover(idol_photo_original, CARD_W, CARD_H)
-            template = template.convert("RGBA")
-            template = add_fullart_final(template)
+    Args:
+        idol_photo: PIL Image object foto idol
+        rarity: String rarity ("Common", "Rare", "Epic", "Legendary", "FullArt")
         
-        filename = f"{rarity}_{i+1}.png"
-        template.save(os.path.join(folder_rarity,filename))
-        all_images.append(template)
-
-# --- Preview horizontal ---
-total_width = CARD_W*len(all_images)
-horizontal_strip = Image.new("RGBA",(total_width,CARD_H),(255,255,255,255))
-for idx,img in enumerate(all_images):
-    horizontal_strip.paste(img,(CARD_W*idx,0))
-display(horizontal_strip)
-print("✅ Semua rarity selesai: Legendary merah ruby, border gradient, background + teks, area art, Full Art holo tipis + sparkle siap dengan teks C & R bawah kiri!")
+    Returns:
+        PIL Image object template kartu
+    """
+    font = get_font()
+    
+    if rarity != "FullArt":
+        template = Image.new("RGBA",(CARD_W,CARD_H),(255,255,255,255))
+        draw = ImageDraw.Draw(template)
+        
+        # Gradient border
+        draw_gradient_border(draw,[0,0,CARD_W,CARD_H],BORDER_WIDTH,RARITY_GRADIENTS[rarity])
+        
+        # Background termasuk area teks rarity
+        template = draw_rectangular_radial_bg(template,
+                                              [BG_XY[0], BG_XY[1], BG_XY[0]+BG_W, BG_XY[1]+BG_H+TEXT_HEIGHT],
+                                              BG_COLORS[rarity][0], BG_COLORS[rarity][1])
+        
+        # Paste area art
+        idol_photo_resized = resize_cover(idol_photo, ART_W, ART_H)
+        template.paste(idol_photo_resized, ART_XY, idol_photo_resized)
+        
+        # --- Tulis teks rarity ---
+        if rarity in ["Common", "Rare"]:
+            # Bawah kiri
+            text_x = ART_XY[0] + 5
+            text_y = ART_XY[1] + ART_H + 5
+        else:
+            # Atas kanan
+            bbox = font.getbbox(rarity)
+            text_w = bbox[2] - bbox[0]
+            text_x = CARD_W - text_w - 10
+            text_y = 10
+        
+        draw.text((text_x, text_y), rarity, fill=(255,255,255), font=font)
+        
+    else:
+        # Full Art: holo + sparkle overlay
+        template = resize_cover(idol_photo, CARD_W, CARD_H)
+        template = template.convert("RGBA")
+        template = add_fullart_final(template)
+    
+    return template
