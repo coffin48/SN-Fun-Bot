@@ -330,8 +330,8 @@ class KpopGachaSystem:
             # Import design functions
             from design_kartu import generate_card_template
             
-            # Generate template kartu menggunakan fungsi dari design_kartu
-            template = generate_card_template(idol_photo_original, rarity)
+            # Generate template kartu menggunakan fungsi dari design_kartu dengan info member
+            template = generate_card_template(idol_photo_original, rarity, member_name, group_name)
             
             return template
             
