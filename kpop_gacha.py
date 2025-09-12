@@ -434,7 +434,7 @@ class KpopGachaSystem:
     
     def save_card_temp(self, card_image, prefix="gacha_card"):
         """
-        Save kartu ke temporary file untuk Discord dengan optimasi mobile
+        Save kartu ke temporary file untuk Discord
         
         Args:
             card_image: PIL Image object
@@ -447,29 +447,13 @@ class KpopGachaSystem:
             import tempfile
             import os
             
-            # Create temporary file
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg', prefix=f"{prefix}_")
+            # Create temporary file - kembali ke PNG seperti semula
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png', prefix=f"{prefix}_")
             temp_path = temp_file.name
             temp_file.close()
             
-            # Optimize image untuk mobile compatibility
-            # Resize jika terlalu besar
-            max_size = (800, 1200)  # Max width x height untuk mobile
-            if card_image.size[0] > max_size[0] or card_image.size[1] > max_size[1]:
-                card_image.thumbnail(max_size, Image.Resampling.LANCZOS)
-            
-            # Convert ke RGB jika RGBA untuk JPEG
-            if card_image.mode in ('RGBA', 'LA'):
-                # Create white background
-                background = Image.new('RGB', card_image.size, (255, 255, 255))
-                if card_image.mode == 'RGBA':
-                    background.paste(card_image, mask=card_image.split()[-1])
-                else:
-                    background.paste(card_image)
-                card_image = background
-            
-            # Save dengan kompresi untuk file size lebih kecil
-            card_image.save(temp_path, 'JPEG', quality=85, optimize=True)
+            # Save image tanpa optimasi berlebihan - kartu sudah 350x540px
+            card_image.save(temp_path, 'PNG')
             
             return temp_path
             
