@@ -9,12 +9,15 @@ BORDER_WIDTH = 15
 BG_MARGIN = 5
 ART_MARGIN = 15
 TEXT_HEIGHT = 50  # area untuk teks rarity di bawah art
+HEADER_HEIGHT = 40  # area untuk nama member dan grup di atas
+DESC_HEIGHT = 60   # area untuk deskripsi di bawah foto
 
 # --- Area background & art ---
 BG_XY = (BORDER_WIDTH + BG_MARGIN, BORDER_WIDTH + BG_MARGIN)
 BG_W, BG_H = CARD_W - 2*(BORDER_WIDTH + BG_MARGIN), CARD_H - 2*(BORDER_WIDTH + BG_MARGIN) - TEXT_HEIGHT
-ART_XY = (BG_XY[0]+ART_MARGIN, BG_XY[1]+ART_MARGIN)
-ART_W, ART_H = BG_W - 2*ART_MARGIN, BG_H - 2*ART_MARGIN
+# Area foto dengan space untuk header dan deskripsi
+ART_XY = (BG_XY[0]+ART_MARGIN, BG_XY[1]+ART_MARGIN+HEADER_HEIGHT)
+ART_W, ART_H = BG_W - 2*ART_MARGIN, BG_H - 2*ART_MARGIN - HEADER_HEIGHT - DESC_HEIGHT
 
 # --- Rarity list ---
 RARITIES = ["Common","Rare","Epic","Legendary","FullArt"]
@@ -22,14 +25,24 @@ RARITIES = ["Common","Rare","Epic","Legendary","FullArt"]
 # --- Font configuration ---
 FONT_PATH = "Gill Sans/Gill Sans Bold Italic.otf"
 FONT_SIZE = 24
+FONT_SIZE_SMALL = 16  # untuk nama member dan deskripsi
+FONT_SIZE_TINY = 12   # untuk grup dan detail kecil
 
-def get_font():
-    """Load font dengan error handling"""
+def get_font(size=FONT_SIZE):
+    """Load font dengan error handling dan custom size"""
     try:
-        return ImageFont.truetype(FONT_PATH, FONT_SIZE)
+        return ImageFont.truetype(FONT_PATH, size)
     except Exception:
         # Fallback ke default font jika font tidak ditemukan
         return ImageFont.load_default()
+
+def get_small_font():
+    """Get font untuk teks kecil"""
+    return get_font(FONT_SIZE_SMALL)
+
+def get_tiny_font():
+    """Get font untuk teks sangat kecil"""
+    return get_font(FONT_SIZE_TINY)
 
 # --- Resize cover tanpa padding ---
 def resize_cover(img, target_w, target_h):
@@ -114,18 +127,36 @@ BG_COLORS = {
     "FullArt": [(255,248,220),(255,215,0)]   # gold untuk FullArt
 }
 
-def generate_card_template(idol_photo, rarity):
+def generate_card_template(idol_photo, rarity, member_name="Member", group_name="Group", description=""):
     """
-    Generate template kartu berdasarkan rarity
+    Generate template kartu berdasarkan rarity dengan info member seperti Pokemon TCG
     
     Args:
         idol_photo: PIL Image object foto idol
         rarity: String rarity ("Common", "Rare", "Epic", "Legendary", "FullArt")
+        member_name: Nama member untuk ditampilkan di kartu
+        group_name: Nama grup untuk ditampilkan di kartu
+        description: Deskripsi singkat member (opsional)
         
     Returns:
         PIL Image object template kartu
     """
     font = get_font()
+    small_font = get_small_font()
+    tiny_font = get_tiny_font()
+    
+    # Generate default description jika kosong
+    if not description:
+        descriptions = [
+            f"Main vocalist dari {group_name}",
+            f"Lead dancer yang energik",
+            f"Visual member dengan pesona unik",
+            f"Rapper berbakat dari {group_name}",
+            f"Maknae yang menggemaskan",
+            f"Leader yang karismatik",
+            f"All-rounder member {group_name}"
+        ]
+        description = random.choice(descriptions)
     
     if rarity != "FullArt":
         template = Image.new("RGBA",(CARD_W,CARD_H),(255,255,255,255))
@@ -139,15 +170,40 @@ def generate_card_template(idol_photo, rarity):
                                               [BG_XY[0], BG_XY[1], BG_XY[0]+BG_W, BG_XY[1]+BG_H+TEXT_HEIGHT],
                                               BG_COLORS[rarity][0], BG_COLORS[rarity][1])
         
+        # --- Header: Nama Member dan Grup (atas kiri) ---
+        header_x = BG_XY[0] + 10
+        header_y = BG_XY[1] + 5
+        
+        # Nama member (lebih besar)
+        draw.text((header_x, header_y), member_name, fill=(255,255,255), font=small_font)
+        
+        # Nama grup (lebih kecil, di bawah nama member)
+        group_y = header_y + 20
+        draw.text((header_x, group_y), group_name, fill=(200,200,200), font=tiny_font)
+        
         # Paste area art
         idol_photo_resized = resize_cover(idol_photo, ART_W, ART_H)
         template.paste(idol_photo_resized, ART_XY, idol_photo_resized)
         
+        # --- Deskripsi di bawah foto ---
+        desc_x = ART_XY[0] + 5
+        desc_y = ART_XY[1] + ART_H + 5
+        
+        # Wrap text untuk deskripsi panjang
+        max_width = ART_W - 10
+        wrapped_desc = wrap_text(description, tiny_font, max_width)
+        
+        line_height = 14
+        for i, line in enumerate(wrapped_desc[:3]):  # Maksimal 3 baris
+            draw.text((desc_x, desc_y + i * line_height), line, fill=(220,220,220), font=tiny_font)
+        
         # --- Tulis teks rarity ---
         if rarity in ["Common", "Rare"]:
-            # Bawah kiri
-            text_x = ART_XY[0] + 5
-            text_y = ART_XY[1] + ART_H + 5
+            # Bawah kanan (pindah dari kiri)
+            bbox = font.getbbox(rarity)
+            text_w = bbox[2] - bbox[0]
+            text_x = CARD_W - text_w - 15
+            text_y = CARD_H - 35
         else:
             # Atas kanan
             bbox = font.getbbox(rarity)
@@ -158,9 +214,50 @@ def generate_card_template(idol_photo, rarity):
         draw.text((text_x, text_y), rarity, fill=(255,255,255), font=font)
         
     else:
-        # Full Art: holo + sparkle overlay
+        # Full Art: holo + sparkle overlay dengan teks minimal tanpa background
         template = resize_cover(idol_photo, CARD_W, CARD_H)
         template = template.convert("RGBA")
         template = add_fullart_final(template)
+        
+        # Tambah teks langsung di atas foto tanpa background overlay
+        draw = ImageDraw.Draw(template)
+        
+        # Nama member di atas kiri dengan outline untuk visibility
+        text_x, text_y = 15, 10
+        # Text outline untuk visibility di atas foto
+        for adj in range(-1, 2):
+            for adj2 in range(-1, 2):
+                draw.text((text_x+adj, text_y+adj2), member_name, fill=(0,0,0), font=small_font)
+        draw.text((text_x, text_y), member_name, fill=(255,255,255), font=small_font)
+        
+        # Nama grup di bawah nama member dengan outline
+        group_y = text_y + 22
+        for adj in range(-1, 2):
+            for adj2 in range(-1, 2):
+                draw.text((text_x+adj, group_y+adj2), group_name, fill=(0,0,0), font=tiny_font)
+        draw.text((text_x, group_y), group_name, fill=(220,220,220), font=tiny_font)
     
     return template
+
+def wrap_text(text, font, max_width):
+    """Wrap text untuk fit dalam width tertentu"""
+    words = text.split(' ')
+    lines = []
+    current_line = []
+    
+    for word in words:
+        test_line = ' '.join(current_line + [word])
+        bbox = font.getbbox(test_line)
+        if bbox[2] - bbox[0] <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+            else:
+                lines.append(word)  # Word terlalu panjang, paksa masuk
+    
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    return lines
