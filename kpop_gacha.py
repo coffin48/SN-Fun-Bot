@@ -232,50 +232,11 @@ class KpopGachaSystem:
                 logger.error(f"Failed to load photo: {photo_url}")
                 return None
             
-            # Load font
-            try:
-                font = ImageFont.truetype(font_path, font_size)
-            except:
-                font = ImageFont.load_default()
-                logger.warning("Using default font, Gill Sans not found")
+            # Import design functions
+            from design_kartu import generate_card_template
             
-            if rarity != "FullArt":
-                # Generate kartu normal dengan border dan background
-                template = Image.new("RGBA", (CARD_W, CARD_H), (255,255,255,255))
-                draw = ImageDraw.Draw(template)
-                
-                # Gradient border
-                draw_gradient_border(draw, [0,0,CARD_W,CARD_H], 
-                                   BORDER_WIDTH, rarity_gradients[rarity])
-                
-                # Background termasuk area teks rarity
-                template = draw_rectangular_radial_bg(template,
-                    [BG_XY[0], BG_XY[1], BG_XY[0]+BG_W, BG_XY[1]+BG_H+TEXT_HEIGHT],
-                    bg_colors[rarity][0], bg_colors[rarity][1])
-                
-                # Paste area art
-                idol_photo = resize_cover(idol_photo_original, ART_W, ART_H)
-                template.paste(idol_photo, ART_XY, idol_photo)
-                
-                # Tulis teks rarity
-                if rarity in ["Common", "Rare"]:
-                    # Bawah kiri
-                    text_x = ART_XY[0] + 5
-                    text_y = ART_XY[1] + ART_H + 5
-                else:
-                    # Atas kanan
-                    bbox = font.getbbox(rarity)
-                    text_w = bbox[2] - bbox[0]
-                    text_x = CARD_W - text_w - 10
-                    text_y = 10
-                
-                draw.text((text_x, text_y), rarity, fill=(255,255,255), font=font)
-                
-            else:
-                # Full Art: holo + sparkle overlay
-                template = resize_cover(idol_photo_original, CARD_W, CARD_H)
-                template = template.convert("RGBA")
-                template = add_fullart_final(template)
+            # Generate template kartu menggunakan fungsi dari design_kartu
+            template = generate_card_template(idol_photo_original, rarity)
             
             return template
             
