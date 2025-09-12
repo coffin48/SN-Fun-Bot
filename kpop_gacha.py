@@ -55,10 +55,9 @@ class KpopGachaSystem:
         self.database_path = database_path
         self.font_path = "Gill Sans/Gill Sans Bold Italic.otf"
         
-        # Load JSON data
+        # Initialize data containers
         self.members_data = {}
         self.base_url = ""
-        self._load_json_data()
         
         # Sistem probabilitas rarity
         self.RARITY_RATES = {
@@ -78,7 +77,7 @@ class KpopGachaSystem:
         self.max_retries = 3
         self.retry_delay = 1.0
         
-        # Load data
+        # Load all data once
         self._load_json_data()
         self._load_database()
         self._integrate_csv_data()
