@@ -12,6 +12,9 @@ import pandas as pd
 import math
 import tempfile
 import logging
+import hashlib
+import time
+from functools import wraps
 
 # Try to import PIL with error handling
 try:
@@ -66,6 +69,15 @@ class KpopGachaSystem:
             "FullArt": 1       # 1%
         }
         
+        # NEW: Image caching system
+        self.image_cache = {}
+        self.cache_dir = "cache/images"
+        self._setup_cache_dir()
+        
+        # NEW: Retry configuration
+        self.max_retries = 3
+        self.retry_delay = 1.0
+        
         # Load data
         self._load_json_data()
         self._load_database()
@@ -97,6 +109,83 @@ class KpopGachaSystem:
             logger.error(f"Failed to load backup database: {e}")
             self.database = pd.DataFrame()
             self.df = pd.DataFrame()
+    
+    def _setup_cache_dir(self):
+        """Setup cache directory untuk image caching"""
+        try:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            logger.info(f"Cache directory setup: {self.cache_dir}")
+        except Exception as e:
+            logger.error(f"Failed to setup cache directory: {e}")
+    
+    def _get_cache_key(self, url):
+        """Generate cache key dari URL"""
+        return hashlib.md5(url.encode()).hexdigest()
+    
+    def _get_cached_image_path(self, cache_key):
+        """Get path untuk cached image"""
+        return os.path.join(self.cache_dir, f"{cache_key}.png")
+    
+    def _is_image_cached(self, url):
+        """Check apakah image sudah di-cache"""
+        cache_key = self._get_cache_key(url)
+        cache_path = self._get_cached_image_path(cache_key)
+        return os.path.exists(cache_path)
+    
+    def _load_cached_image(self, url):
+        """Load image dari cache"""
+        try:
+            cache_key = self._get_cache_key(url)
+            cache_path = self._get_cached_image_path(cache_key)
+            
+            if os.path.exists(cache_path):
+                image = Image.open(cache_path).convert("RGBA")
+                logger.debug(f"Image loaded from cache: {cache_key}")
+                return image
+            return None
+        except Exception as e:
+            logger.error(f"Error loading cached image: {e}")
+            return None
+    
+    def _save_image_to_cache(self, url, image):
+        """Save image ke cache"""
+        try:
+            cache_key = self._get_cache_key(url)
+            cache_path = self._get_cached_image_path(cache_key)
+            
+            # Save sebagai PNG untuk quality
+            image.save(cache_path, 'PNG')
+            logger.debug(f"Image saved to cache: {cache_key}")
+        except Exception as e:
+            logger.error(f"Error saving image to cache: {e}")
+    
+    def _download_with_retry(self, url, max_retries=None):
+        """Download image dengan retry logic"""
+        if max_retries is None:
+            max_retries = self.max_retries
+        
+        last_error = None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                logger.debug(f"Download attempt {attempt + 1}/{max_retries + 1}: {url}")
+                
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                image = Image.open(BytesIO(response.content)).convert("RGBA")
+                logger.debug(f"Successfully downloaded image on attempt {attempt + 1}")
+                return image
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Download attempt {attempt + 1} failed: {e}")
+                
+                if attempt < max_retries:
+                    time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+                    
+        logger.error(f"All download attempts failed for {url}: {last_error}")
+        return None
     
     def _get_random_rarity(self):
         """Generate random rarity berdasarkan probabilitas"""
@@ -147,29 +236,27 @@ class KpopGachaSystem:
         return photo_url, photo_filename
     
     def _download_image_from_url(self, url):
-        """
-        Download image dari URL (Google Drive)
-        
-        Args:
-            url: URL foto
-            
-        Returns:
-            PIL Image object atau None jika gagal
-        """
+        """Download image dari Google Drive URL dengan caching dan retry"""
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
+            # NEW: Check cache first
+            if self._is_image_cached(url):
+                cached_image = self._load_cached_image(url)
+                if cached_image:
+                    return cached_image
             
-            image = Image.open(BytesIO(response.content))
-            return image.convert("RGBA")
+            # NEW: Download dengan retry logic
+            image = self._download_with_retry(url)
+            
+            if image:
+                # NEW: Save to cache
+                self._save_image_to_cache(url, image)
+                return image
+            
+            return None
             
         except Exception as e:
-            logger.error(f"Failed to download image from {url}: {e}")
+            logger.error(f"Error in enhanced image download from {url}: {e}")
             return None
-    
-    def _get_all_member_keys(self):
-        """Get semua member keys dari JSON data"""
-        return list(self.members_data.keys())
     
     def _get_member_keys_by_group(self, group_name):
         """Get member keys dari grup tertentu"""
@@ -434,7 +521,7 @@ class KpopGachaSystem:
     
     def save_card_temp(self, card_image, prefix="gacha_card"):
         """
-        Save kartu ke temporary file untuk Discord
+        Save kartu ke temporary file untuk Discord dengan memory cleanup
         
         Args:
             card_image: PIL Image object
@@ -454,6 +541,13 @@ class KpopGachaSystem:
             
             # Save image tanpa optimasi berlebihan - kartu sudah 350x540px
             card_image.save(temp_path, 'PNG')
+            
+            # NEW: Memory cleanup - close image if it's safe
+            try:
+                if hasattr(card_image, 'close') and card_image.filename != temp_path:
+                    card_image.close()
+            except:
+                pass  # Safe to ignore cleanup errors
             
             return temp_path
             
