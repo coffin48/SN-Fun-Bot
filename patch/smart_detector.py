@@ -5,7 +5,7 @@ import re
 
 # Import logger at module level to avoid circular imports
 try:
-    from core.logger import core.logger
+    from core.logger import logger
 except ImportError:
     import logging
     logger = logging.getLogger(__name__)
@@ -466,7 +466,7 @@ class SmartKPopDetector:
         if len(words) < 2:
             return None
         
-        from core.logger import core.logger
+        # Logger already imported at module level
         logger.debug(f"🔍 _detect_member_group: Processing '{input_norm}' -> words: {words}")
         
         # Coba semua kombinasi kata untuk mencari member + group
