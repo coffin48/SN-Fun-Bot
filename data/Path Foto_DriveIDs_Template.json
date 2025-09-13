@@ -1,0 +1,55 @@
+{
+  "base_url": "https://drive.google.com/uc?export=view&id=",
+  "last_updated": "2025-09-13T02:25:00.000000",
+  "source_folder": "https://drive.google.com/drive/folders/1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI",
+  "folder_id": "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI",
+  "note": "Template JSON - file IDs need to be populated from actual Google Drive folder",
+  "instructions": [
+    "1. Set Google Drive folder to 'Anyone with link can view'",
+    "2. Use Google Drive API or manual extraction to get file IDs",
+    "3. Replace placeholder IDs with real Google Drive file IDs",
+    "4. Each file ID should be 25+ characters long"
+  ],
+  "members": {
+    "jungbin_pow": {
+      "name": "Jungbin",
+      "korean_name": "정빈",
+      "full_name": "Lim Jungbin",
+      "birth_date": "2003-07-22",
+      "group": "POW",
+      "photos": [
+        "PLACEHOLDER_FILE_ID_1",
+        "PLACEHOLDER_FILE_ID_2",
+        "PLACEHOLDER_FILE_ID_3",
+        "PLACEHOLDER_FILE_ID_4",
+        "PLACEHOLDER_FILE_ID_5"
+      ]
+    },
+    "yorch_pow": {
+      "name": "Yorch",
+      "korean_name": "요치",
+      "full_name": "Yongsin Wongpanitnont",
+      "birth_date": "2002-04-11",
+      "group": "POW",
+      "photos": [
+        "PLACEHOLDER_FILE_ID_6",
+        "PLACEHOLDER_FILE_ID_7",
+        "PLACEHOLDER_FILE_ID_8"
+      ]
+    },
+    "karina_aespa": {
+      "name": "Karina",
+      "korean_name": "카리나",
+      "full_name": "Yoo Jimin",
+      "birth_date": "2000-04-11",
+      "group": "aespa",
+      "photos": [
+        "PLACEHOLDER_FILE_ID_9",
+        "PLACEHOLDER_FILE_ID_10",
+        "PLACEHOLDER_FILE_ID_11",
+        "PLACEHOLDER_FILE_ID_12",
+        "PLACEHOLDER_FILE_ID_13"
+      ]
+    }
+  }
+}

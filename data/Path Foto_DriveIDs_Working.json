@@ -1,0 +1,30 @@
+{
+  "base_url": "https://drive.google.com/uc?export=view&id=",
+  "last_updated": "2025-09-13T02:25:00.000000",
+  "note": "Working JSON dengan public Google Drive IDs untuk testing",
+  "members": {
+    "test_jungbin": {
+      "name": "Jungbin",
+      "korean_name": "정빈",
+      "full_name": "Lim Jungbin",
+      "birth_date": "2003-07-22",
+      "group": "POW",
+      "photos": [
+        "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+        "1mGVsu30F_HUMQRhGA2DJ3WlxMydlJnRr",
+        "1xGj_GVdAeYNiRaGzLngtU4H4MUFkOlmN"
+      ]
+    },
+    "test_karina": {
+      "name": "Karina",
+      "korean_name": "카리나",
+      "full_name": "Yoo Jimin",
+      "birth_date": "2000-04-11",
+      "group": "aespa",
+      "photos": [
+        "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+        "1mGVsu30F_HUMQRhGA2DJ3WlxMydlJnRr"
+      ]
+    }
+  }
+}

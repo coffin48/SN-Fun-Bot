@@ -1,0 +1,60 @@
+{
+  "base_url": "https://drive.google.com/uc?export=view&id=",
+  "last_updated": "2025-09-13T02:20:00.000000",
+  "source_folder": "https://drive.google.com/drive/folders/1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI",
+  "folder_id": "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI",
+  "note": "Manual mapping - file IDs need to be updated with real Google Drive IDs",
+  "members": {
+    "jungbin_pow": {
+      "name": "Jungbin",
+      "korean_name": "정빈",
+      "full_name": "Lim Jungbin",
+      "birth_date": "2003-07-22",
+      "group": "POW",
+      "photos": [
+        "REAL_GDRIVE_ID_1",
+        "REAL_GDRIVE_ID_2",
+        "REAL_GDRIVE_ID_3",
+        "REAL_GDRIVE_ID_4",
+        "REAL_GDRIVE_ID_5"
+      ]
+    },
+    "yorch_pow": {
+      "name": "Yorch",
+      "korean_name": "요치",
+      "full_name": "Yongsin Wongpanitnont",
+      "birth_date": "2002-04-11",
+      "group": "POW",
+      "photos": [
+        "REAL_GDRIVE_ID_6",
+        "REAL_GDRIVE_ID_7",
+        "REAL_GDRIVE_ID_8"
+      ]
+    },
+    "karina_aespa": {
+      "name": "Karina",
+      "korean_name": "카리나",
+      "full_name": "Yoo Jimin",
+      "birth_date": "2000-04-11",
+      "group": "aespa",
+      "photos": [
+        "REAL_GDRIVE_ID_9",
+        "REAL_GDRIVE_ID_10",
+        "REAL_GDRIVE_ID_11",
+        "REAL_GDRIVE_ID_12",
+        "REAL_GDRIVE_ID_13"
+      ]
+    },
+    "winter_aespa": {
+      "name": "Winter",
+      "korean_name": "윈터",
+      "full_name": "Kim Minjeong",
+      "birth_date": "2001-01-01",
+      "group": "aespa",
+      "photos": [
+        "REAL_GDRIVE_ID_14",
+        "REAL_GDRIVE_ID_15"
+      ]
+    }
+  }
+}
