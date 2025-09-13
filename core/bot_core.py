@@ -7,10 +7,47 @@ from discord.ext import commands
 import pandas as pd
 import redis
 from core.logger import logger
-from patch.smart_detector import SmartKPopDetector
-from features.analytics.analytics import BotAnalytics
-from features.analytics.database_manager import DatabaseManager
-from features.social_media.social_media_monitor import SocialMediaMonitor
+try:
+    from patch.smart_detector import SmartKPopDetector
+except ImportError:
+    try:
+        from smart_detector import SmartKPopDetector
+    except ImportError:
+        class SmartKPopDetector:
+            def __init__(self, kpop_df):
+                pass
+            def detect_kpop_entity(self, text):
+                return None, None, None
+try:
+    from features.analytics.analytics import BotAnalytics
+except ImportError:
+    try:
+        from analytics.analytics import BotAnalytics
+    except ImportError:
+        class BotAnalytics:
+            def __init__(self):
+                pass
+
+try:
+    from features.analytics.database_manager import DatabaseManager
+except ImportError:
+    try:
+        from analytics.database_manager import DatabaseManager
+    except ImportError:
+        class DatabaseManager:
+            def __init__(self):
+                pass
+try:
+    from features.social_media.social_media_monitor import SocialMediaMonitor
+except ImportError:
+    # Fallback if features module structure is different in Railway
+    try:
+        from social_media.social_media_monitor import SocialMediaMonitor
+    except ImportError:
+        # Create dummy class if social media monitor is not available
+        class SocialMediaMonitor:
+            def __init__(self, bot_core):
+                pass
 
 class BotCore:
     def __init__(self):
