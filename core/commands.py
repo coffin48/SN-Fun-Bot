@@ -15,7 +15,7 @@ try:
 except ImportError:
     class BotAnalytics:
         def __init__(self):
-            self.data = {"query_stats": {"total_queries": 0}, "popular_queries": {}, "response_times": {"scraping": [], "ai_generation": [], "total_response": []}, "source_performance": {}}
+            self.data = {"query_stats": {"total_queries": 0}, "popular_queries": {}, "response_times": {"scraping": [], "ai_generation": [], "total_response": []}, "source_performance": {}, "daily_stats": {}}
         def track_daily_usage(self): pass
         def log_error(self, *args): pass
         def track_response_time(self, *args): pass
