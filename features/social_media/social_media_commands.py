@@ -5,7 +5,11 @@ Menangani semua command social media: twitter, youtube, tiktok, instagram
 """
 
 import discord
-from core.logger import core.logger
+try:
+    from core.logger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
 class SocialMediaCommandsHandler:
     """Handler untuk social media commands"""
