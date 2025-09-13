@@ -4,7 +4,7 @@ Bias Detector - AI-powered K-pop bias detection and love matching
 import discord
 import random
 from datetime import datetime
-from core.logger import core.logger
+from core.logger import logger
 from features.social_media.ai_handler import AIHandler
 
 class BiasDetector:
