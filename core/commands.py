@@ -3,13 +3,13 @@ Commands Module - Menangani semua Discord commands
 """
 import asyncio
 import redis
-from core.logger import core.logger
+from core.logger import logger
 import time
 import random
 import discord
 from features.social_media.ai_handler import AIHandler
 from utils.data_fetcher import DataFetcher
-from features.analytics.analytics import features.analytics.analytics
+from features.analytics.analytics import BotAnalytics
 from features.social_media.social_media_commands import SocialMediaCommandsHandler
 # Conditional import for bias commands to avoid startup errors
 try:
