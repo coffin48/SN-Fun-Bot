@@ -53,7 +53,7 @@ class KpopGachaSystem:
         
         self.json_path = json_path
         self.database_path = database_path
-        self.font_path = "assets/fonts/Gill Sans/Gill Sans Bold Italic.otf"
+        self.font_path = "assets/fonts/Gill Sans Bold Italic.otf"
         
         # Initialize data containers
         self.members_data = {}
