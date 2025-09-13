@@ -61,7 +61,7 @@ class CommandsHandler:
             print(f"DEBUG: BiasDetector created: {self.bias_detector}")
             
             # Import BiasCommandsHandler after BiasDetector is initialized
-            import features.bias_detector.bias_commands
+            import features.bias_detector.bias_commands as bias_commands
             print("DEBUG: bias_commands module imported")
             print(f"DEBUG: BiasCommandsHandler class exists: {hasattr(bias_commands, 'BiasCommandsHandler')}")
             self.bias_handler = bias_commands.BiasCommandsHandler(self.bias_detector, self.ai_handler, self.kpop_df)
