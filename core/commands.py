@@ -139,7 +139,7 @@ class CommandsHandler:
                     elif user_input.lower().startswith("gacha info"):
                         # Redirect to gacha system
                         if self.gacha_handler:
-                            await self.gacha_handler.handle_command(ctx, "gacha info")
+                            await self.gacha_handler.handle_gacha_command(ctx, "gacha info")
                         else:
                             await ctx.send("❌ Gacha system tidak tersedia.")
                         return
