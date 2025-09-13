@@ -46,8 +46,42 @@ def load_card_data():
         return json.load(f)
 
 # Fit foto ke dalam box dengan crop proporsional
+def detect_and_crop_padding(image, padding_threshold=10):
+    """Detect dan crop padding/whitespace dari foto"""
+    import numpy as np
+    
+    # Convert ke array untuk analisis
+    img_array = np.array(image)
+    
+    # Detect edges berdasarkan variance
+    # Hitung variance untuk setiap row dan column
+    if len(img_array.shape) == 3:  # RGB/RGBA
+        gray = np.mean(img_array[:, :, :3], axis=2)
+    else:  # Grayscale
+        gray = img_array
+    
+    # Hitung variance untuk detect content area
+    row_variance = np.var(gray, axis=1)
+    col_variance = np.var(gray, axis=0)
+    
+    # Find content boundaries
+    content_rows = np.where(row_variance > padding_threshold)[0]
+    content_cols = np.where(col_variance > padding_threshold)[0]
+    
+    if len(content_rows) == 0 or len(content_cols) == 0:
+        # Jika tidak ada content terdeteksi, return original
+        return image
+    
+    # Crop ke content area
+    top = max(0, content_rows[0] - 5)  # Small margin
+    bottom = min(image.height, content_rows[-1] + 5)
+    left = max(0, content_cols[0] - 5)
+    right = min(image.width, content_cols[-1] + 5)
+    
+    return image.crop((left, top, right, bottom))
+
 def fit_photo(foto_path, target_w, target_h):
-    """Resize dan crop foto untuk fit ke dalam box"""
+    """Enhanced resize dan crop foto untuk fit ke dalam box dengan padding detection"""
     if not os.path.exists(foto_path):
         # Create placeholder jika foto tidak ada
         img = Image.new("RGB", (target_w, target_h), (200, 200, 200))
@@ -57,52 +91,106 @@ def fit_photo(foto_path, target_w, target_h):
     
     foto = Image.open(foto_path).convert("RGBA")
     
-    # Hitung ratio untuk crop proporsional
+    # Step 1: Detect dan crop padding/whitespace
+    try:
+        foto = detect_and_crop_padding(foto)
+    except Exception as e:
+        print(f"Padding detection failed: {e}, using original image")
+    
+    # Step 2: Handle landscape/portrait orientation intelligently
     foto_ratio = foto.width / foto.height
     target_ratio = target_w / target_h
     
+    # Enhanced scaling untuk better fit
     if foto_ratio > target_ratio:
-        # Foto lebih lebar, fit by height
-        new_h = target_h
-        new_w = int(new_h * foto_ratio)
-    else:
-        # Foto lebih tinggi, fit by width
+        # Foto lebih lebar (landscape), prioritas fit width dengan smart crop
         new_w = target_w
         new_h = int(new_w / foto_ratio)
+        
+        # Jika hasil terlalu kecil, fit by height instead
+        if new_h < target_h * 0.8:  # Threshold 80%
+            new_h = target_h
+            new_w = int(new_h * foto_ratio)
+    else:
+        # Foto lebih tinggi (portrait), prioritas fit height
+        new_h = target_h
+        new_w = int(new_h * foto_ratio)
+        
+        # Jika hasil terlalu kecil, fit by width instead
+        if new_w < target_w * 0.8:  # Threshold 80%
+            new_w = target_w
+            new_h = int(new_w / foto_ratio)
     
-    # Resize foto
+    # Resize foto dengan high quality
     foto_resized = foto.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
-    # Crop ke center
-    left = (new_w - target_w) // 2
-    top = (new_h - target_h) // 2
+    # Smart crop ke center dengan bias ke atas untuk portrait
+    left = max(0, (new_w - target_w) // 2)
+    
+    # Untuk portrait, bias crop ke atas (wajah biasanya di atas)
+    if foto_ratio < 1:  # Portrait
+        top = max(0, int((new_h - target_h) * 0.3))  # 30% dari atas
+    else:  # Landscape
+        top = max(0, (new_h - target_h) // 2)  # Center
+    
+    # Ensure crop bounds are valid
+    left = min(left, new_w - target_w)
+    top = min(top, new_h - target_h)
+    
     foto_cropped = foto_resized.crop((left, top, left + target_w, top + target_h))
     
     return foto_cropped
 
 def fit_photo_from_image(pil_image, target_w, target_h):
-    """Resize dan crop PIL Image untuk fit ke dalam box"""
+    """Enhanced resize dan crop PIL Image untuk fit ke dalam box dengan padding detection"""
     foto = pil_image.convert("RGBA")
     
-    # Hitung ratio untuk crop proporsional
+    # Step 1: Detect dan crop padding/whitespace
+    try:
+        foto = detect_and_crop_padding(foto)
+    except Exception as e:
+        print(f"Padding detection failed: {e}, using original image")
+    
+    # Step 2: Handle landscape/portrait orientation intelligently
     foto_ratio = foto.width / foto.height
     target_ratio = target_w / target_h
     
+    # Enhanced scaling untuk better fit
     if foto_ratio > target_ratio:
-        # Foto lebih lebar, fit by height
-        new_h = target_h
-        new_w = int(new_h * foto_ratio)
-    else:
-        # Foto lebih tinggi, fit by width
+        # Foto lebih lebar (landscape), prioritas fit width dengan smart crop
         new_w = target_w
         new_h = int(new_w / foto_ratio)
+        
+        # Jika hasil terlalu kecil, fit by height instead
+        if new_h < target_h * 0.8:  # Threshold 80%
+            new_h = target_h
+            new_w = int(new_h * foto_ratio)
+    else:
+        # Foto lebih tinggi (portrait), prioritas fit height
+        new_h = target_h
+        new_w = int(new_h * foto_ratio)
+        
+        # Jika hasil terlalu kecil, fit by width instead
+        if new_w < target_w * 0.8:  # Threshold 80%
+            new_w = target_w
+            new_h = int(new_w / foto_ratio)
     
-    # Resize foto
+    # Resize foto dengan high quality
     foto_resized = foto.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
-    # Crop ke center
-    left = (new_w - target_w) // 2
-    top = (new_h - target_h) // 2
+    # Smart crop ke center dengan bias ke atas untuk portrait
+    left = max(0, (new_w - target_w) // 2)
+    
+    # Untuk portrait, bias crop ke atas (wajah biasanya di atas)
+    if foto_ratio < 1:  # Portrait
+        top = max(0, int((new_h - target_h) * 0.3))  # 30% dari atas
+    else:  # Landscape
+        top = max(0, (new_h - target_h) // 2)  # Center
+    
+    # Ensure crop bounds are valid
+    left = min(left, new_w - target_w)
+    top = min(top, new_h - target_h)
+    
     foto_cropped = foto_resized.crop((left, top, left + target_w, top + target_h))
     
     return foto_cropped
