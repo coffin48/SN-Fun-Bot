@@ -8,10 +8,21 @@ import os
 # Add parent directory to Python path for Railway deployment
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
-from core.bot_core import BotCore
-from core.commands import CommandsHandler
+# Also add current directory to ensure core module is found
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+try:
+    from core.bot_core import BotCore
+except ImportError:
+    from bot_core import BotCore
+try:
+    from core.commands import CommandsHandler
+except ImportError:
+    from commands import CommandsHandler
 from features.analytics.analytics import BotAnalytics
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
