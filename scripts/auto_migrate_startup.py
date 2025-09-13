@@ -5,7 +5,14 @@ Script ini akan otomatis migrasi CSV ke PostgreSQL jika belum ada data
 import os
 import sys
 import logging
-from scripts.migrate_csv_to_postgres import migrate_csv_to_postgres, create_indexes
+
+# Fix import path untuk Railway deployment
+try:
+    from scripts.migrate_csv_to_postgres import migrate_csv_to_postgres, create_indexes
+except ImportError:
+    # Fallback untuk Railway deployment
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from migrate_csv_to_postgres import migrate_csv_to_postgres, create_indexes
 
 # Setup logging untuk Railway
 logging.basicConfig(level=logging.INFO)
