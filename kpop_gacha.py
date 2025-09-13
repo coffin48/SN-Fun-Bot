@@ -59,13 +59,13 @@ class KpopGachaSystem:
         self.members_data = {}
         self.base_url = ""
         
-        # Sistem probabilitas rarity
+        # Sistem probabilitas rarity (NEW SYSTEM)
         self.RARITY_RATES = {
             "Common": 50,      # 50%
             "Rare": 30,        # 30%
-            "Epic": 15,        # 15%
-            "Legendary": 4,    # 4%
-            "FullArt": 1       # 1%
+            "DR": 15,          # 15% (Double Rare)
+            "SR": 4,           # 4% (Super Rare)
+            "SAR": 1           # 1% (Special Art Rare)
         }
         
         # NEW: Image caching system
@@ -330,8 +330,12 @@ class KpopGachaSystem:
             # Import design functions
             from design_kartu import generate_card_template
             
+            # Map old rarity to new system if needed
+            from design_kartu import map_old_rarity
+            mapped_rarity = map_old_rarity(rarity)
+            
             # Generate template kartu menggunakan fungsi dari design_kartu dengan info member
-            template = generate_card_template(idol_photo_original, rarity, member_name, group_name)
+            template = generate_card_template(idol_photo_original, mapped_rarity, member_name, group_name)
             
             return template
             
@@ -395,11 +399,11 @@ class KpopGachaSystem:
             if len(all_member_keys) < 5:
                 return [], "❌ Tidak cukup member untuk pack 5 kartu"
             
-            # Guaranteed rarity distribution
+            # Guaranteed rarity distribution (NEW SYSTEM)
             guaranteed_rarities = [
                 "Common", "Common",           # 2 Common
-                "Rare", "Epic",              # 2 Rare/Epic
-                random.choice(["Legendary", "FullArt"])  # 1 Legendary/FullArt
+                "Rare", "DR",                # 2 Rare/DR
+                "SR"                         # 1 SR/SAR
             ]
             
             # Shuffle untuk random order
