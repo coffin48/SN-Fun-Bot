@@ -5,8 +5,8 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import re
-from core.logger import core.logger
-from features.analytics.analytics import features.analytics.analytics
+from core.logger import logger
+from features.analytics.analytics import BotAnalytics
 import time
 import asyncio
 import aiohttp
