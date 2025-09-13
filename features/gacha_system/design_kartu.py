@@ -202,23 +202,28 @@ def create_gradient_text(draw, text, position, font, start_color, end_color, wid
 def get_emoji_font(size):
     """Get emoji-compatible font dengan fallback untuk GitHub/Railway deployment"""
     emoji_fonts = [
-        # GitHub/Railway deployment paths
+        # GitHub/Railway deployment paths - prioritas utama
         "assets/fonts/NotoColorEmoji-Regular.ttf",
         "assets/fonts/Noto_Color_Emoji/NotoColorEmoji-Regular.ttf",
-        # System fallbacks
+        # System fallbacks dengan priority order
         "C:/Windows/Fonts/seguiemj.ttf",  # Windows Segoe UI Emoji
         "C:/Windows/Fonts/NotoColorEmoji.ttf",  # Windows Noto Color Emoji
+        "C:/Windows/Fonts/segoeui.ttf",  # Windows Segoe UI (basic emoji)
         "/System/Library/Fonts/Apple Color Emoji.ttc",  # macOS
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  # Linux
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux fallback
     ]
     
     for font_path in emoji_fonts:
         try:
             if os.path.exists(font_path):
+                print(f"Loading emoji font: {font_path}")
                 return ImageFont.truetype(font_path, size)
-        except:
+        except Exception as e:
+            print(f"Failed to load emoji font {font_path}: {e}")
             continue
     
+    print("Warning: No emoji font found, using default")
     return ImageFont.load_default()
 
 def get_main_font(size, font_preference="montserrat"):
@@ -258,7 +263,7 @@ def split_text_and_emoji(text):
     """Split text menjadi bagian text biasa dan emoji"""
     import re
     
-    # Regex untuk detect emoji
+    # Enhanced regex untuk detect emoji dengan coverage lebih luas
     emoji_pattern = re.compile(
         "["
         "\U0001F600-\U0001F64F"  # emoticons
@@ -267,6 +272,11 @@ def split_text_and_emoji(text):
         "\U0001F1E0-\U0001F1FF"  # flags
         "\U00002702-\U000027B0"  # dingbats
         "\U000024C2-\U0001F251"
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-A
+        "\U00002600-\U000026FF"  # miscellaneous symbols
+        "\U0000FE00-\U0000FE0F"  # variation selectors
+        "\U0001F004\U0001F0CF"   # mahjong, playing cards
         "]+", flags=re.UNICODE
     )
     
@@ -339,8 +349,8 @@ def draw_enhanced_text(draw, text, box, max_font_size, rarity, is_title=False, f
         
         font_size -= 1
     
-    # Position text
-    text_x = x + (w - total_width) // 2 if is_title else x  # Center for titles
+    # Position text - Left align untuk semua text
+    text_x = x + 5  # Left alignment dengan padding untuk semua text
     text_y = y + (h - max_height) // 2
     
     # Get rarity colors
@@ -392,8 +402,27 @@ def draw_enhanced_text(draw, text, box, max_font_size, rarity, is_title=False, f
             # Draw main text
             draw.text((current_x, part_y), part_content, font=font_to_use, fill=colors["text"])
         else:
-            # Draw emoji tanpa styling tambahan
-            draw.text((current_x, part_y), part_content, font=font_to_use, fill=(255, 255, 255, 255))
+            # Draw emoji dengan enhanced error handling
+            try:
+                # Debug: print emoji yang akan di-render
+                print(f"Rendering emoji: '{part_content}' with font: {font_to_use}")
+                
+                # Coba render emoji dengan font emoji
+                draw.text((current_x, part_y), part_content, font=font_to_use, fill=(255, 255, 255, 255))
+                print(f"Emoji rendered successfully: {part_content}")
+            except Exception as e:
+                # Enhanced fallback dengan multiple attempts
+                print(f"Emoji rendering failed: {e}, trying fallback methods")
+                
+                # Try with main font first
+                try:
+                    draw.text((current_x, part_y), part_content, font=main_font, fill=colors["text"])
+                    print(f"Emoji rendered with main font: {part_content}")
+                except Exception as e2:
+                    # Ultimate fallback - render as text placeholder
+                    print(f"All emoji rendering failed: {e2}, using placeholder")
+                    placeholder = "[emoji]"
+                    draw.text((current_x, part_y), placeholder, font=main_font, fill=colors["text"])
         
         # Move to next position
         current_x += part_w
