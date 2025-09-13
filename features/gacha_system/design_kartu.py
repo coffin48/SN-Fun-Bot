@@ -519,11 +519,14 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template not found: {template_path}")
     
-    # Load template dan convert ke RGB untuk mobile compatibility
-    card = Image.open(template_path).convert("RGB")
+    # Load template dengan transparency support
+    template = Image.open(template_path).convert("RGBA")
     
     # Get boxes info
     boxes = template_info["boxes"]
+    
+    # Create base canvas dengan white background
+    canvas = Image.new('RGB', template.size, (255, 255, 255))
     
     # Process foto input
     if isinstance(idol_photo, str):
@@ -533,17 +536,21 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
         # Jika input adalah PIL Image
         foto_img = fit_photo_from_image(idol_photo, boxes["photo"][2], boxes["photo"][3])
     
-    # Paste foto ke card (RGB mode)
-    if foto_img.mode == 'RGBA':
-        # Convert foto ke RGB dengan white background untuk mobile compatibility
-        rgb_foto = Image.new('RGB', foto_img.size, (255, 255, 255))
-        rgb_foto.paste(foto_img, mask=foto_img.split()[-1])
-        foto_img = rgb_foto
+    # Convert foto ke RGBA untuk proper blending
+    if foto_img.mode != 'RGBA':
+        foto_img = foto_img.convert('RGBA')
     
-    card.paste(foto_img, (boxes["photo"][0], boxes["photo"][1]))
+    # Paste foto ke canvas (foto di belakang)
+    canvas.paste(foto_img, (boxes["photo"][0], boxes["photo"][1]), foto_img)
+    
+    # Convert canvas ke RGBA untuk alpha composite
+    canvas = canvas.convert('RGBA')
+    
+    # Paste template di atas foto dengan transparency
+    canvas = Image.alpha_composite(canvas, template)
     
     # Add text
-    draw = ImageDraw.Draw(card)
+    draw = ImageDraw.Draw(canvas)
     
     # Draw member name dengan enhanced styling menggunakan Montserrat
     if member_name:
@@ -558,7 +565,11 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Render description dengan emoji support menggunakan Noto Sans
     draw_enhanced_text(draw, description, boxes["desc"], 14, rarity, is_title=False, font_preference="noto")
     
-    return card
+    # Convert final result ke RGB untuk mobile compatibility
+    final_card = Image.new('RGB', canvas.size, (255, 255, 255))
+    final_card.paste(canvas, mask=canvas.split()[-1] if canvas.mode == 'RGBA' else None)
+    
+    return final_card
 
 # Compatibility dengan sistem lama
 RARITIES = ["Common", "Rare", "DR", "SR", "SAR"]
