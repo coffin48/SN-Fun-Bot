@@ -251,8 +251,16 @@ def create_gradient_text(draw, text, position, font, start_color, end_color, wid
     
     return temp_img
 
+# Font cache untuk menghindari loading berulang
+_font_cache = {}
+
 def get_emoji_font(size):
     """Get emoji-compatible font dengan fallback untuk GitHub/Railway deployment"""
+    # Check cache first
+    cache_key = f"emoji_{size}"
+    if cache_key in _font_cache:
+        return _font_cache[cache_key]
+    
     emoji_fonts = [
         # GitHub/Railway deployment paths - prioritas utama
         "assets/fonts/NotoColorEmoji-Regular.ttf",
@@ -269,17 +277,29 @@ def get_emoji_font(size):
     for font_path in emoji_fonts:
         try:
             if os.path.exists(font_path):
-                print(f"Loading emoji font: {font_path}")
-                return ImageFont.truetype(font_path, size)
+                # Only log once when font is first loaded
+                if cache_key not in _font_cache:
+                    print(f"Loading emoji font: {font_path}")
+                font = ImageFont.truetype(font_path, size)
+                _font_cache[cache_key] = font
+                return font
         except Exception as e:
-            print(f"Failed to load emoji font {font_path}: {e}")
             continue
     
-    print("Warning: No emoji font found, using default")
-    return ImageFont.load_default()
+    # Default font fallback
+    if cache_key not in _font_cache:
+        print("Warning: No emoji font found, using default")
+    default_font = ImageFont.load_default()
+    _font_cache[cache_key] = default_font
+    return default_font
 
 def get_main_font(size, font_preference="montserrat"):
     """Get main text font dengan preference dan fallback"""
+    # Check cache first
+    cache_key = f"{font_preference}_{size}"
+    if cache_key in _font_cache:
+        return _font_cache[cache_key]
+    
     if font_preference.lower() == "montserrat":
         main_fonts = [
             "assets/fonts/Montserrat-Bold.ttf",
@@ -305,11 +325,16 @@ def get_main_font(size, font_preference="montserrat"):
     for font_path in main_fonts:
         try:
             if os.path.exists(font_path):
-                return ImageFont.truetype(font_path, size)
+                font = ImageFont.truetype(font_path, size)
+                _font_cache[cache_key] = font
+                return font
         except:
             continue
     
-    return ImageFont.load_default()
+    # Cache default font
+    default_font = ImageFont.load_default()
+    _font_cache[cache_key] = default_font
+    return default_font
 
 def split_text_and_emoji(text):
     """Split text menjadi bagian text biasa dan emoji"""
