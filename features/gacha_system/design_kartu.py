@@ -258,7 +258,7 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     
     # Add text
     draw = ImageDraw.Draw(canvas)
-    font_path = "assets/fonts/Gill Sans/Gill Sans Bold Italic.otf"
+    font_path = "assets/fonts/Gill Sans Bold Italic.otf"
     
     # Draw member name
     if member_name:
