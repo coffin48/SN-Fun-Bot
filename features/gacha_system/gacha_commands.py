@@ -80,12 +80,27 @@ class GachaCommandsHandler:
         """Handle gacha pack 5 kartu dengan guaranteed rarity"""
         try:
             async with ctx.typing():
-                loading_embed = discord.Embed(
-                    title="🎴 Membuka 5-Card Gacha Pack...",
-                    description="🎯 **Guaranteed:** 2 Common • 2 Rare/Epic • 1 Legendary/FullArt\n⏳ Sedang generate 5 kartu...",
+                # Initial suspense message
+                suspense_embed = discord.Embed(
+                    title="🎴 Opening Gacha Pack...",
+                    description="🌟 **Something magical is happening...**\n✨ Shuffling the cards...",
+                    color=0x9932cc
+                )
+                loading_msg = await ctx.send(embed=suspense_embed)
+                
+                # Add suspense delay
+                await asyncio.sleep(2)
+                
+                # Update to rarity reveal
+                rarity_embed = discord.Embed(
+                    title="🎴 Revealing Pack Contents...",
+                    description="🎯 **Guaranteed:** 2 Common • 2 Rare/Epic • 1 Legendary/FullArt\n⏳ Generating your cards...",
                     color=0xffd700
                 )
-                loading_msg = await ctx.send(embed=loading_embed)
+                await loading_msg.edit(embed=rarity_embed)
+                
+                # Another small delay for anticipation
+                await asyncio.sleep(1.5)
                 
                 # Generate 5-card pack
                 cards, pack_summary = self.gacha_system.gacha_pack_5()
@@ -253,12 +268,27 @@ class GachaCommandsHandler:
         
         try:
             async with ctx.typing():
+                # Initial suspense for group gacha
+                suspense_embed = discord.Embed(
+                    title=f"🎴 Searching {group_name} Members...",
+                    description="🔍 **Scanning member database...**\n✨ Who will you get?",
+                    color=0x9932cc
+                )
+                loading_msg = await ctx.send(embed=suspense_embed)
+                
+                # Add suspense delay
+                await asyncio.sleep(1.5)
+                
+                # Update to generation message
                 loading_embed = discord.Embed(
-                    title=f"🎴 Membuka Pack Gacha {group_name}...",
-                    description="Sedang mengacak member dari grup...",
+                    title=f"🎴 Generating {group_name} Card...",
+                    description="🎨 **Creating your trading card...**\n⏳ Rendering in progress...",
                     color=0x00ff00
                 )
-                loading_msg = await ctx.send(embed=loading_embed)
+                await loading_msg.edit(embed=loading_embed)
+                
+                # Small delay for rendering anticipation
+                await asyncio.sleep(1)
                 
                 # Generate gacha by group
                 card_image, card_data = self.gacha_system.gacha_by_group(group_name)
@@ -365,12 +395,27 @@ class GachaCommandsHandler:
         
         try:
             async with ctx.typing():
-                loading_embed = discord.Embed(
-                    title=f"🎴 Membuka Pack Gacha {member_name}...",
-                    description="Sedang mencari member dan generate kartu...",
+                # Initial suspense for member gacha
+                suspense_embed = discord.Embed(
+                    title=f"🎴 Searching for {member_name}...",
+                    description="🔍 **Locating member in database...**\n✨ Preparing something special...",
+                    color=0x9932cc
+                )
+                loading_msg = await ctx.send(embed=suspense_embed)
+                
+                # Add suspense delay
+                await asyncio.sleep(1.5)
+                
+                # Update to card generation
+                generation_embed = discord.Embed(
+                    title=f"🎴 Creating {member_name}'s Card...",
+                    description="🎨 **Rendering trading card...**\n⏳ Adding final touches...",
                     color=0x00ff00
                 )
-                loading_msg = await ctx.send(embed=loading_embed)
+                await loading_msg.edit(embed=generation_embed)
+                
+                # Small delay for rendering anticipation
+                await asyncio.sleep(1)
                 
                 # Generate gacha by member
                 card_image, card_data = self.gacha_system.gacha_by_member(member_name)
