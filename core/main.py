@@ -23,7 +23,15 @@ try:
     from core.commands import CommandsHandler
 except ImportError:
     from commands import CommandsHandler
-from features.analytics.analytics import BotAnalytics
+try:
+    from features.analytics.analytics import BotAnalytics
+except ImportError:
+    try:
+        from analytics.analytics import BotAnalytics
+    except ImportError:
+        class BotAnalytics:
+            def __init__(self):
+                pass
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
