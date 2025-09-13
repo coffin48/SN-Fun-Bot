@@ -199,79 +199,173 @@ def create_gradient_text(draw, text, position, font, start_color, end_color, wid
     
     return temp_img
 
+def get_emoji_font(size):
+    """Get emoji-compatible font dengan fallback"""
+    emoji_fonts = [
+        "C:/Windows/Fonts/seguiemj.ttf",  # Windows Segoe UI Emoji
+        "C:/Windows/Fonts/NotoColorEmoji.ttf",  # Noto Color Emoji
+        "/System/Library/Fonts/Apple Color Emoji.ttc",  # macOS
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  # Linux
+    ]
+    
+    for font_path in emoji_fonts:
+        try:
+            if os.path.exists(font_path):
+                return ImageFont.truetype(font_path, size)
+        except:
+            continue
+    
+    return ImageFont.load_default()
+
+def split_text_and_emoji(text):
+    """Split text menjadi bagian text biasa dan emoji"""
+    import re
+    
+    # Regex untuk detect emoji
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002702-\U000027B0"  # dingbats
+        "\U000024C2-\U0001F251"
+        "]+", flags=re.UNICODE
+    )
+    
+    parts = []
+    last_end = 0
+    
+    for match in emoji_pattern.finditer(text):
+        # Add text before emoji
+        if match.start() > last_end:
+            parts.append({
+                'type': 'text',
+                'content': text[last_end:match.start()]
+            })
+        
+        # Add emoji
+        parts.append({
+            'type': 'emoji',
+            'content': match.group()
+        })
+        
+        last_end = match.end()
+    
+    # Add remaining text
+    if last_end < len(text):
+        parts.append({
+            'type': 'text',
+            'content': text[last_end:]
+        })
+    
+    return parts
+
 def draw_enhanced_text(draw, text, box, font_path, max_font_size, rarity, is_title=False):
-    """Draw text dengan enhanced styling berdasarkan rarity"""
+    """Draw text dengan enhanced styling dan emoji support"""
     x, y, w, h = box
     
-    # Load font dengan fallback
+    # Load main font dengan fallback
     try:
         if os.path.exists(font_path):
-            font = ImageFont.truetype(font_path, max_font_size)
+            main_font = ImageFont.truetype(font_path, max_font_size)
         else:
-            font = ImageFont.load_default()
+            main_font = ImageFont.load_default()
     except:
-        font = ImageFont.load_default()
+        main_font = ImageFont.load_default()
+    
+    # Load emoji font
+    emoji_font = get_emoji_font(max_font_size)
     
     font_size = max_font_size
     
-    # Auto-fit font size
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
+    # Split text into parts (text dan emoji)
+    text_parts = split_text_and_emoji(text)
     
-    while text_w > w and font_size > 5:
-        font_size -= 1
+    # Auto-fit font size berdasarkan total width
+    while font_size > 5:
         try:
-            if os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, font_size)
-            else:
-                font = ImageFont.load_default()
+            main_font = ImageFont.truetype(font_path, font_size) if os.path.exists(font_path) else ImageFont.load_default()
+            emoji_font = get_emoji_font(font_size)
         except:
-            font = ImageFont.load_default()
+            main_font = ImageFont.load_default()
+            emoji_font = ImageFont.load_default()
         
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
+        # Calculate total width
+        total_width = 0
+        max_height = 0
+        
+        for part in text_parts:
+            font_to_use = emoji_font if part['type'] == 'emoji' else main_font
+            bbox = draw.textbbox((0, 0), part['content'], font=font_to_use)
+            part_w = bbox[2] - bbox[0]
+            part_h = bbox[3] - bbox[1]
+            total_width += part_w
+            max_height = max(max_height, part_h)
+        
+        if total_width <= w:
+            break
+        
+        font_size -= 1
     
     # Position text
-    text_x = x + (w - text_w) // 2 if is_title else x  # Center for titles
-    text_y = y + (h - text_h) // 2
+    text_x = x + (w - total_width) // 2 if is_title else x  # Center for titles
+    text_y = y + (h - max_height) // 2
     
     # Get rarity colors
     colors = get_rarity_colors(rarity)
     
-    # Draw glow effect untuk rarity tinggi
-    if colors["glow"] and rarity in ["DR", "SR", "SAR"]:
-        glow_size = 3 if rarity == "SAR" else 2
-        for dx in range(-glow_size, glow_size + 1):
-            for dy in range(-glow_size, glow_size + 1):
-                if dx != 0 or dy != 0:
-                    distance = (dx**2 + dy**2)**0.5
-                    if distance <= glow_size:
-                        alpha = int(colors["glow"][3] * (1 - distance/glow_size))
-                        glow_color = (*colors["glow"][:3], alpha)
-                        draw.text((text_x + dx, text_y + dy), text, font=font, fill=glow_color)
+    # Draw each part dengan styling
+    current_x = text_x
     
-    # Draw outline (multi-layer untuk rarity tinggi)
-    outline_layers = 2 if rarity in ["SR", "SAR"] else 1
-    for layer in range(outline_layers, 0, -1):
-        for dx in range(-layer, layer + 1):
-            for dy in range(-layer, layer + 1):
-                if dx != 0 or dy != 0:
-                    outline_alpha = 255 // layer
-                    outline_color = (*colors["outline"][:3], outline_alpha)
-                    draw.text((text_x + dx, text_y + dy), text, font=font, fill=outline_color)
-    
-    # Draw main text
-    if rarity == "SAR" and is_title:
-        # Gradient text untuk SAR titles
-        gradient_start = (255, 215, 0)  # Gold
-        gradient_end = (255, 20, 147)   # Deep Pink
-        gradient_img = create_gradient_text(draw, text, (text_x, text_y), font, gradient_start, gradient_end, text_w)
-        # Note: Untuk implementasi penuh gradient, perlu composite ke image utama
-        draw.text((text_x, text_y), text, font=font, fill=colors["text"])
-    else:
-        draw.text((text_x, text_y), text, font=font, fill=colors["text"])
+    for part in text_parts:
+        font_to_use = emoji_font if part['type'] == 'emoji' else main_font
+        part_content = part['content']
+        
+        # Skip empty parts
+        if not part_content.strip():
+            continue
+        
+        # Get part dimensions
+        bbox = draw.textbbox((0, 0), part_content, font=font_to_use)
+        part_w = bbox[2] - bbox[0]
+        part_h = bbox[3] - bbox[1]
+        
+        # Adjust Y position for this part
+        part_y = text_y + (max_height - part_h) // 2
+        
+        # Apply styling hanya untuk text, tidak untuk emoji
+        if part['type'] == 'text':
+            # Draw glow effect untuk rarity tinggi
+            if colors["glow"] and rarity in ["DR", "SR", "SAR"]:
+                glow_size = 3 if rarity == "SAR" else 2
+                for dx in range(-glow_size, glow_size + 1):
+                    for dy in range(-glow_size, glow_size + 1):
+                        if dx != 0 or dy != 0:
+                            distance = (dx**2 + dy**2)**0.5
+                            if distance <= glow_size:
+                                alpha = int(colors["glow"][3] * (1 - distance/glow_size))
+                                glow_color = (*colors["glow"][:3], alpha)
+                                draw.text((current_x + dx, part_y + dy), part_content, font=font_to_use, fill=glow_color)
+            
+            # Draw outline (multi-layer untuk rarity tinggi)
+            outline_layers = 2 if rarity in ["SR", "SAR"] else 1
+            for layer in range(outline_layers, 0, -1):
+                for dx in range(-layer, layer + 1):
+                    for dy in range(-layer, layer + 1):
+                        if dx != 0 or dy != 0:
+                            outline_alpha = 255 // layer
+                            outline_color = (*colors["outline"][:3], outline_alpha)
+                            draw.text((current_x + dx, part_y + dy), part_content, font=font_to_use, fill=outline_color)
+            
+            # Draw main text
+            draw.text((current_x, part_y), part_content, font=font_to_use, fill=colors["text"])
+        else:
+            # Draw emoji tanpa styling tambahan
+            draw.text((current_x, part_y), part_content, font=font_to_use, fill=(255, 255, 255, 255))
+        
+        # Move to next position
+        current_x += part_w
 
 # Backward compatibility
 def draw_fit_text(draw, text, box, font_path, max_font_size):
@@ -351,6 +445,8 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Use provided description or generate enhanced description dengan emoji
     if not description:
         description = generate_enhanced_description(member_name, group_name, rarity)
+    
+    # Render description dengan emoji support
     draw_enhanced_text(draw, description, boxes["desc"], font_path, 14, rarity, is_title=False)
     
     return canvas
