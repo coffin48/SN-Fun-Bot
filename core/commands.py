@@ -1104,13 +1104,13 @@ class CommandsHandler:
                             cache_info.append(f"• {platform.title()}: ✅ Cached")
                         else:
                             cache_info.append(f"• {platform.title()}: ⚪ No cache")
-                    
-                    embed.add_field(
-                        name="Cache Status", 
-                        value="\n".join(cache_info) if cache_info else "No cache data",
-                        inline=False
-                    )
                 
+                embed.add_field(
+                    name="Cache Status", 
+                    value="\n".join(cache_info) if cache_info else "No cache data",
+                    inline=False
+                )
+            
                 await ctx.send(embed=embed)
                 
             else:
@@ -1119,5 +1119,3 @@ class CommandsHandler:
         except Exception as e:
             logger.error(f"Monitor command error: {e}")
             await ctx.send(f"❌ Error: {e}")
-        else:
-            return "📁 **Performance**: CSV fallback mode"
