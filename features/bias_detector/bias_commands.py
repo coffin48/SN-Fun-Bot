@@ -3,7 +3,7 @@ Bias Commands Handler - Fun interactive commands untuk bias detection
 """
 import discord
 from datetime import datetime
-from core.logger import core.logger
+from core.logger import logger
 
 class BiasCommandsHandler:
     def __init__(self, bias_detector, ai_handler, kpop_df):
