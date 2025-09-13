@@ -32,6 +32,8 @@ except ImportError:
         class BotAnalytics:
             def __init__(self):
                 pass
+            def log_analytics_to_railway(self):
+                pass
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
