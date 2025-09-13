@@ -9,7 +9,20 @@ import random
 import discord
 from features.social_media.ai_handler import AIHandler
 from utils.data_fetcher import DataFetcher
-from features.analytics.analytics import BotAnalytics
+try:
+    from features.analytics.analytics import BotAnalytics
+    analytics = BotAnalytics()
+except ImportError:
+    class BotAnalytics:
+        def __init__(self):
+            self.data = {"query_stats": {"total_queries": 0}, "popular_queries": {}, "response_times": {"scraping": [], "ai_generation": [], "total_response": []}, "source_performance": {}}
+        def track_daily_usage(self): pass
+        def log_error(self, *args): pass
+        def track_response_time(self, *args): pass
+        def track_query_success(self, *args): pass
+        def get_analytics_summary(self): return "Analytics not available"
+        def _save_analytics(self): pass
+    analytics = BotAnalytics()
 from features.social_media.social_media_commands import SocialMediaCommandsHandler
 # Conditional import for bias commands to avoid startup errors
 try:
