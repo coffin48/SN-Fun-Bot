@@ -540,8 +540,8 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
         if x < 0 or y < 0 or x + w > template.size[0] or y + h > template.size[1]:
             print(f"Warning: Box '{box_name}' coordinates may be outside template bounds")
     
-    # Create base canvas dengan white background
-    canvas = Image.new('RGB', template.size, (255, 255, 255))
+    # Create base canvas dengan transparent background
+    canvas = Image.new('RGBA', template.size, (0, 0, 0, 0))
     
     # Process foto input dengan box validation
     photo_box = boxes["photo"]
@@ -559,8 +559,7 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Paste foto ke canvas (foto di belakang) dengan validated coordinates
     canvas.paste(foto_img, (photo_box[0], photo_box[1]), foto_img)
     
-    # Convert canvas ke RGBA untuk alpha composite
-    canvas = canvas.convert('RGBA')
+    # Canvas sudah RGBA, tidak perlu convert lagi
     
     # Paste template di atas foto dengan transparency
     canvas = Image.alpha_composite(canvas, template)
@@ -583,11 +582,8 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     desc_box = boxes["desc"]
     draw_enhanced_text(draw, description, desc_box, 14, rarity, is_title=False, font_preference="noto")
     
-    # Convert final result ke RGB untuk mobile compatibility
-    final_card = Image.new('RGB', canvas.size, (255, 255, 255))
-    final_card.paste(canvas, mask=canvas.split()[-1] if canvas.mode == 'RGBA' else None)
-    
-    return final_card
+    # Return RGBA canvas untuk preserve transparency
+    return canvas
 
 # Compatibility dengan sistem lama
 RARITIES = ["Common", "Rare", "DR", "SR", "SAR"]
