@@ -6,7 +6,14 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from core.logger import logger
-from features.analytics.analytics import BotAnalytics
+try:
+    from features.analytics.analytics import BotAnalytics
+    analytics = BotAnalytics()
+except ImportError:
+    class BotAnalytics:
+        def track_source_performance(self, source, success, time_taken): pass
+        def track_daily_usage(self): pass
+    analytics = BotAnalytics()
 import time
 import asyncio
 import aiohttp
@@ -180,54 +187,72 @@ class DataFetcher:
     
     async def fetch_kpop_info(self, query):
         """Fetch comprehensive K-pop information with optimized caching and async processing"""
-        logger.info(f"Starting optimized data fetch for: {query}")
-        
-        # Check cache first
-        cache_key = f"kpop_info:{query.lower()}"
-        cached_result = self._get_from_cache(cache_key)
-        if cached_result:
-            logger.info(f"Cache hit for query: {query}")
-            return cached_result
-        
-        start_time = time.time()
-        all_results = []
-        
-        # Sort sites by priority (highest first)
-        sorted_sites = sorted(self.scraping_sites, key=lambda x: x.get('priority', 0.5), reverse=True)
-        
-        # 1. Async website scraping with early termination
-        website_results = await self._scrape_websites_async(query, sorted_sites)
-        all_results.extend(website_results)
-        logger.info(f"Async scraping completed: {len(website_results)} results")
-        
-        # Always try to get more sources untuk akurasi maksimal
-        # 2. Google Custom Search
-        cse_results = await self._fetch_from_cse(query)
-        all_results.extend(cse_results)
-        
-        # 3. NewsAPI
-        news_results = await self._fetch_from_newsapi(query)
-        all_results.extend(news_results)
-        
-        # 4. Database fallback info
-        database_info = self._get_database_info(query)
-        if database_info:
-            all_results.append(database_info)
-            logger.info(f"Database fallback added: {len(database_info)} characters")
-        
-        # Clean and combine results
-        final_text = self._clean_text(all_results)
-        
-        # Enhance with discography information if needed
-        final_text = self._enhance_discography_content(final_text, query)
-        
-        # Cache the result
-        self._save_to_cache(cache_key, final_text)
-        
-        total_time = time.time() - start_time
-        logger.info(f"Optimized fetch completed in {total_time:.2f}s: {len(final_text)} characters")
-        
-        return final_text
+        try:
+            logger.info(f"Starting optimized data fetch for: {query}")
+            
+            # Check cache first
+            cache_key = f"kpop_info:{query.lower()}"
+            cached_result = self._get_from_cache(cache_key)
+            if cached_result:
+                logger.info(f"Cache hit for query: {query}")
+                return cached_result
+            
+            start_time = time.time()
+            all_results = []
+            
+            # Sort sites by priority (highest first)
+            sorted_sites = sorted(self.scraping_sites, key=lambda x: x.get('priority', 0.5), reverse=True)
+            
+            # 1. Async website scraping with early termination
+            try:
+                website_results = await self._scrape_websites_async(query, sorted_sites)
+                all_results.extend(website_results)
+                logger.info(f"Async scraping completed: {len(website_results)} results")
+            except Exception as e:
+                logger.error(f"Website scraping failed: {e}")
+            
+            # Always try to get more sources untuk akurasi maksimal
+            # 2. Google Custom Search
+            try:
+                cse_results = await self._fetch_from_cse(query)
+                all_results.extend(cse_results)
+            except Exception as e:
+                logger.error(f"CSE fetch failed: {e}")
+            
+            # 3. NewsAPI
+            try:
+                news_results = await self._fetch_from_newsapi(query)
+                all_results.extend(news_results)
+            except Exception as e:
+                logger.error(f"NewsAPI fetch failed: {e}")
+            
+            # 4. Database fallback info
+            try:
+                database_info = self._get_database_info(query)
+                if database_info:
+                    all_results.append(database_info)
+                    logger.info(f"Database fallback added: {len(database_info)} characters")
+            except Exception as e:
+                logger.error(f"Database fallback failed: {e}")
+            
+            # Clean and combine results
+            final_text = self._clean_text(all_results)
+            
+            # Enhance with discography information if needed
+            final_text = self._enhance_discography_content(final_text, query)
+            
+            # Cache the result
+            self._save_to_cache(cache_key, final_text)
+            
+            total_time = time.time() - start_time
+            logger.info(f"Optimized fetch completed in {total_time:.2f}s: {len(final_text)} characters")
+            
+            return final_text
+            
+        except Exception as e:
+            logger.error(f"Critical error in fetch_kpop_info: {e}")
+            # Return fallback response
+            return f"**{query}**\n\nMaaf, terjadi kesalahan saat mengambil informasi. Silakan coba lagi nanti."
     
     async def _scrape_websites_async(self, query, sorted_sites):
         """Optimized async scraping dengan concurrent requests dan early termination"""
@@ -698,47 +723,60 @@ class DataFetcher:
         """Fetch dari Google Custom Search Engine"""
         results = []
         
-        for i, (key, cse_id) in enumerate(zip(self.CSE_API_KEYS, self.CSE_IDS), 1):
-            if not key or not cse_id:
-                logger.debug(f"CSE API {i}: Keys not configured, skipping")
-                continue
-            
-            try:
-                logger.info(f"Calling Google CSE API {i}/3 for: {query}")
-                cse_start = time.time()
+        try:
+            for i, (key, cse_id) in enumerate(zip(self.CSE_API_KEYS, self.CSE_IDS), 1):
+                if not key or not cse_id:
+                    logger.debug(f"CSE API {i}: Keys not configured, skipping")
+                    continue
                 
-                url = f"https://www.googleapis.com/customsearch/v1?key={key}&cx={cse_id}&q={query}"
-                response = requests.get(url, timeout=5)
-                response.raise_for_status()
-                
-                data = response.json()
-                items = data.get("items", [])[:3]
-                
-                cse_results = [
-                    f"{item['title']}: {item.get('snippet', '')}"
-                    for item in items
-                ]
-                results.extend(cse_results)
-                
-                cse_time = time.time() - cse_start
-                analytics.track_source_performance("google_cse", True, cse_time)
-                
-                logger.info(f"CSE API {i}/3 completed: {len(cse_results)} results")
-                break  # Success, exit loop
-                
-            except requests.exceptions.HTTPError as e:
-                cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
-                analytics.track_source_performance("google_cse", False, cse_time)
-                
-                if e.response.status_code == 429:
-                    logger.warning(f"CSE API {i}/3 rate limited (429), trying next key...")
-                    continue  # Try next API key
-                else:
-                    logger.error(f"CSE API {i}/3 HTTP error: {e}")
-            except Exception as e:
-                cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
-                analytics.track_source_performance("google_cse", False, cse_time)
-                logger.error(f"CSE API {i}/3 failed: {e}")
+                try:
+                    logger.info(f"Calling Google CSE API {i}/3 for: {query}")
+                    cse_start = time.time()
+                    
+                    url = f"https://www.googleapis.com/customsearch/v1?key={key}&cx={cse_id}&q={query}"
+                    response = requests.get(url, timeout=5)
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    items = data.get("items", [])[:3]
+                    
+                    cse_results = [
+                        f"{item['title']}: {item.get('snippet', '')}"
+                        for item in items
+                    ]
+                    results.extend(cse_results)
+                    
+                    cse_time = time.time() - cse_start
+                    try:
+                        analytics.track_source_performance("google_cse", True, cse_time)
+                    except Exception:
+                        pass  # Ignore analytics errors
+                    
+                    logger.info(f"CSE API {i}/3 completed: {len(cse_results)} results")
+                    break  # Success, exit loop
+                    
+                except requests.exceptions.HTTPError as e:
+                    cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
+                    try:
+                        analytics.track_source_performance("google_cse", False, cse_time)
+                    except Exception:
+                        pass  # Ignore analytics errors
+                    
+                    if e.response.status_code == 429:
+                        logger.warning(f"CSE API {i}/3 rate limited (429), trying next key...")
+                        continue  # Try next API key
+                    else:
+                        logger.error(f"CSE API {i}/3 HTTP error: {e}")
+                except Exception as e:
+                    cse_time = time.time() - cse_start if 'cse_start' in locals() else 0
+                    try:
+                        analytics.track_source_performance("google_cse", False, cse_time)
+                    except Exception:
+                        pass  # Ignore analytics errors
+                    logger.error(f"CSE API {i}/3 failed: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Critical error in _fetch_from_cse: {e}")
         
         return results
     
