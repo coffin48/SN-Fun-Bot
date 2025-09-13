@@ -530,10 +530,10 @@ class KpopGachaSystem:
     
     def save_card_temp(self, card_image, prefix="gacha_card"):
         """
-        Save kartu ke temporary file untuk Discord dengan memory cleanup
+        Save kartu ke temporary file untuk Discord dengan transparency support
         
         Args:
-            card_image: PIL Image object
+            card_image: PIL Image object (RGBA with transparency)
             prefix: Prefix untuk filename
             
         Returns:
@@ -543,23 +543,22 @@ class KpopGachaSystem:
             import tempfile
             import os
             
-            # Create temporary file - kembali ke PNG seperti semula
+            # Create temporary file - PNG untuk preserve transparency
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png', prefix=f"{prefix}_")
             temp_path = temp_file.name
             temp_file.close()
             
-            # Save image dengan optimasi untuk mobile compatibility
-            # Convert RGBA ke RGB jika diperlukan untuk better mobile support
+            # Save image dengan transparency preserved
+            # Keep RGBA mode untuk preserve transparency
             if card_image.mode == 'RGBA':
-                # Create white background untuk transparency
-                rgb_image = Image.new('RGB', card_image.size, (255, 255, 255))
-                rgb_image.paste(card_image, mask=card_image.split()[-1])  # Use alpha as mask
-                card_image = rgb_image
+                # Save langsung dengan transparency
+                card_image.save(temp_path, 'PNG', optimize=True)
+            else:
+                # Convert ke RGBA jika belum
+                rgba_image = card_image.convert('RGBA')
+                rgba_image.save(temp_path, 'PNG', optimize=True)
             
-            # Save dengan optimasi untuk mobile
-            card_image.save(temp_path, 'PNG', optimize=True, quality=95)
-            
-            # NEW: Memory cleanup - close image if it's safe
+            # Memory cleanup - close image if it's safe
             try:
                 if hasattr(card_image, 'close') and card_image.filename != temp_path:
                     card_image.close()
