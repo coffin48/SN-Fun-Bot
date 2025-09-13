@@ -40,8 +40,8 @@ class BiasCommandsHandler:
         input_lower = user_input.lower().strip()
         
         if input_lower.startswith("bias info"):
-            # Redirect to main commands handler for bias info
-            await ctx.send("💡 Gunakan `!sn bias info` untuk melihat detail lengkap bias detector commands!")
+            # Handle bias info command directly
+            await self._handle_bias_info_command(ctx)
         elif input_lower.startswith("bias") and not input_lower.startswith(("bias fortune", "bias match", "bias info")):
             await self._handle_bias_detect(ctx, str(ctx.author.id), [])
         elif input_lower.startswith("bias fortune"):
@@ -754,10 +754,76 @@ class BiasCommandsHandler:
         
         return messages[self.user_member_cache[cache_key]]
     
+    async def _handle_bias_info_command(self, ctx):
+        """Handle !sn bias info command - comprehensive bias detector information"""
+        try:
+            embed = discord.Embed(
+                title="💕 Bias Detector & Fortune System",
+                description="AI-powered bias detection dengan love matching dan ramalan cinta!",
+                color=0xFF1493  # Deep Pink
+            )
+            
+            # Available Commands
+            commands_text = """• `!sn bias` 🎯 Deteksi bias kamu
+• `!sn match [member]` 💖 Love matching
+• `!sn fortune` 🔮 Ramalan cinta
+• `!sn ramalan` ✨ Fortune telling"""
+            
+            embed.add_field(
+                name="🎯 Available Commands",
+                value=commands_text,
+                inline=False
+            )
+            
+            # How It Works
+            how_it_works = """🤖 **AI Analysis** berdasarkan personality
+💕 **Compatibility Score** 75-99%
+🎭 **Personality Matching** traits
+🔮 **Fortune System** dengan ramalan"""
+            
+            embed.add_field(
+                name="⚙️ How It Works",
+                value=how_it_works,
+                inline=True
+            )
+            
+            # Features
+            features_text = """✨ **Konsisten** per user ID
+🎨 **Beautiful Embeds** dengan colors
+💬 **Indonesian Language** fun & casual
+🎲 **Random Elements** untuk variety"""
+            
+            embed.add_field(
+                name="💡 Features",
+                value=features_text,
+                inline=True
+            )
+            
+            # Tips
+            tips_text = """💡 Hasil bias detection konsisten per user
+🎯 Gunakan nama member untuk love matching
+🔮 Fortune dan ramalan memberikan hasil berbeda
+💕 Semua hasil dibuat dengan AI analysis"""
+            
+            embed.add_field(
+                name="📝 Tips & Info",
+                value=tips_text,
+                inline=False
+            )
+            
+            embed.set_footer(text="SN Fun Bot • AI-powered bias detection! 💕")
+            
+            await ctx.send(embed=embed)
+            logger.info("Bias info command executed")
+            
+        except Exception as e:
+            logger.error(f"Error in bias info: {e}")
+            await ctx.send("❌ Gagal menampilkan info bias detector.")
+    
     def _create_error_embed(self, message: str):
         """Create error embed"""
         return discord.Embed(
             title="❌ Error", 
-            description=message,
+            description=message, 
             color=0xFF0000
         )
