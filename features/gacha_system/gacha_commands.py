@@ -62,7 +62,9 @@ class GachaCommandsHandler:
         subcommand = args[0].lower()
         
         if subcommand == "help":
-            await self._handle_gacha_help(ctx)
+            await self._handle_gacha_info(ctx)
+        elif subcommand == "info":
+            await self._handle_gacha_info(ctx)
         elif subcommand == "group":
             group_name = " ".join(args[1:]) if len(args) > 1 else None
             await self._handle_gacha_by_group(ctx, group_name)
@@ -480,79 +482,84 @@ class GachaCommandsHandler:
             )
             await ctx.send(embed=error_embed)
     
-    async def _handle_gacha_help(self, ctx):
-        """Handle gacha help command"""
+    async def _handle_gacha_info(self, ctx):
+        """Handle gacha info command - comprehensive gacha system information"""
         try:
             embed = discord.Embed(
-                title="🎴 Gacha Trading Card System",
-                description="Sistem gacha K-pop trading card dengan berbagai rarity!",
+                title="🎴 K-pop Gacha Trading Cards",
+                description="Sistem gacha K-pop dengan **Generous Rates** untuk engagement maksimal!",
                 color=0xFF6B9D  # Pink color
             )
             
-            # Commands section
-            commands_text = """• `!sn gacha` 🎲 Random gacha
-• `!sn gacha group [nama]` 🎵 Gacha dari grup
-• `!sn gacha member [nama]` 👤 Gacha member spesifik
-• `!sn gacha stats` 📊 Statistik gacha"""
-            
-            embed.add_field(
-                name="🎯 Commands",
-                value=commands_text,
-                inline=False
-            )
-            
-            # Rarity section (GENEROUS RATES)
-            rarity_text = """• **Common** (35%) 🥈 Basic template design
-• **Rare** (35%) 💙 Enhanced template design  
-• **DR** (20%) 💜 Double Rare premium template
-• **SR** (8%) ❤️ Super Rare special template
-• **SAR** (2%) 🌈 Special Art Rare ultimate template"""
-            
-            embed.add_field(
-                name="✨ Rarity System",
-                value=rarity_text,
-                inline=False
-            )
-            
-            # Examples
-            examples_text = """```
-!sn gacha
-!sn gacha group BLACKPINK
-!sn gacha member Jennie
-!sn gacha stats
-```"""
-            
-            embed.add_field(
-                name="📝 Contoh Commands",
-                value=examples_text,
-                inline=False
-            )
-            
-            # Database info
+            # Database Statistics
             if self.gacha_system and self.gacha_system.members_data:
                 total_members = len(self.gacha_system.members_data)
                 total_photos = sum(len(member.get('photos', [])) for member in self.gacha_system.members_data.values())
                 
-                db_info = f"""📊 **Database:**
-• {total_members:,} members tersedia
-• {total_photos:,} foto total
-• 317 K-pop groups
-• Google Drive integration"""
+                # Count unique groups
+                groups = set()
+                for member_data in self.gacha_system.members_data.values():
+                    if 'group' in member_data:
+                        groups.add(member_data['group'])
+                total_groups = len(groups)
+                
+                stats_text = f"""📊 **{total_groups:,}** K-pop Groups
+👥 **{total_members:,}** Total Idols  
+📸 **{total_photos:,}** Available Photos
+🎴 **350x540px** Card Resolution"""
                 
                 embed.add_field(
-                    name="💾 Database Info",
-                    value=db_info,
-                    inline=False
+                    name="📈 Database Statistics",
+                    value=stats_text,
+                    inline=True
                 )
             
-            embed.set_footer(text="SN Fun Bot • Gacha Trading Card System")
+            # Probability Rates (GENEROUS MODE)
+            probability_text = """🟢 **Common:** 35%
+🔵 **Rare:** 35%
+🟣 **DR:** 20%
+🟠 **SR:** 8%
+🔴 **SAR:** 2%
+
+✨ **Generous Mode Active!**"""
+            
+            embed.add_field(
+                name="🎲 Probability Rates",
+                value=probability_text,
+                inline=True
+            )
+            
+            # Available Commands
+            commands_text = """• `!sn gacha` 🎲 Random 5-card pack
+• `!sn gacha [group]` 🎵 Group gacha
+• `!sn gacha [member]` 👤 Member gacha"""
+            
+            embed.add_field(
+                name="🎯 Available Commands",
+                value=commands_text,
+                inline=False
+            )
+            
+            # Tips & Features
+            tips_text = """💡 **Progressive Loading** untuk mobile
+🎨 **Unique Design** per rarity level
+🚀 **Optimized Performance** dengan caching
+📱 **Discord Mobile** compatible"""
+            
+            embed.add_field(
+                name="💡 Features & Tips",
+                value=tips_text,
+                inline=False
+            )
+            
+            embed.set_footer(text="SN Fun Bot • Generous rates untuk better engagement! 🎉")
             
             await ctx.send(embed=embed)
-            logger.info("Gacha help command executed")
+            logger.info("Gacha info command executed")
             
         except Exception as e:
-            logger.error(f"Error in gacha help: {e}")
-            await ctx.send("❌ Gagal menampilkan help gacha.")
+            logger.error(f"Error in gacha info: {e}")
+            await ctx.send("❌ Gagal menampilkan info gacha.")
     
     async def _handle_gacha_stats(self, ctx):
         """Handle gacha stats command"""
