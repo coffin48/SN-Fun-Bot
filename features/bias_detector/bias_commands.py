@@ -39,7 +39,10 @@ class BiasCommandsHandler:
         # Parse subcommand dari user input
         input_lower = user_input.lower().strip()
         
-        if input_lower.startswith("bias") and not input_lower.startswith(("bias fortune", "bias match")):
+        if input_lower.startswith("bias info"):
+            # Redirect to main commands handler for bias info
+            await ctx.send("💡 Gunakan `!sn bias info` untuk melihat detail lengkap bias detector commands!")
+        elif input_lower.startswith("bias") and not input_lower.startswith(("bias fortune", "bias match", "bias info")):
             await self._handle_bias_detect(ctx, str(ctx.author.id), [])
         elif input_lower.startswith("bias fortune"):
             # Parse fortune type from input
