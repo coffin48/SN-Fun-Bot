@@ -60,13 +60,11 @@ class SocialMediaCommandsHandler:
             await self.handle_platform_command(ctx, "youtube")
         elif input_lower.startswith("instagram"):
             await self.handle_platform_command(ctx, "instagram")
-        elif input_lower.startswith("tiktok"):
-            await self.handle_platform_command(ctx, "tiktok")
         elif input_lower.startswith("sosmed"):
             # Show all social media info
             await self._handle_all_social_media(ctx)
         else:
-            await ctx.send("❌ Platform tidak dikenal. Gunakan: twitter, youtube, instagram, tiktok, atau sosmed")
+            await ctx.send("❌ Platform tidak dikenal. Gunakan: twitter, youtube, instagram, atau sosmed")
     
     async def _handle_all_social_media(self, ctx):
         """Show all social media platforms info"""
@@ -76,12 +74,14 @@ class SocialMediaCommandsHandler:
             color=0xFF1493
         )
         
+        # Skip TikTok to match updated help command
         for platform, info in self.platform_info.items():
-            embed.add_field(
-                name=f"{info['emoji']} {info['name']}",
-                value=f"[{info['username']}]({info['url']})",
-                inline=True
-            )
+            if platform != 'tiktok':  # Exclude TikTok as per help command update
+                embed.add_field(
+                    name=f"{info['emoji']} {info['name']}",
+                    value=f"[{info['username']}]({info['url']})",
+                    inline=True
+                )
         
         embed.set_footer(text="Gunakan !sn [platform] untuk cek update terbaru")
         await ctx.send(embed=embed)
