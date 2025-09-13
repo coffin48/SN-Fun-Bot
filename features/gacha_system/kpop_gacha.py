@@ -60,13 +60,13 @@ class KpopGachaSystem:
         self.members_data = {}
         self.base_url = ""
         
-        # Sistem probabilitas rarity (NEW SYSTEM)
+        # Sistem probabilitas rarity (GENEROUS RATES untuk engagement)
         self.RARITY_RATES = {
-            "Common": 50,      # 50%
-            "Rare": 30,        # 30%
-            "DR": 15,          # 15% (Double Rare)
-            "SR": 4,           # 4% (Super Rare)
-            "SAR": 1           # 1% (Special Art Rare)
+            "Common": 35,      # 35% (reduced dari 50%)
+            "Rare": 35,        # 35% (increased dari 30%)
+            "DR": 20,          # 20% (increased dari 15%)
+            "SR": 8,           # 8% (increased dari 4%)
+            "SAR": 2           # 2% (doubled dari 1%)
         }
         
         # NEW: Image caching system
