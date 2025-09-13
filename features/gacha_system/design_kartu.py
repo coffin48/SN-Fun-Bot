@@ -78,7 +78,7 @@ def generate_enhanced_description(member_name, group_name, rarity):
 # Load card template data
 def load_card_data():
     """Load card template data from cards_boxes.json"""
-    with open("data/cards_boxes.json", "r") as f:
+    with open("assets/templates/cards_boxes.json", "r") as f:
         return json.load(f)
 
 # Fit foto ke dalam box dengan crop proporsional

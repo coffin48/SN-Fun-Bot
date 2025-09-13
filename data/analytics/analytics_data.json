@@ -1,0 +1,26 @@
+{
+    "total_commands": 0,
+    "successful_commands": 0,
+    "failed_commands": 0,
+    "response_times": [],
+    "user_activity": {
+        "daily_usage": {},
+        "command_frequency": {},
+        "peak_hours": {}
+    },
+    "gacha_stats": {
+        "total_pulls": 0,
+        "rarity_distribution": {
+            "Common": 0,
+            "Rare": 0,
+            "Double Rare": 0,
+            "Super Rare": 0,
+            "Special Art Rare": 0
+        }
+    },
+    "bias_detector_stats": {
+        "total_detections": 0,
+        "accuracy_rate": 0.0
+    },
+    "last_updated": "2025-09-14T00:26:00+07:00"
+}

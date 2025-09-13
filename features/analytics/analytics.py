@@ -10,7 +10,7 @@ from datetime import datetime
 
 class BotAnalytics:
     def __init__(self):
-        self.analytics_file = "analytics_data.json"
+        self.analytics_file = "data/analytics/analytics_data.json"
         self.data = self._load_analytics()
     
     def _load_analytics(self):

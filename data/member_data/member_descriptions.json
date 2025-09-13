@@ -1,0 +1,53 @@
+{
+    "karina_aespa": {
+        "SAR": [
+            "• Main Dancer & Visual",
+            "• Fierce charisma with exceptional dance",
+            "• Global fashion icon & trendsetter"
+        ],
+        "SR": [
+            "• Main Dancer & Visual",
+            "• Known for powerful stage presence",
+            "• Rising international star"
+        ],
+        "DR": [
+            "• Main Dancer & Visual",
+            "• Charismatic performer",
+            "• Key member of aespa"
+        ],
+        "Rare": [
+            "• Main Dancer & Visual",
+            "• Known for elegant charm",
+            "• Beloved aespa member"
+        ],
+        "Common": [
+            "• Main Dancer",
+            "• Known for cool charm",
+            "• Beloved aespa member"
+        ]
+    },
+    "winter_aespa": {
+        "SAR": [
+            "• Main Vocalist & Lead Dancer",
+            "• Sweet vocals with amazing dance skills",
+            "• Viral fancam & social media star"
+        ],
+        "SR": [
+            "• Main Vocalist & Lead Dancer",
+            "• Known for bright personality",
+            "• Rising star with viral fancam"
+        ],
+        "DR": [
+            "• Main Vocalist & Lead Dancer",
+            "• Energetic performer",
+            "• Key member of aespa"
+        ]
+    },
+    "ningning_aespa": {
+        "SAR": [
+            "• Main Vocalist & Maknae",
+            "• Powerful vocals with language skills",
+            "• International recognition & chart topper"
+        ]
+    }
+}

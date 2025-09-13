@@ -32,4 +32,4 @@ ENV PYTHONIOENCODING=utf-8
 EXPOSE 8080
 
 # Run auto-migration first, then start the bot
-CMD ["sh", "-c", "python auto_migrate_startup.py && python main.py"]
+CMD ["sh", "-c", "python scripts/auto_migrate_startup.py && python core/main.py"]

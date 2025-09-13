@@ -1,0 +1,52 @@
+{
+    "font_config": {
+        "primary_name_font": "Gill Sans/Gill Sans Bold.otf",
+        "primary_desc_font": "Gill Sans/Gill Sans.otf",
+        "fallback_font": "default",
+        "rarity_font_sizes": {
+            "Common": {
+                "name": 17,
+                "desc": 12
+            },
+            "Rare": {
+                "name": 19,
+                "desc": 13
+            },
+            "DR": {
+                "name": 21,
+                "desc": 14
+            },
+            "SR": {
+                "name": 23,
+                "desc": 15
+            },
+            "SAR": {
+                "name": 26,
+                "desc": 17
+            }
+        },
+        "text_styling": {
+            "outline_enabled": true,
+            "outline_color": [
+                255,
+                255,
+                255,
+                255
+            ],
+            "text_color": [
+                0,
+                0,
+                0,
+                255
+            ],
+            "outline_thickness": 1,
+            "text_alignment": "left"
+        },
+        "auto_scaling": {
+            "enabled": true,
+            "min_font_size": 8,
+            "scale_factor": 0.9,
+            "max_iterations": 10
+        }
+    }
+}
