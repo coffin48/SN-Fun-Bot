@@ -5,74 +5,38 @@ import random
 
 # Enhanced description system
 def generate_enhanced_description(member_name, group_name, rarity):
-    """Generate enhanced 3-point description untuk card dengan emoji"""
+    """Generate simple bullet-point description untuk kartu gacha"""
     
-    # Database role dan karakteristik K-pop dengan emoji
-    kpop_roles = [
-        "🎤 Main Vocalist", "🎵 Lead Vocalist", "🎶 Sub Vocalist",
-        "💃 Main Dancer", "🕺 Lead Dancer", "✨ Sub Dancer", 
-        "🎤 Main Rapper", "🔥 Lead Rapper", "🎯 Sub Rapper",
-        "👑 Visual", "⭐ Face of the Group", "💫 Center",
-        "👑 Leader", "🌟 Maknae", "🎭 All-Rounder"
-    ]
+    # Simple traits berdasarkan rarity
+    rarity_traits = {
+        "Common": ["ROOKIE IDOL", "FRESH TALENT", "NEW STAR"],
+        "Rare": ["RISING STAR", "POPULAR IDOL", "TALENTED MEMBER"],
+        "DR": ["MAIN VOCALIST", "LEAD DANCER", "VISUAL QUEEN"],
+        "SR": ["ACE MEMBER", "ALL-ROUNDER", "CENTER IDOL"],
+        "SAR": ["LEGEND IDOL", "ICON GODDESS", "ULTIMATE STAR"]
+    }
     
-    personality_traits = [
-        "✨ Charismatic", "⚡ Energetic", "💎 Elegant", "🥰 Cute", "😎 Cool",
-        "🌙 Mysterious", "☀️ Bright", "🌸 Gentle", "🔥 Fierce", "🎈 Playful",
-        "👑 Sophisticated", "💖 Charming", "💪 Bold", "🍯 Sweet", "🦋 Confident"
-    ]
+    # Power/Stats untuk gaming feel
+    power_stats = {
+        "Common": ["CHARM 45", "TALENT 50", "POPULARITY 40"],
+        "Rare": ["CHARM 65", "TALENT 70", "POPULARITY 60"],
+        "DR": ["CHARM 80", "TALENT 85", "POPULARITY 75"],
+        "SR": ["CHARM 90", "TALENT 95", "POPULARITY 85"],
+        "SAR": ["CHARM 99", "TALENT 99", "POPULARITY 99"]
+    }
     
-    skills = [
-        "🎵 exceptional vocals", "💃 amazing dance skills", "🎤 powerful rap",
-        "🎭 stage presence", "📺 variety show talent", "🎬 acting ability",
-        "✍️ songwriting skills", "🎨 choreography creation", "🌍 language skills",
-        "👗 fashion sense", "👑 leadership qualities", "💕 fan interaction"
-    ]
-    
-    achievements = [
-        "📱 viral fancam", "🎵 solo debut", "🎬 acting debut", "📺 variety regular",
-        "🌟 brand ambassador", "🏆 award winner", "📈 chart topper", "🌍 international recognition",
-        "🤝 collaboration artist", "🔥 trendsetter", "📱 social media star", "🎭 multi-talented"
-    ]
-    
-    # Generate description berdasarkan rarity
+    # Generate 2 simple points
     description_points = []
     
-    # Point 1: Role/Position (selalu ada)
-    roles = random.sample(kpop_roles, min(2, len(kpop_roles)))
-    if len(roles) == 2:
-        description_points.append(f"{roles[0]} & {roles[1]}")
-    else:
-        description_points.append(f"{roles[0]}")
+    # Point 1: Role/Title
+    import random
+    role = random.choice(rarity_traits.get(rarity, ["MEMBER"]))
+    description_points.append(f"- {role}")
     
-    # Point 2: Personality/Characteristic
-    if rarity in ["SAR", "SR"]:
-        # High rarity: lebih detailed
-        trait = random.choice(personality_traits)
-        skill = random.choice(skills)
-        description_points.append(f"{trait} personality with {skill}")
-    else:
-        # Lower rarity: simple trait
-        trait = random.choice(personality_traits)
-        description_points.append(f"Known for {trait.lower()} charm")
+    # Point 2: Power stat
+    stat = random.choice(power_stats.get(rarity, ["POWER 50"]))
+    description_points.append(f"- {stat}")
     
-    # Point 3: Achievement/Special (rarity dependent)
-    if rarity == "SAR":
-        # Ultimate rarity: major achievement
-        achievement = random.choice(achievements)
-        description_points.append(f"🌟 {achievement.title()} & global icon")
-    elif rarity == "SR":
-        # Super rare: notable achievement
-        achievement = random.choice(achievements)
-        description_points.append(f"⭐ Rising star with {achievement}")
-    elif rarity == "DR":
-        # Double rare: group contribution
-        description_points.append(f"💎 Key member of {group_name}")
-    else:
-        # Common/Rare: basic info
-        description_points.append(f"💖 Beloved {group_name} member")
-    
-    # Format untuk card box
     return "\n".join(description_points)
 
 # Load card template data
@@ -350,7 +314,7 @@ def draw_enhanced_text(draw, text, box, max_font_size, rarity, is_title=False, f
         font_size -= 1
     
     # Position text - Left align untuk semua text
-    text_x = x + 5  # Left alignment dengan padding untuk semua text
+    text_x = x + 3  # Left alignment dengan padding 3px untuk semua text
     text_y = y + (h - max_height) // 2
     
     # Get rarity colors
