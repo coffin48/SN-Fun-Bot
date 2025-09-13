@@ -5,34 +5,34 @@ import random
 
 # Enhanced description system
 def generate_enhanced_description(member_name, group_name, rarity):
-    """Generate enhanced 3-point description untuk card"""
+    """Generate enhanced 3-point description untuk card dengan emoji"""
     
-    # Database role dan karakteristik K-pop
+    # Database role dan karakteristik K-pop dengan emoji
     kpop_roles = [
-        "Main Vocalist", "Lead Vocalist", "Sub Vocalist",
-        "Main Dancer", "Lead Dancer", "Sub Dancer", 
-        "Main Rapper", "Lead Rapper", "Sub Rapper",
-        "Visual", "Face of the Group", "Center",
-        "Leader", "Maknae", "All-Rounder"
+        "🎤 Main Vocalist", "🎵 Lead Vocalist", "🎶 Sub Vocalist",
+        "💃 Main Dancer", "🕺 Lead Dancer", "✨ Sub Dancer", 
+        "🎤 Main Rapper", "🔥 Lead Rapper", "🎯 Sub Rapper",
+        "👑 Visual", "⭐ Face of the Group", "💫 Center",
+        "👑 Leader", "🌟 Maknae", "🎭 All-Rounder"
     ]
     
     personality_traits = [
-        "Charismatic", "Energetic", "Elegant", "Cute", "Cool",
-        "Mysterious", "Bright", "Gentle", "Fierce", "Playful",
-        "Sophisticated", "Charming", "Bold", "Sweet", "Confident"
+        "✨ Charismatic", "⚡ Energetic", "💎 Elegant", "🥰 Cute", "😎 Cool",
+        "🌙 Mysterious", "☀️ Bright", "🌸 Gentle", "🔥 Fierce", "🎈 Playful",
+        "👑 Sophisticated", "💖 Charming", "💪 Bold", "🍯 Sweet", "🦋 Confident"
     ]
     
     skills = [
-        "exceptional vocals", "amazing dance skills", "powerful rap",
-        "stage presence", "variety show talent", "acting ability",
-        "songwriting skills", "choreography creation", "language skills",
-        "fashion sense", "leadership qualities", "fan interaction"
+        "🎵 exceptional vocals", "💃 amazing dance skills", "🎤 powerful rap",
+        "🎭 stage presence", "📺 variety show talent", "🎬 acting ability",
+        "✍️ songwriting skills", "🎨 choreography creation", "🌍 language skills",
+        "👗 fashion sense", "👑 leadership qualities", "💕 fan interaction"
     ]
     
     achievements = [
-        "viral fancam", "solo debut", "acting debut", "variety regular",
-        "brand ambassador", "award winner", "chart topper", "international recognition",
-        "collaboration artist", "trendsetter", "social media star", "multi-talented"
+        "📱 viral fancam", "🎵 solo debut", "🎬 acting debut", "📺 variety regular",
+        "🌟 brand ambassador", "🏆 award winner", "📈 chart topper", "🌍 international recognition",
+        "🤝 collaboration artist", "🔥 trendsetter", "📱 social media star", "🎭 multi-talented"
     ]
     
     # Generate description berdasarkan rarity
@@ -41,36 +41,36 @@ def generate_enhanced_description(member_name, group_name, rarity):
     # Point 1: Role/Position (selalu ada)
     roles = random.sample(kpop_roles, min(2, len(kpop_roles)))
     if len(roles) == 2:
-        description_points.append(f"• {roles[0]} & {roles[1]}")
+        description_points.append(f"{roles[0]} & {roles[1]}")
     else:
-        description_points.append(f"• {roles[0]}")
+        description_points.append(f"{roles[0]}")
     
     # Point 2: Personality/Characteristic
     if rarity in ["SAR", "SR"]:
         # High rarity: lebih detailed
         trait = random.choice(personality_traits)
         skill = random.choice(skills)
-        description_points.append(f"• {trait} personality with {skill}")
+        description_points.append(f"{trait} personality with {skill}")
     else:
         # Lower rarity: simple trait
         trait = random.choice(personality_traits)
-        description_points.append(f"• Known for {trait.lower()} charm")
+        description_points.append(f"Known for {trait.lower()} charm")
     
     # Point 3: Achievement/Special (rarity dependent)
     if rarity == "SAR":
         # Ultimate rarity: major achievement
         achievement = random.choice(achievements)
-        description_points.append(f"• {achievement.title()} & global icon")
+        description_points.append(f"🌟 {achievement.title()} & global icon")
     elif rarity == "SR":
         # Super rare: notable achievement
         achievement = random.choice(achievements)
-        description_points.append(f"• Rising star with {achievement}")
+        description_points.append(f"⭐ Rising star with {achievement}")
     elif rarity == "DR":
         # Double rare: group contribution
-        description_points.append(f"• Key member of {group_name}")
+        description_points.append(f"💎 Key member of {group_name}")
     else:
         # Common/Rare: basic info
-        description_points.append(f"• Beloved {group_name} member")
+        description_points.append(f"💖 Beloved {group_name} member")
     
     # Format untuk card box
     return "\n".join(description_points)
