@@ -5,8 +5,10 @@ Entry point utama untuk menjalankan bot
 import sys
 import os
 
-# Add current directory to Python path for production
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to Python path for Railway deployment
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 
 from core.bot_core import BotCore
 from core.commands import CommandsHandler
