@@ -522,26 +522,42 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Load template dengan transparency support
     template = Image.open(template_path).convert("RGBA")
     
-    # Get boxes info
+    # Get boxes info dari template JSON
     boxes = template_info["boxes"]
+    
+    # Validate box coordinates untuk memastikan deteksi area tidak hilang
+    required_boxes = ["photo", "name", "desc"]
+    for box_name in required_boxes:
+        if box_name not in boxes:
+            raise ValueError(f"Missing required box '{box_name}' in template {selected_template}")
+        
+        box = boxes[box_name]
+        if not isinstance(box, list) or len(box) != 4:
+            raise ValueError(f"Invalid box format for '{box_name}': expected [x, y, width, height]")
+        
+        # Ensure box coordinates are within template bounds
+        x, y, w, h = box
+        if x < 0 or y < 0 or x + w > template.size[0] or y + h > template.size[1]:
+            print(f"Warning: Box '{box_name}' coordinates may be outside template bounds")
     
     # Create base canvas dengan white background
     canvas = Image.new('RGB', template.size, (255, 255, 255))
     
-    # Process foto input
+    # Process foto input dengan box validation
+    photo_box = boxes["photo"]
     if isinstance(idol_photo, str):
         # Jika input adalah path
-        foto_img = fit_photo(idol_photo, boxes["photo"][2], boxes["photo"][3])
+        foto_img = fit_photo(idol_photo, photo_box[2], photo_box[3])
     else:
         # Jika input adalah PIL Image
-        foto_img = fit_photo_from_image(idol_photo, boxes["photo"][2], boxes["photo"][3])
+        foto_img = fit_photo_from_image(idol_photo, photo_box[2], photo_box[3])
     
     # Convert foto ke RGBA untuk proper blending
     if foto_img.mode != 'RGBA':
         foto_img = foto_img.convert('RGBA')
     
-    # Paste foto ke canvas (foto di belakang)
-    canvas.paste(foto_img, (boxes["photo"][0], boxes["photo"][1]), foto_img)
+    # Paste foto ke canvas (foto di belakang) dengan validated coordinates
+    canvas.paste(foto_img, (photo_box[0], photo_box[1]), foto_img)
     
     # Convert canvas ke RGBA untuk alpha composite
     canvas = canvas.convert('RGBA')
@@ -549,21 +565,23 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Paste template di atas foto dengan transparency
     canvas = Image.alpha_composite(canvas, template)
     
-    # Add text
+    # Add text elements (paling depan) dengan validated box coordinates
     draw = ImageDraw.Draw(canvas)
     
-    # Draw member name dengan enhanced styling menggunakan Montserrat
+    # Draw member name dengan enhanced styling menggunakan Montserrat (paling depan)
     if member_name:
         # Prepare text content
         name_text = f"{member_name} • {group_name}" if group_name else member_name
-        draw_enhanced_text(draw, name_text, boxes["name"], 20, rarity, is_title=True, font_preference="montserrat")
+        name_box = boxes["name"]
+        draw_enhanced_text(draw, name_text, name_box, 20, rarity, is_title=True, font_preference="montserrat")
     
     # Use provided description or generate enhanced description dengan emoji
     if not description:
         description = generate_enhanced_description(member_name, group_name, rarity)
     
-    # Render description dengan emoji support menggunakan Noto Sans
-    draw_enhanced_text(draw, description, boxes["desc"], 14, rarity, is_title=False, font_preference="noto")
+    # Render description dengan emoji support menggunakan Noto Sans (paling depan)
+    desc_box = boxes["desc"]
+    draw_enhanced_text(draw, description, desc_box, 14, rarity, is_title=False, font_preference="noto")
     
     # Convert final result ke RGB untuk mobile compatibility
     final_card = Image.new('RGB', canvas.size, (255, 255, 255))
