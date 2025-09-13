@@ -1,7 +1,7 @@
 {
     "font_config": {
-        "primary_name_font": "assets/fonts/Gill Sans/Gill Sans Bold.otf",
-        "primary_desc_font": "assets/fonts/Gill Sans/Gill Sans.otf",
+        "primary_name_font": "assets/fonts/Gill Sans Bold.otf",
+        "primary_desc_font": "assets/fonts/Gill Sans.otf",
         "fallback_font": "default",
         "rarity_font_sizes": {
             "Common": {
