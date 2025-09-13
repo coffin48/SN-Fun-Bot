@@ -94,7 +94,7 @@ class GachaCommandsHandler:
                 # Update to rarity reveal
                 rarity_embed = discord.Embed(
                     title="🎴 Revealing Pack Contents...",
-                    description="🎯 **Guaranteed:** 2 Common • 2 Rare/Epic • 1 Legendary/FullArt\n⏳ Generating your cards...",
+                    description="🎯 **Generous Rates Active!** Higher chance for rare cards\n⏳ Generating your cards...",
                     color=0xffd700
                 )
                 await loading_msg.edit(embed=rarity_embed)
@@ -151,17 +151,6 @@ class GachaCommandsHandler:
                         inline=True
                     )
                     
-                    embed.add_field(
-                        name="📸 Source",
-                        value="Google Drive CDN",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="🎯 Type",
-                        value="5-Card Guaranteed Pack",
-                        inline=True
-                    )
                     
                     embed.add_field(
                         name="💎 Value",
@@ -324,17 +313,6 @@ class GachaCommandsHandler:
                         inline=True
                     )
                     
-                    embed.add_field(
-                        name="📸 Source",
-                        value="Google Drive CDN",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="🎯 Type",
-                        value=f"Group Gacha: {group_name}",
-                        inline=True
-                    )
                     
                     embed.add_field(
                         name="🎲 Luck",
@@ -451,17 +429,6 @@ class GachaCommandsHandler:
                         inline=True
                     )
                     
-                    embed.add_field(
-                        name="📸 Source",
-                        value="Google Drive CDN",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="🎯 Type",
-                        value=f"Member Gacha: {member_name}",
-                        inline=True
-                    )
                     
                     embed.add_field(
                         name="🎲 Luck",
@@ -534,12 +501,12 @@ class GachaCommandsHandler:
                 inline=False
             )
             
-            # Rarity section (NEW SYSTEM)
-            rarity_text = """• **Common** (50%) 🥈 Basic template design
-• **Rare** (30%) 💙 Enhanced template design  
-• **DR** (15%) 💜 Double Rare premium template
-• **SR** (4%) ❤️ Super Rare special template
-• **SAR** (1%) 🌈 Special Art Rare ultimate template"""
+            # Rarity section (GENEROUS RATES)
+            rarity_text = """• **Common** (35%) 🥈 Basic template design
+• **Rare** (35%) 💙 Enhanced template design  
+• **DR** (20%) 💜 Double Rare premium template
+• **SR** (8%) ❤️ Super Rare special template
+• **SAR** (2%) 🌈 Special Art Rare ultimate template"""
             
             embed.add_field(
                 name="✨ Rarity System",
@@ -732,17 +699,7 @@ class GachaCommandsHandler:
                             inline=True
                         )
                         
-                        embed.add_field(
-                            name="📸 Source",
-                            value="Google Drive CDN",
-                            inline=True
-                        )
                         
-                        embed.add_field(
-                            name="🎯 Type",
-                            value=f"Smart Search: {search_term}",
-                            inline=True
-                        )
                         
                         embed.add_field(
                             name="🎲 Luck",
@@ -820,17 +777,7 @@ class GachaCommandsHandler:
                             inline=True
                         )
                         
-                        embed.add_field(
-                            name="📸 Source",
-                            value="Google Drive CDN",
-                            inline=True
-                        )
                         
-                        embed.add_field(
-                            name="🎯 Type",
-                            value=f"Smart Search: {search_term}",
-                            inline=True
-                        )
                         
                         embed.add_field(
                             name="🎲 Luck",
@@ -947,4 +894,3 @@ class GachaCommandsHandler:
             return "✨ GOOD LUCK!"
         else:
             return "🍀 NORMAL LUCK"
-
