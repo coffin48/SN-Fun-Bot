@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.bot_core import BotCore
 from core.commands import CommandsHandler
-from features.analytics.analytics import features.analytics.analytics
+from features.analytics.analytics import BotAnalytics
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
