@@ -10,7 +10,11 @@ import requests
 import time
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from core.logger import core.logger
+try:
+    from core.logger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 import discord
 
 class SocialMediaMonitor:
