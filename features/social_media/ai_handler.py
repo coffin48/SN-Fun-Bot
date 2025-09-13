@@ -8,7 +8,7 @@ import time
 import random
 import os
 import requests
-from core.logger import core.logger
+from core.logger import logger
 
 # Optional monitoring - only import if available
 try:
