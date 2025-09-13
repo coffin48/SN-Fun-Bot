@@ -129,7 +129,19 @@ class CommandsHandler:
                     
                     # Help command
                     if user_input.lower().startswith("help"):
-                        await self._handle_help_command(ctx)
+                        parts = user_input.split()
+                        subcommand = parts[1] if len(parts) > 1 else None
+                        args = parts[2:]
+                        if subcommand == "help":
+                            await self._handle_help_command(ctx)
+                        elif subcommand == "bias" and len(args) > 0 and args[0] == "info":
+                            await self._handle_bias_info_command(ctx)
+                        elif subcommand == "gacha" and len(args) > 0 and args[0] == "info":
+                            # Redirect to gacha system
+                            if self.gacha_handler:
+                                await self.gacha_handler.handle_command(ctx, "gacha info")
+                            else:
+                                await ctx.send("❌ Gacha system tidak tersedia.")
                         return
                     
                     # Analytics command
@@ -653,25 +665,11 @@ class CommandsHandler:
                 inline=False
             )
             
-            # Examples section
-            examples = """```
-!sn QWER
-!sn Blackpink  
-!sn Hina QWER
-!sn rekomen ballad
-```"""
-            embed.add_field(
-                name="📝 Contoh Commands",
-                value=examples,
-                inline=False
-            )
-            
             # Gacha Trading Cards section
             gacha_commands = """• `!sn gacha` 🎲 Random gacha
 • `!sn gacha group [nama]` 🎵 Gacha grup
 • `!sn gacha member [nama]` 👤 Gacha member
-• `!sn gacha stats` 📊 Statistik gacha
-• `!sn gacha help` 📋 Help gacha"""
+• `!sn gacha info` 📊 Detail info & stats"""
             embed.add_field(
                 name="🎴 Gacha Cards",
                 value=gacha_commands,
@@ -680,9 +678,9 @@ class CommandsHandler:
             
             # Bias Detector section
             bias_commands = """• `!sn bias` 🎯 Deteksi bias kamu
-• `!sn match` 💖 Love matching
+• `!sn match [member]` 💖 Love matching
 • `!sn fortune` 🔮 Ramalan cinta
-• `!sn ramalan` ✨ Fortune telling"""
+• `!sn bias info` 📋 Detail info & commands"""
             embed.add_field(
                 name="💕 Bias Detector",
                 value=bias_commands,
@@ -691,9 +689,8 @@ class CommandsHandler:
             
             # Social Media section
             social_commands = """• `!sn twitter` 🐦 Latest tweets
-• `!sn youtube` 📺 Latest videos
+• `!sn youtube` 📺 Latest videos  
 • `!sn instagram` 📸 Latest posts
-• `!sn tiktok` 🎵 Latest TikToks
 • `!sn sosmed` 📱 All platforms"""
             embed.add_field(
                 name="📱 Social Media",
@@ -729,6 +726,72 @@ class CommandsHandler:
             # Fallback to text message if embed fails
             help_message = "🤖 **SN Fun Bot Help** - Gunakan `!sn [command]` untuk berbagai fitur K-pop!"
             await ctx.send(help_message)
+
+    async def _handle_bias_info_command(self, ctx):
+        """Handle !sn bias info command - comprehensive bias detector information"""
+        try:
+            embed = discord.Embed(
+                title="💕 Bias Detector & Fortune System",
+                description="AI-powered bias detection dengan love matching dan ramalan cinta!",
+                color=0xFF1493  # Deep Pink
+            )
+            
+            # Available Commands
+            commands_text = """• `!sn bias` 🎯 Deteksi bias kamu
+• `!sn match [member]` 💖 Love matching
+• `!sn fortune` 🔮 Ramalan cinta
+• `!sn ramalan` ✨ Fortune telling"""
+            
+            embed.add_field(
+                name="🎯 Available Commands",
+                value=commands_text,
+                inline=False
+            )
+            
+            # How It Works
+            how_it_works = """🤖 **AI Analysis** berdasarkan personality
+💕 **Compatibility Score** 75-99%
+🎭 **Personality Matching** traits
+🔮 **Fortune System** dengan ramalan"""
+            
+            embed.add_field(
+                name="⚙️ How It Works",
+                value=how_it_works,
+                inline=True
+            )
+            
+            # Features
+            features_text = """✨ **Konsisten** per user ID
+🎨 **Beautiful Embeds** dengan colors
+💬 **Indonesian Language** fun & casual
+🎲 **Random Elements** untuk variety"""
+            
+            embed.add_field(
+                name="💡 Features",
+                value=features_text,
+                inline=True
+            )
+            
+            # Tips
+            tips_text = """💡 Hasil bias detection konsisten per user
+🎯 Gunakan nama member untuk love matching
+🔮 Fortune dan ramalan memberikan hasil berbeda
+💕 Semua hasil dibuat dengan AI analysis"""
+            
+            embed.add_field(
+                name="📝 Tips & Info",
+                value=tips_text,
+                inline=False
+            )
+            
+            embed.set_footer(text="SN Fun Bot • AI-powered bias detection! 💕")
+            
+            await ctx.send(embed=embed)
+            logger.info("Bias info command executed")
+            
+        except Exception as e:
+            logger.error(f"Error in bias info: {e}")
+            await ctx.send("❌ Gagal menampilkan info bias detector.")
 
     async def _handle_analytics_command(self, ctx):
         """Handle !sn analytics command dengan Discord embed"""
@@ -790,82 +853,12 @@ class CommandsHandler:
                 inline=True
             )
             
-            # Response Times
-            avg_scraping = sum(analytics.data["response_times"]["scraping"]) / len(analytics.data["response_times"]["scraping"]) if analytics.data["response_times"]["scraping"] else 0
-            avg_ai = sum(analytics.data["response_times"]["ai_generation"]) / len(analytics.data["response_times"]["ai_generation"]) if analytics.data["response_times"]["ai_generation"] else 0
-            avg_total = sum(analytics.data["response_times"]["total_response"]) / len(analytics.data["response_times"]["total_response"]) if analytics.data["response_times"]["total_response"] else 0
-            
-            response_times = f"""⚡ Scraping: {avg_scraping:.2f}s
-🤖 AI Generation: {avg_ai:.2f}s
-🚀 Total Response: {avg_total:.2f}s"""
-            
-            embed.add_field(
-                name="⏱️ Average Response Times",
-                value=response_times,
-                inline=True
-            )
-            
-            # Top Popular Queries
-            top_queries = sorted(analytics.data["popular_queries"].items(), 
-                               key=lambda x: x[1], reverse=True)[:5]
-            
-            if top_queries:
-                popular_list = ""
-                for i, (query, count) in enumerate(top_queries, 1):
-                    popular_list += f"{i}. **{query}**: {count}x\n"
-            else:
-                popular_list = "Belum ada data query"
-            
-            embed.add_field(
-                name="🔥 Top 5 Popular Queries",
-                value=popular_list,
-                inline=False
-            )
-            
-            # Source Performance (top 3 best performing)
-            source_perf = []
-            for source, perf in analytics.data["source_performance"].items():
-                total = perf["success"] + perf["failed"]
-                if total > 0:
-                    success_rate = perf["success"] / total * 100
-                    source_perf.append((source, success_rate, perf['avg_time']))
-            
-            # Sort by success rate
-            source_perf.sort(key=lambda x: x[1], reverse=True)
-            
-            if source_perf:
-                source_list = ""
-                for source, rate, avg_time in source_perf[:3]:
-                    source_list += f"• **{source}**: {rate:.1f}% ({avg_time:.2f}s)\n"
-            else:
-                source_list = "Belum ada data source"
-            
-            embed.add_field(
-                name="🌐 Top Source Performance",
-                value=source_list,
-                inline=False
-            )
-            
-            # Footer with timestamp
-            from datetime import datetime
-            embed.set_footer(
-                text=f"Data diupdate: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                icon_url="https://cdn.discordapp.com/emojis/📊.png"
-            )
-            
             await ctx.send(embed=embed)
-            logger.info("Analytics embed command requested")
+            logger.info("Analytics command executed")
             
         except Exception as e:
-            logger.error(f"Error creating analytics embed: {e}")
-            # Fallback to text summary
-            try:
-                summary = analytics.get_analytics_summary()
-                await self._send_chunked_message(ctx, summary)
-                logger.info("Analytics fallback text sent")
-            except Exception as fallback_error:
-                logger.error(f"Analytics fallback also failed: {fallback_error}")
-                await ctx.send("❌ Error mengambil data analytics. Silakan coba lagi nanti.")
+            logger.error(f"Error in analytics command: {e}")
+            await ctx.send("❌ Gagal menampilkan analytics data.")
     
     async def _handle_multiple_matches(self, ctx, detected_name, multiple_matches):
         """Handle multiple matches untuk nama ambiguous"""
