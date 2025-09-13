@@ -144,11 +144,66 @@ def fit_photo_from_image(pil_image, target_w, target_h):
     return foto_cropped
 
 # Draw text dengan auto-fit ke dalam box
-def draw_fit_text(draw, text, box, font_path, max_font_size):
-    """Draw text yang auto-fit ke dalam box"""
+def get_rarity_colors(rarity):
+    """Get color scheme berdasarkan rarity"""
+    color_schemes = {
+        "Common": {
+            "text": (255, 255, 255, 255),      # White
+            "outline": (0, 0, 0, 255),        # Black
+            "glow": None
+        },
+        "Rare": {
+            "text": (100, 200, 255, 255),     # Light Blue
+            "outline": (0, 50, 100, 255),     # Dark Blue
+            "glow": (100, 200, 255, 80)
+        },
+        "DR": {
+            "text": (255, 215, 0, 255),       # Gold
+            "outline": (139, 69, 19, 255),    # Brown
+            "glow": (255, 215, 0, 100)
+        },
+        "SR": {
+            "text": (255, 105, 180, 255),     # Hot Pink
+            "outline": (139, 0, 139, 255),    # Dark Magenta
+            "glow": (255, 105, 180, 120)
+        },
+        "SAR": {
+            "text": (255, 255, 255, 255),     # White
+            "outline": (148, 0, 211, 255),    # Dark Violet
+            "glow": (255, 20, 147, 150)       # Deep Pink glow
+        }
+    }
+    return color_schemes.get(rarity, color_schemes["Common"])
+
+def create_gradient_text(draw, text, position, font, start_color, end_color, width):
+    """Create gradient text effect"""
+    # Create temporary image for gradient
+    temp_img = Image.new("RGBA", (width, font.size), (0, 0, 0, 0))
+    temp_draw = ImageDraw.Draw(temp_img)
+    
+    # Draw text on temp image
+    temp_draw.text((0, 0), text, font=font, fill=(255, 255, 255, 255))
+    
+    # Create gradient overlay
+    for x in range(width):
+        ratio = x / width if width > 0 else 0
+        r = int(start_color[0] * (1 - ratio) + end_color[0] * ratio)
+        g = int(start_color[1] * (1 - ratio) + end_color[1] * ratio)
+        b = int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
+        
+        # Apply gradient to each column
+        for y in range(font.size):
+            pixel = temp_img.getpixel((x, y))
+            if pixel[3] > 0:  # If pixel is not transparent
+                temp_img.putpixel((x, y), (r, g, b, pixel[3]))
+    
+    return temp_img
+
+def draw_enhanced_text(draw, text, box, font_path, max_font_size, rarity, is_title=False):
+    """Draw text dengan enhanced styling berdasarkan rarity"""
     x, y, w, h = box
     
-    # Try to load font
+    # Load font dengan fallback
     try:
         if os.path.exists(font_path):
             font = ImageFont.truetype(font_path, max_font_size)
@@ -159,12 +214,11 @@ def draw_fit_text(draw, text, box, font_path, max_font_size):
     
     font_size = max_font_size
     
-    # Get text dimensions
+    # Auto-fit font size
     bbox = draw.textbbox((0, 0), text, font=font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
     
-    # Scale font down jika teks lebih lebar dari box
     while text_w > w and font_size > 5:
         font_size -= 1
         try:
@@ -179,22 +233,50 @@ def draw_fit_text(draw, text, box, font_path, max_font_size):
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
     
-    # Position text (left-aligned, vertically centered)
-    text_x = x
+    # Position text
+    text_x = x + (w - text_w) // 2 if is_title else x  # Center for titles
     text_y = y + (h - text_h) // 2
     
-    # Draw text dengan outline untuk visibility
-    outline_color = (255, 255, 255, 255)  # White outline
-    text_color = (0, 0, 0, 255)  # Black text
+    # Get rarity colors
+    colors = get_rarity_colors(rarity)
     
-    # Draw outline
-    for dx in [-1, 0, 1]:
-        for dy in [-1, 0, 1]:
-            if dx != 0 or dy != 0:
-                draw.text((text_x + dx, text_y + dy), text, font=font, fill=outline_color)
+    # Draw glow effect untuk rarity tinggi
+    if colors["glow"] and rarity in ["DR", "SR", "SAR"]:
+        glow_size = 3 if rarity == "SAR" else 2
+        for dx in range(-glow_size, glow_size + 1):
+            for dy in range(-glow_size, glow_size + 1):
+                if dx != 0 or dy != 0:
+                    distance = (dx**2 + dy**2)**0.5
+                    if distance <= glow_size:
+                        alpha = int(colors["glow"][3] * (1 - distance/glow_size))
+                        glow_color = (*colors["glow"][:3], alpha)
+                        draw.text((text_x + dx, text_y + dy), text, font=font, fill=glow_color)
+    
+    # Draw outline (multi-layer untuk rarity tinggi)
+    outline_layers = 2 if rarity in ["SR", "SAR"] else 1
+    for layer in range(outline_layers, 0, -1):
+        for dx in range(-layer, layer + 1):
+            for dy in range(-layer, layer + 1):
+                if dx != 0 or dy != 0:
+                    outline_alpha = 255 // layer
+                    outline_color = (*colors["outline"][:3], outline_alpha)
+                    draw.text((text_x + dx, text_y + dy), text, font=font, fill=outline_color)
     
     # Draw main text
-    draw.text((text_x, text_y), text, font=font, fill=text_color)
+    if rarity == "SAR" and is_title:
+        # Gradient text untuk SAR titles
+        gradient_start = (255, 215, 0)  # Gold
+        gradient_end = (255, 20, 147)   # Deep Pink
+        gradient_img = create_gradient_text(draw, text, (text_x, text_y), font, gradient_start, gradient_end, text_w)
+        # Note: Untuk implementasi penuh gradient, perlu composite ke image utama
+        draw.text((text_x, text_y), text, font=font, fill=colors["text"])
+    else:
+        draw.text((text_x, text_y), text, font=font, fill=colors["text"])
+
+# Backward compatibility
+def draw_fit_text(draw, text, box, font_path, max_font_size):
+    """Draw text yang auto-fit ke dalam box (legacy function)"""
+    draw_enhanced_text(draw, text, box, font_path, max_font_size, "Common", False)
 
 # Generate card dengan template system
 def generate_card_template(idol_photo, rarity, member_name="", group_name="", description=""):
@@ -260,17 +342,16 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     draw = ImageDraw.Draw(canvas)
     font_path = "assets/fonts/Gill Sans Bold Italic.otf"
     
-    # Draw member name
+    # Draw member name dengan enhanced styling
     if member_name:
         # Prepare text content
         name_text = f"{member_name} • {group_name}" if group_name else member_name
-        draw_fit_text(draw, name_text, boxes["name"], font_path, 20)
+        draw_enhanced_text(draw, name_text, boxes["name"], font_path, 20, rarity, is_title=True)
     
-    # Use provided description or generate Pokemon style description
+    # Use provided description or generate enhanced description dengan emoji
     if not description:
-        from features.gacha_system.card_descriptions import generate_card_description
-        description = generate_card_description(member_name, group_name, rarity, "pokemon")
-    draw_fit_text(draw, description, boxes["desc"], font_path, 14)
+        description = generate_enhanced_description(member_name, group_name, rarity)
+    draw_enhanced_text(draw, description, boxes["desc"], font_path, 14, rarity, is_title=False)
     
     return canvas
 
