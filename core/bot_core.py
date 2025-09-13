@@ -3,12 +3,12 @@ Bot Core Module - Menangani inisialisasi bot dan konfigurasi utama
 """
 import os
 import discord
-from discord.ext import core.commands
+from discord.ext import commands
 import pandas as pd
 import redis
-from core.logger import core.logger
+from core.logger import logger
 from patch.smart_detector import SmartKPopDetector
-from features.analytics.analytics import features.analytics.analytics
+from features.analytics.analytics import BotAnalytics
 from features.analytics.database_manager import DatabaseManager
 from features.social_media.social_media_monitor import SocialMediaMonitor
 
