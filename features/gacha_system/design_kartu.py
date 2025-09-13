@@ -254,8 +254,13 @@ def create_gradient_text(draw, text, position, font, start_color, end_color, wid
 # Font cache untuk menghindari loading berulang
 _font_cache = {}
 
+# Global flag untuk tracking apakah emoji font sudah pernah di-load
+_emoji_font_loaded = False
+
 def get_emoji_font(size):
     """Get emoji-compatible font dengan fallback untuk GitHub/Railway deployment"""
+    global _emoji_font_loaded
+    
     # Check cache first
     cache_key = f"emoji_{size}"
     if cache_key in _font_cache:
@@ -277,9 +282,10 @@ def get_emoji_font(size):
     for font_path in emoji_fonts:
         try:
             if os.path.exists(font_path):
-                # Only log once when font is first loaded
-                if cache_key not in _font_cache:
+                # Only log once globally, not per size
+                if not _emoji_font_loaded:
                     print(f"Loading emoji font: {font_path}")
+                    _emoji_font_loaded = True
                 font = ImageFont.truetype(font_path, size)
                 _font_cache[cache_key] = font
                 return font
@@ -287,8 +293,9 @@ def get_emoji_font(size):
             continue
     
     # Default font fallback
-    if cache_key not in _font_cache:
+    if not _emoji_font_loaded:
         print("Warning: No emoji font found, using default")
+        _emoji_font_loaded = True
     default_font = ImageFont.load_default()
     _font_cache[cache_key] = default_font
     return default_font
@@ -425,6 +432,14 @@ def draw_enhanced_text(draw, text, box, max_font_size, rarity, is_title=False, f
             break
         
         font_size -= 1
+    
+    # Final font loading setelah size determination
+    try:
+        main_font = get_main_font(font_size, font_preference)
+        emoji_font = get_emoji_font(font_size)
+    except:
+        main_font = ImageFont.load_default()
+        emoji_font = ImageFont.load_default()
     
     # Position text - Left align untuk semua text
     text_x = x + 3  # Left alignment dengan padding 3px untuk semua text
