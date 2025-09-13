@@ -129,19 +129,19 @@ class CommandsHandler:
                     
                     # Help command
                     if user_input.lower().startswith("help"):
-                        parts = user_input.split()
-                        subcommand = parts[1] if len(parts) > 1 else None
-                        args = parts[2:]
-                        if subcommand == "help":
-                            await self._handle_help_command(ctx)
-                        elif subcommand == "bias" and len(args) > 0 and args[0] == "info":
-                            await self._handle_bias_info_command(ctx)
-                        elif subcommand == "gacha" and len(args) > 0 and args[0] == "info":
-                            # Redirect to gacha system
-                            if self.gacha_handler:
-                                await self.gacha_handler.handle_command(ctx, "gacha info")
-                            else:
-                                await ctx.send("❌ Gacha system tidak tersedia.")
+                        await self._handle_help_command(ctx)
+                        return
+                    
+                    # Specific info commands
+                    if user_input.lower().startswith("bias info"):
+                        await self._handle_bias_info_command(ctx)
+                        return
+                    elif user_input.lower().startswith("gacha info"):
+                        # Redirect to gacha system
+                        if self.gacha_handler:
+                            await self.gacha_handler.handle_command(ctx, "gacha info")
+                        else:
+                            await ctx.send("❌ Gacha system tidak tersedia.")
                         return
                     
                     # Analytics command
