@@ -3,7 +3,7 @@ Database Manager - Menangani koneksi PostgreSQL dan fallback ke CSV
 """
 import os
 import pandas as pd
-from core.logger import core.logger
+from core.logger import logger
 from typing import Optional, List, Dict
 
 # Optional PostgreSQL imports dengan graceful fallback
