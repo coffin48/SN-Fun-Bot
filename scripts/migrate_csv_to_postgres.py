@@ -26,7 +26,7 @@ def migrate_csv_to_postgres():
     try:
         # Priority 1: GitHub raw CSV (always latest)
         try:
-            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE_KPOP%20(1).csv"
+            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/DATABASE_KPOP.csv"
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -74,7 +74,7 @@ def migrate_csv_to_postgres():
             else:
                 # Priority 3: Local file
                 logger.info("Fallback ke file lokal")
-                df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
+                df = pd.read_csv("data/DATABASE_KPOP.csv")
                 logger.info(f"Local CSV berhasil dibaca: {len(df)} rows")
         
         # Bersihkan data

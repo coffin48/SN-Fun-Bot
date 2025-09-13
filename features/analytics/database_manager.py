@@ -70,9 +70,9 @@ class DatabaseManager:
                     except Exception as sheets_error:
                         logger.warning(f"Google Sheets failed: {sheets_error}")
             
-            # Priority 3: Local file
-            self.kpop_df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
-            logger.info(f"✅ Local CSV loaded: {len(self.kpop_df)} records")
+            # Priority 3: Railway local file (deployed from GitHub)
+            self.kpop_df = pd.read_csv("data/DATABASE_KPOP.csv")
+            logger.info(f"✅ Railway local CSV loaded: {len(self.kpop_df)} records")
             
         except Exception as e:
             logger.error(f"❌ All CSV sources failed: {e}")
@@ -84,7 +84,7 @@ class DatabaseManager:
         from io import StringIO
         
         # GitHub raw CSV URL
-        github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE_KPOP%20(1).csv"
+        github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/DATABASE_KPOP.csv"
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

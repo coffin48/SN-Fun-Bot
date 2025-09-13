@@ -36,7 +36,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class KpopGachaSystem:
-    def __init__(self, json_path="data/member_data/Path_Foto_DriveIDs_Real.json", database_path="Database/DATABASE_KPOP (1).csv"):
+    def __init__(self, json_path="data/member_data/Path_Foto_DriveIDs_Real.json", database_path="data/DATABASE_KPOP.csv"):
         """
         Initialize Kpop Gacha System
         

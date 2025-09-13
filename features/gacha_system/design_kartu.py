@@ -225,12 +225,15 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     selected_template = random.choice(available_templates)
     template_info = card_data[selected_template]
     
-    # Load template image
-    template_folder = "Template"
+    # Load template image - fallback to old design system if template not found
+    template_folder = "assets/templates"
     template_path = os.path.join(template_folder, f"{selected_template}.png")
     
     if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Template file not found: {template_path}")
+        # Fallback to old design system
+        print(f"Template file not found: {template_path}, using fallback design system")
+        from features.gacha_system.design_kartu_old import generate_card_template as old_generate_card
+        return old_generate_card(idol_photo, rarity, member_name, group_name, description)
     
     # Load template
     template = Image.open(template_path).convert("RGBA")

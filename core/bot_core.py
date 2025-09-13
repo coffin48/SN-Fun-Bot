@@ -105,7 +105,7 @@ class BotCore:
         
         # Emergency fallback - GitHub CSV
         try:
-            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE_KPOP%20(1).csv"
+            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/DATABASE_KPOP.csv"
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -131,13 +131,13 @@ class BotCore:
         except Exception as e:
             logger.error(f"Environment CSV fallback failed: {e}")
         
-        # Final fallback - local CSV file
+        # Final fallback - Railway deployed CSV file (from GitHub)
         try:
-            df = pd.read_csv("Database/DATABASE_KPOP (1).csv")
-            logger.info(f"Local CSV emergency fallback: {len(df)} records")
+            df = pd.read_csv("data/DATABASE_KPOP.csv")
+            logger.info(f"Railway deployed CSV emergency fallback: {len(df)} records")
             return df
         except Exception as e:
-            logger.error(f"Local CSV emergency fallback failed: {e}")
+            logger.error(f"Railway deployed CSV emergency fallback failed: {e}")
         
         logger.warning("No data source available - using empty DataFrame")
         return pd.DataFrame()
