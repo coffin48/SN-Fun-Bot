@@ -515,17 +515,12 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     
     # Load template image - fallback to old design system if template not found
     template_folder = "assets/templates"
-    template_path = os.path.join(template_folder, f"{selected_template}.png")
-    
+    template_path = f"assets/templates/{selected_template}.png"
     if not os.path.exists(template_path):
-        # Fallback to old design system
-        print(f"Template file not found: {template_path}, using fallback design system")
-        from features.gacha_system.design_kartu_old import generate_card_template as old_generate_card
-        return old_generate_card(idol_photo, rarity, member_name, group_name, description)
+        raise FileNotFoundError(f"Template not found: {template_path}")
     
-    # Load template
-    template = Image.open(template_path).convert("RGBA")
-    canvas = Image.new("RGBA", template.size, (0, 0, 0, 0))
+    # Load template dan convert ke RGB untuk mobile compatibility
+    card = Image.open(template_path).convert("RGB")
     
     # Get boxes info
     boxes = template_info["boxes"]
@@ -538,14 +533,17 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
         # Jika input adalah PIL Image
         foto_img = fit_photo_from_image(idol_photo, boxes["photo"][2], boxes["photo"][3])
     
-    # Paste foto ke canvas
-    canvas.paste(foto_img, (boxes["photo"][0], boxes["photo"][1]), foto_img)
+    # Paste foto ke card (RGB mode)
+    if foto_img.mode == 'RGBA':
+        # Convert foto ke RGB dengan white background untuk mobile compatibility
+        rgb_foto = Image.new('RGB', foto_img.size, (255, 255, 255))
+        rgb_foto.paste(foto_img, mask=foto_img.split()[-1])
+        foto_img = rgb_foto
     
-    # Paste template di atas foto
-    canvas = Image.alpha_composite(canvas, template)
+    card.paste(foto_img, (boxes["photo"][0], boxes["photo"][1]))
     
     # Add text
-    draw = ImageDraw.Draw(canvas)
+    draw = ImageDraw.Draw(card)
     
     # Draw member name dengan enhanced styling menggunakan Montserrat
     if member_name:
@@ -560,7 +558,7 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Render description dengan emoji support menggunakan Noto Sans
     draw_enhanced_text(draw, description, boxes["desc"], 14, rarity, is_title=False, font_preference="noto")
     
-    return canvas
+    return card
 
 # Compatibility dengan sistem lama
 RARITIES = ["Common", "Rare", "DR", "SR", "SAR"]
