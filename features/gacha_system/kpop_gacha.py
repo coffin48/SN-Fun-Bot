@@ -53,6 +53,7 @@ class KpopGachaSystem:
         
         self.json_path = json_path
         self.database_path = database_path
+        # Font path untuk backward compatibility (tidak digunakan di new system)
         self.font_path = "assets/fonts/Gill Sans Bold Italic.otf"
         
         # Initialize data containers
