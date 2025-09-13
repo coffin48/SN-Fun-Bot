@@ -667,8 +667,6 @@ class CommandsHandler:
             
             # Gacha Trading Cards section
             gacha_commands = """• `!sn gacha` 🎲 Random gacha
-• `!sn gacha group [nama]` 🎵 Gacha grup
-• `!sn gacha member [nama]` 👤 Gacha member
 • `!sn gacha info` 📊 Detail info & stats"""
             embed.add_field(
                 name="🎴 Gacha Cards",
@@ -678,8 +676,6 @@ class CommandsHandler:
             
             # Bias Detector section
             bias_commands = """• `!sn bias` 🎯 Deteksi bias kamu
-• `!sn match [member]` 💖 Love matching
-• `!sn fortune` 🔮 Ramalan cinta
 • `!sn bias info` 📋 Detail info & commands"""
             embed.add_field(
                 name="💕 Bias Detector",
