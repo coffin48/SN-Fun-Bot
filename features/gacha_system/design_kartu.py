@@ -200,15 +200,52 @@ def create_gradient_text(draw, text, position, font, start_color, end_color, wid
     return temp_img
 
 def get_emoji_font(size):
-    """Get emoji-compatible font dengan fallback"""
+    """Get emoji-compatible font dengan fallback untuk GitHub/Railway deployment"""
     emoji_fonts = [
+        # GitHub/Railway deployment paths
+        "assets/fonts/NotoColorEmoji-Regular.ttf",
+        "assets/fonts/Noto_Color_Emoji/NotoColorEmoji-Regular.ttf",
+        # System fallbacks
         "C:/Windows/Fonts/seguiemj.ttf",  # Windows Segoe UI Emoji
-        "C:/Windows/Fonts/NotoColorEmoji.ttf",  # Noto Color Emoji
+        "C:/Windows/Fonts/NotoColorEmoji.ttf",  # Windows Noto Color Emoji
         "/System/Library/Fonts/Apple Color Emoji.ttc",  # macOS
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  # Linux
     ]
     
     for font_path in emoji_fonts:
+        try:
+            if os.path.exists(font_path):
+                return ImageFont.truetype(font_path, size)
+        except:
+            continue
+    
+    return ImageFont.load_default()
+
+def get_main_font(size, font_preference="montserrat"):
+    """Get main text font dengan preference dan fallback"""
+    if font_preference.lower() == "montserrat":
+        main_fonts = [
+            "assets/fonts/Montserrat-Bold.ttf",
+            "assets/fonts/Montserrat-SemiBold.ttf", 
+            "assets/fonts/Montserrat-Medium.ttf",
+            "assets/fonts/Montserrat-Regular.ttf"
+        ]
+    elif font_preference.lower() == "noto":
+        main_fonts = [
+            "assets/fonts/NotoSans-Bold.ttf",
+            "assets/fonts/NotoSans-SemiBold.ttf",
+            "assets/fonts/NotoSans-Medium.ttf", 
+            "assets/fonts/NotoSans-Regular.ttf"
+        ]
+    else:
+        # Fallback ke Gill Sans atau default
+        main_fonts = [
+            "assets/fonts/Gill Sans Bold Italic.otf",
+            "assets/fonts/Montserrat-Bold.ttf",
+            "assets/fonts/NotoSans-Bold.ttf"
+        ]
+    
+    for font_path in main_fonts:
         try:
             if os.path.exists(font_path):
                 return ImageFont.truetype(font_path, size)
@@ -261,18 +298,12 @@ def split_text_and_emoji(text):
     
     return parts
 
-def draw_enhanced_text(draw, text, box, font_path, max_font_size, rarity, is_title=False):
+def draw_enhanced_text(draw, text, box, max_font_size, rarity, is_title=False, font_preference="montserrat"):
     """Draw text dengan enhanced styling dan emoji support"""
     x, y, w, h = box
     
-    # Load main font dengan fallback
-    try:
-        if os.path.exists(font_path):
-            main_font = ImageFont.truetype(font_path, max_font_size)
-        else:
-            main_font = ImageFont.load_default()
-    except:
-        main_font = ImageFont.load_default()
+    # Load main font dengan preference system
+    main_font = get_main_font(max_font_size, font_preference)
     
     # Load emoji font
     emoji_font = get_emoji_font(max_font_size)
@@ -285,7 +316,7 @@ def draw_enhanced_text(draw, text, box, font_path, max_font_size, rarity, is_tit
     # Auto-fit font size berdasarkan total width
     while font_size > 5:
         try:
-            main_font = ImageFont.truetype(font_path, font_size) if os.path.exists(font_path) else ImageFont.load_default()
+            main_font = get_main_font(font_size, font_preference)
             emoji_font = get_emoji_font(font_size)
         except:
             main_font = ImageFont.load_default()
@@ -370,7 +401,7 @@ def draw_enhanced_text(draw, text, box, font_path, max_font_size, rarity, is_tit
 # Backward compatibility
 def draw_fit_text(draw, text, box, font_path, max_font_size):
     """Draw text yang auto-fit ke dalam box (legacy function)"""
-    draw_enhanced_text(draw, text, box, font_path, max_font_size, "Common", False)
+    draw_enhanced_text(draw, text, box, max_font_size, "Common", False)
 
 # Generate card dengan template system
 def generate_card_template(idol_photo, rarity, member_name="", group_name="", description=""):
@@ -434,20 +465,19 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     
     # Add text
     draw = ImageDraw.Draw(canvas)
-    font_path = "assets/fonts/Gill Sans Bold Italic.otf"
     
-    # Draw member name dengan enhanced styling
+    # Draw member name dengan enhanced styling menggunakan Montserrat
     if member_name:
         # Prepare text content
         name_text = f"{member_name} • {group_name}" if group_name else member_name
-        draw_enhanced_text(draw, name_text, boxes["name"], font_path, 20, rarity, is_title=True)
+        draw_enhanced_text(draw, name_text, boxes["name"], 20, rarity, is_title=True, font_preference="montserrat")
     
     # Use provided description or generate enhanced description dengan emoji
     if not description:
         description = generate_enhanced_description(member_name, group_name, rarity)
     
-    # Render description dengan emoji support
-    draw_enhanced_text(draw, description, boxes["desc"], font_path, 14, rarity, is_title=False)
+    # Render description dengan emoji support menggunakan Noto Sans
+    draw_enhanced_text(draw, description, boxes["desc"], 14, rarity, is_title=False, font_preference="noto")
     
     return canvas
 
