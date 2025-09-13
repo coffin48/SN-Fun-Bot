@@ -490,12 +490,12 @@ class GachaCommandsHandler:
                 inline=False
             )
             
-            # Rarity section
-            rarity_text = """• **Common** (50%) 🥈 Silver gradient border
-• **Rare** (30%) 💙 Blue gradient border  
-• **Epic** (15%) 💜 Purple gradient border
-• **Legendary** (4%) ❤️ Ruby red gradient border
-• **FullArt** (1%) 🌈 Holographic rainbow + sparkles"""
+            # Rarity section (NEW SYSTEM)
+            rarity_text = """• **Common** (50%) 🥈 Basic template design
+• **Rare** (30%) 💙 Enhanced template design  
+• **DR** (15%) 💜 Double Rare premium template
+• **SR** (4%) ❤️ Super Rare special template
+• **SAR** (1%) 🌈 Special Art Rare ultimate template"""
             
             embed.add_field(
                 name="✨ Rarity System",
@@ -609,12 +609,12 @@ class GachaCommandsHandler:
                 inline=False
             )
             
-            # Rarity rates
+            # Rarity rates (NEW SYSTEM)
             rarity_rates = """• **Common:** 50% chance
 • **Rare:** 30% chance
-• **Epic:** 15% chance
-• **Legendary:** 4% chance
-• **FullArt:** 1% chance"""
+• **DR:** 15% chance
+• **SR:** 4% chance
+• **SAR:** 1% chance"""
             
             embed.add_field(
                 name="✨ Rarity Rates",
@@ -846,49 +846,49 @@ class GachaCommandsHandler:
                 description=f"Gagal memproses gacha untuk '{search_term}'.",
                 color=0xff0000
             )
-            await ctx.send(embed=error_embed)
+            await loading_msg.edit(embed=error_embed)
     
     def _get_rarity_color(self, rarity):
-        """Get Discord embed color based on rarity"""
+        """Get Discord embed color untuk rarity (NEW SYSTEM)"""
         rarity_colors = {
             "Common": 0x808080,      # Gray
             "Rare": 0x0099ff,        # Blue  
-            "Epic": 0x9932cc,        # Purple
-            "Legendary": 0xff0000,   # Red
-            "FullArt": 0xffd700      # Gold
+            "DR": 0x9932cc,          # Purple (Double Rare)
+            "SR": 0xff0000,          # Red (Super Rare)
+            "SAR": 0xffd700          # Gold (Special Art Rare)
         }
         return rarity_colors.get(rarity, 0x00ff00)  # Default green
     
     def _get_luck_message(self, rarity):
-        """Get luck message based on rarity"""
+        """Get luck message berdasarkan rarity (NEW SYSTEM)"""
         luck_messages = {
             "Common": "🍀 Biasa aja",
             "Rare": "✨ Lumayan beruntung!",
-            "Epic": "🌟 Wah beruntung banget!",
-            "Legendary": "💎 SUPER LUCKY!!!",
-            "FullArt": "🏆 JACKPOT LEGENDARY!!!"
+            "DR": "🌟 Wah beruntung banget!",      # Double Rare
+            "SR": "💎 SUPER LUCKY!!!",           # Super Rare
+            "SAR": "🏆 JACKPOT LEGENDARY!!!"     # Special Art Rare
         }
         return luck_messages.get(rarity, "🎲 Unknown")
     
     def _get_rarity_emoji(self, rarity):
-        """Get emoji based on rarity"""
-        rarity_emojis = {
-            "Common": "⚪",      # White circle
-            "Rare": "🔵",        # Blue circle
-            "Epic": "🟣",        # Purple circle  
-            "Legendary": "🔴",   # Red circle
-            "FullArt": "🟡"      # Yellow circle
+        """Get emoji untuk rarity (NEW SYSTEM)"""
+        emojis = {
+            "Common": "🥈",
+            "Rare": "💙", 
+            "DR": "💜",      # Double Rare
+            "SR": "❤️",      # Super Rare
+            "SAR": "🌈"      # Special Art Rare
         }
-        return rarity_emojis.get(rarity, "⚫")  # Default black
+        return emojis.get(rarity, "⭐") 
     
     def _calculate_pack_luck(self, cards):
         """Calculate overall pack luck based on rarities"""
         luck_scores = {
             "Common": 1,
             "Rare": 3,
-            "Epic": 5,
-            "Legendary": 8,
-            "FullArt": 10
+            "DR": 5,        # Double Rare
+            "SR": 8,        # Super Rare
+            "SAR": 10       # Special Art Rare
         }
         
         total_score = sum(luck_scores.get(card['rarity'], 0) for card in cards)
