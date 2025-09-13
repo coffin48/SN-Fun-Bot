@@ -183,7 +183,6 @@ class GachaCommandsHandler:
                     await loading_msg.edit(embed=progress_embed)
                     
                     # Kirim kartu satu per satu dengan progress updates
-                    import asyncio
                     for i, card in enumerate(cards, 1):
                         try:
                             # Update progress
@@ -948,3 +947,4 @@ class GachaCommandsHandler:
             return "✨ GOOD LUCK!"
         else:
             return "🍀 NORMAL LUCK"
+
