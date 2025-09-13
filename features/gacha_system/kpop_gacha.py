@@ -548,8 +548,16 @@ class KpopGachaSystem:
             temp_path = temp_file.name
             temp_file.close()
             
-            # Save image tanpa optimasi berlebihan - kartu sudah 350x540px
-            card_image.save(temp_path, 'PNG')
+            # Save image dengan optimasi untuk mobile compatibility
+            # Convert RGBA ke RGB jika diperlukan untuk better mobile support
+            if card_image.mode == 'RGBA':
+                # Create white background untuk transparency
+                rgb_image = Image.new('RGB', card_image.size, (255, 255, 255))
+                rgb_image.paste(card_image, mask=card_image.split()[-1])  # Use alpha as mask
+                card_image = rgb_image
+            
+            # Save dengan optimasi untuk mobile
+            card_image.save(temp_path, 'PNG', optimize=True, quality=95)
             
             # NEW: Memory cleanup - close image if it's safe
             try:
