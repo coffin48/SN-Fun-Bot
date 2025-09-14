@@ -1151,6 +1151,21 @@ class CommandsHandler:
             logger.error(f"Monitor command error: {e}")
             await ctx.send(f"❌ Error: {e}")
     
+    def _is_admin(self, user_id):
+        """Check if user is admin"""
+        # Get admin IDs from environment variable
+        admin_ids_str = os.getenv('ADMIN_DISCORD_IDS', '')
+        if not admin_ids_str:
+            return False
+        
+        try:
+            # Parse comma-separated admin IDs
+            admin_ids = [int(id_str.strip()) for id_str in admin_ids_str.split(',') if id_str.strip()]
+            return user_id in admin_ids
+        except ValueError:
+            logger.error("Invalid ADMIN_DISCORD_IDS format in environment variables")
+            return False
+
     async def _handle_expansion_command(self, ctx, user_input):
         """Handle gallery expansion command (admin only)"""
         try:
