@@ -128,8 +128,9 @@ class GalleryExpansionService:
             if not gallery_data.get('success'):
                 return gallery_data
             
-            # Step 2: Filter quality photos
-            quality_photos = self._filter_quality_photos(gallery_data['images'], max_photos)
+            # Step 2: Filter quality photos (safer limit)
+            safe_limit = min(max_photos, 5)  # Max 5 photos untuk safety
+            quality_photos = self._filter_quality_photos(gallery_data['images'], safe_limit)
             if not quality_photos:
                 return {
                     "success": False,
@@ -260,9 +261,23 @@ class GalleryExpansionService:
         try:
             for i, photo in enumerate(photos):
                 try:
-                    # Download photo
-                    response = requests.get(photo['url'], timeout=30)
+                    # Skip invalid URLs
+                    if not self._is_valid_image_url(photo['url']):
+                        logger.warning(f"⚠️ Skipping invalid URL: {photo['url'][:100]}...")
+                        continue
+                    
+                    # Download photo with better error handling
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                    response = requests.get(photo['url'], timeout=30, headers=headers)
                     response.raise_for_status()
+                    
+                    # Check if response is actually an image
+                    content_type = response.headers.get('content-type', '')
+                    if not content_type.startswith('image/'):
+                        logger.warning(f"⚠️ Skipping non-image content: {content_type}")
+                        continue
                     
                     # Generate filename
                     filename = self._generate_filename(
@@ -292,11 +307,11 @@ class GalleryExpansionService:
                     # Cleanup temp file
                     temp_path.unlink(missing_ok=True)
                     
-                    # Rate limiting
-                    await asyncio.sleep(2)
+                    # Rate limiting (increased for safety)
+                    await asyncio.sleep(4)
                     
                 except Exception as e:
-                    logger.error(f"Failed to process photo {i+1}: {e}")
+                    logger.warning(f"⚠️ Skipped photo {i + 1}: {e}")
                     continue
             
         finally:
@@ -305,6 +320,38 @@ class GalleryExpansionService:
         
         return uploaded_files
     
+    def _is_valid_image_url(self, url: str) -> bool:
+        """Check if URL is valid for image download"""
+        if not url or not isinstance(url, str):
+            return False
+        
+        # Skip data URLs (base64 encoded images)
+        if url.startswith('data:'):
+            return False
+        
+        # Skip very short URLs
+        if len(url) < 10:
+            return False
+        
+        # Must be HTTP/HTTPS
+        if not url.startswith(('http://', 'https://')):
+            return False
+        
+        # Skip thumbnail/scaled versions that often 404
+        skip_patterns = [
+            '/scale-to-width-down/',
+            '/thumb/',
+            '/150px-',
+            '/200px-',
+            'data:image'
+        ]
+        
+        for pattern in skip_patterns:
+            if pattern in url:
+                return False
+        
+        return True
+
     def _generate_filename(self, member_name: str, group_name: str, section: str, index: int, url: str) -> str:
         """Generate consistent filename"""
         # Clean names
