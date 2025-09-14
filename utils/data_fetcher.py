@@ -631,30 +631,8 @@ class DataFetcher:
                     return site["url"].format(formatted_name)
                     
             elif site.get("type") == "fandom_infobox":
-                # Format khusus untuk Fandom.com infobox scraping dengan subdomain detection
-                query_lower = query.lower()
-                
-                # Detect group and member for subdomain mapping
-                group_name = None
-                member_name = query
-                
-                if " from " in query_lower:
-                    parts = query.split(" from ")
-                    member_name = parts[0].strip()
-                    group_name = parts[1].strip()
-                elif " " in query:
-                    # Try to detect if this is a member query
-                    words = query.split()
-                    if len(words) == 2:
-                        # Could be "Group Member" format
-                        potential_group = words[0].lower()
-                        potential_member = words[1]
-                        
-                        # Check if first word is a known group
-                        known_groups = ["secret", "blackpink", "twice", "newjeans", "aespa", "itzy", "red", "stray"]
-                        if potential_group in known_groups or any(g in potential_group for g in known_groups):
-                            group_name = words[0] if potential_group != "red" else "Red Velvet"
-                            member_name = potential_member
+                # Format khusus untuk Fandom.com infobox scraping dengan universal parsing
+                member_name, group_name = self._parse_member_group_query(query)
                 
                 # Generate subdomain and member name
                 if group_name:
@@ -667,20 +645,17 @@ class DataFetcher:
                     return f"https://kpop.fandom.com/wiki/{formatted_name}"
                     
             elif site.get("type") == "fandom_wiki":
-                # Format khusus untuk Fandom.com (K-pop Wiki)
+                # Format khusus untuk Fandom.com (K-pop Wiki) dengan universal parsing
+                member_name, group_name = self._parse_member_group_query(query)
+                
+                # Generate URL with subdomain if group detected
+                if group_name:
+                    subdomain = self._format_group_to_subdomain(group_name)
+                    formatted_member = member_name.replace(' ', '_')
+                    return f"https://{subdomain}.fandom.com/wiki/{formatted_member}"
+                
+                # Fallback to existing mappings
                 query_lower = query.lower()
-                
-                # Handle special subdomain cases
-                if query_lower in ["taeyeon", "girls generation taeyeon"]:
-                    # Uses girls-generation.fandom.com subdomain
-                    return "https://girls-generation.fandom.com/wiki/Taeyeon"
-                elif query_lower in ["chodan", "qwer chodan"]:
-                    # Uses qwer.fandom.com subdomain
-                    return "https://qwer.fandom.com/wiki/Chodan"
-                elif query_lower in ["magenta", "qwer magenta"]:
-                    # Uses qwer.fandom.com subdomain with disambiguation
-                    return "https://qwer.fandom.com/wiki/Magenta"
-                
                 if query_lower in self.fandom_mappings:
                     formatted_name = self.fandom_mappings[query_lower]
                     return site["url"].format(formatted_name)
@@ -1382,45 +1357,185 @@ class DataFetcher:
         return clean_text
     
     def _extract_group_name_from_query(self, query):
-        """Extract group name dari query untuk trivia scraping"""
-        # Mapping untuk member ke grup
-        member_to_group = {
-            'soodam': 'Secret Number',
-            'lea': 'Secret Number', 
-            'dita': 'Secret Number',
-            'jinny': 'Secret Number',
-            'denise': 'Secret Number',
-            'zuu': 'Secret Number',
-            'minji': 'NewJeans',
-            'hanni': 'NewJeans',
-            'danielle': 'NewJeans',
-            'haerin': 'NewJeans',
-            'hyein': 'NewJeans',
-            'jisoo': 'BLACKPINK',
-            'jennie': 'BLACKPINK',
-            'rosé': 'BLACKPINK',
-            'lisa': 'BLACKPINK',
-            'nayeon': 'TWICE',
-            'jeongyeon': 'TWICE',
-            'momo': 'TWICE',
-            'sana': 'TWICE',
-            'jihyo': 'TWICE',
-            'mina': 'TWICE',
-            'dahyun': 'TWICE',
-            'chaeyoung': 'TWICE',
-            'tzuyu': 'TWICE',
-            'karina': 'aespa',
-            'giselle': 'aespa',
-            'winter': 'aespa',
-            'ningning': 'aespa',
-            'hina': 'QWER',
-            'chodan': 'QWER',
-            'magenta': 'QWER',
-            'siyeon': 'QWER'
+        """Extract group name from query string with universal parsing"""
+        query_lower = query.lower()
+        
+        # Universal parsing untuk format "Member Group" atau "Member from Group"
+        member_name, group_name = self._parse_member_group_query(query)
+        if group_name:
+            return group_name
+        
+        # Direct group name detection
+        group_patterns = {
+            'qwer': 'QWER',
+            'lightsum': 'Lightsum',
+            'light sum': 'Lightsum',
+            'secret number': 'Secret Number',
+            'newjeans': 'NewJeans',
+            'new jeans': 'NewJeans',
+            'blackpink': 'BLACKPINK',
+            'twice': 'TWICE',
+            'aespa': 'aespa',
+            'dreamcatcher': 'Dreamcatcher',
+            'iz*one': 'IZ*ONE',
+            'izone': 'IZ*ONE',
+            "tahiti": "Tahiti",
+            "hinapia": "Hinapia"
         }
         
+        # Check if query contains group name
+        for pattern, group in group_patterns.items():
+            if pattern in query_lower:
+                return group
+        
+        # Database-driven group extraction untuk akurasi maksimal
+        return self._get_group_from_database(query)
+    
+    def _clean_member_name_from_query(self, query):
+        """Clean member name dari query yang mungkin mengandung format 'Member From Group'"""
         query_lower = query.lower()
-        return member_to_group.get(query_lower)
+        
+        # Pattern untuk mendeteksi format "Member From Group" atau "Member Group"
+        patterns_to_clean = [
+            r'\s+from\s+\w+',     # "Hina From Qwer" -> "Hina"
+            r'\s+qwer$',          # "Hina Qwer" -> "Hina"
+            r'\s+lightsum$',      # "Hina Lightsum" -> "Hina"
+            r'\s+light\s+sum$',   # "Hina Light Sum" -> "Hina"
+            r'\s+secret\s+number$',  # "Soodam Secret Number" -> "Soodam"
+            r'\s+newjeans$',   # "Minji NewJeans" -> "Minji"
+            r'\s+blackpink$',  # "Jisoo BLACKPINK" -> "Jisoo"
+            r'\s+twice$',      # "Nayeon TWICE" -> "Nayeon"
+            r'\s+aespa$'       # "Karina aespa" -> "Karina"
+        ]
+        
+        cleaned_query = query
+        for pattern in patterns_to_clean:
+            cleaned_query = re.sub(pattern, '', cleaned_query, flags=re.IGNORECASE)
+        
+        return cleaned_query.strip()
+    
+    def _parse_member_group_query(self, query):
+        """Universal parser untuk format 'Member Group' atau 'Member from Group'"""
+        query = query.strip()
+        
+        # Pattern 1: "Member from Group" (explicit)
+        if " from " in query.lower():
+            parts = query.split(" from ", 1)
+            member_name = parts[0].strip()
+            group_name = parts[1].strip()
+            return member_name, group_name
+        
+        # Pattern 2: "Member Group" (space-separated, 2 words)
+        words = query.split()
+        if len(words) == 2:
+            potential_member = words[0]
+            potential_group = words[1]
+            
+            # Database-driven group detection untuk akurasi
+            resolved_group = self._resolve_ambiguous_group(potential_member, potential_group)
+            if resolved_group:
+                return potential_member, resolved_group
+            
+            # Fallback: Check if second word looks like a group name
+            if (potential_group[0].isupper() or 
+                potential_group.lower() in ['qwer', 'tahiti', 'lightsum', 'aespa', 'twice', 'blackpink', 'newjeans', 'dreamcatcher', 'iz*one', 'izone']):
+                return potential_member, potential_group
+        
+        # Pattern 3: "Group Member" (reverse order detection)
+        elif len(words) == 2:
+            potential_group = words[0]
+            potential_member = words[1]
+            
+            # Database-driven group detection
+            resolved_group = self._resolve_ambiguous_group(potential_member, potential_group)
+            if resolved_group:
+                return potential_member, resolved_group
+            
+            # Fallback: Check if first word is a known group
+            if potential_group.lower() in ['qwer', 'tahiti', 'lightsum', 'blackpink', 'twice', 'newjeans', 'aespa', 'dreamcatcher', 'hinapia']:
+                return potential_member, potential_group
+        
+        # No clear member/group separation found
+        return query, None
+    
+    def _resolve_ambiguous_group(self, member_name, group_hint):
+        """Resolve ambiguous group names using database context"""
+        if self.kpop_df is None:
+            return None
+        
+        group_hint_lower = group_hint.lower()
+        member_name_lower = member_name.lower()
+        
+        # Handle "secret" ambiguity: SECRET vs SECRET NUMBER
+        if group_hint_lower == 'secret':
+            # Check if member exists in either SECRET or SECRET NUMBER
+            secret_members = self.kpop_df[self.kpop_df['Group'] == 'SECRET']['Stage Name'].str.lower().tolist()
+            secret_number_members = self.kpop_df[self.kpop_df['Group'] == 'SECRET NUMBER']['Stage Name'].str.lower().tolist()
+            
+            if member_name_lower in secret_members:
+                return 'SECRET'
+            elif member_name_lower in secret_number_members:
+                return 'SECRET NUMBER'
+            else:
+                # Default to more recent/popular group if member not found
+                return 'SECRET NUMBER'
+        
+        # Handle other potential ambiguities
+        # Check if group_hint matches any group in database (case-insensitive)
+        matching_groups = self.kpop_df[self.kpop_df['Group'].str.lower().str.contains(group_hint_lower, na=False)]['Group'].unique()
+        
+        if len(matching_groups) == 1:
+            return matching_groups[0]
+        elif len(matching_groups) > 1:
+            # Multiple matches - check which one contains the member
+            for group in matching_groups:
+                group_members = self.kpop_df[self.kpop_df['Group'] == group]['Stage Name'].str.lower().tolist()
+                if member_name_lower in group_members:
+                    return group
+            
+            # If no member match, return first (alphabetically)
+            return sorted(matching_groups)[0]
+        
+        return None
+    
+    def _get_group_from_database(self, query):
+        """Get group from database dengan context-aware disambiguation"""
+        if self.kpop_df is None:
+            return None
+        
+        query_lower = query.lower().strip()
+        
+        # Try to find member in database
+        matches = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == query_lower]
+        
+        if matches.empty:
+            return None
+        elif len(matches) == 1:
+            # Single match - return the group
+            return matches.iloc[0]['Group']
+        else:
+            # Multiple matches - use popularity/recency priority
+            groups = matches['Group'].unique()
+            
+            # Priority groups (more popular/recent first)
+            priority_groups = [
+                'TWICE', 'BLACKPINK', 'NewJeans', 'aespa', 'IZ*ONE', 'Red Velvet', 
+                'ITZY', 'ENHYPEN', 'Stray Kids', 'NCT', 'QWER', 'SECRET NUMBER',
+                'LIGHTSUM', 'Dreamcatcher', 'VIVIZ', 'MAMAMOO'
+            ]
+            
+            # Return first priority group found
+            for priority_group in priority_groups:
+                if priority_group in groups:
+                    return priority_group
+            
+            # If no priority group, return first alphabetically
+            return sorted(groups)[0]
+    
+    def _extract_member_name_from_query(self, query):
+        """Extract member name from query (for use with group context)"""
+        member_name, group_name = self._parse_member_group_query(query)
+        return member_name
     
     def _enhance_birth_date_extraction(self, text, query):
         """Enhanced birth date extraction dari text hasil scraping"""
@@ -1834,10 +1949,15 @@ check official music platforms and databases like:
         
         # Gallery mappings untuk subdomain dan format URL
         gallery_mappings = {
-            # QWER members (qwer.fandom.com)
+            # QWER members
+            "hina qwer": "https://qwer.fandom.com/wiki/Hina/Gallery",
+            "qwer hina": "https://qwer.fandom.com/wiki/Hina/Gallery",
             "chodan": "https://qwer.fandom.com/wiki/Chodan/Gallery",
             "magenta": "https://qwer.fandom.com/wiki/Magenta/Gallery",
-            "hina": "https://qwer.fandom.com/wiki/Hina/Gallery",
+            "siyeon": "https://qwer.fandom.com/wiki/Siyeon/Gallery",
+            # Lightsum members - using kpop.fandom.com as fallback
+            "hina lightsum": "https://kpop.fandom.com/wiki/Hina_(Lightsum)/Gallery",
+            "lightsum hina": "https://kpop.fandom.com/wiki/Hina_(Lightsum)/Gallery",
             "siyeon qwer": "https://qwer.fandom.com/wiki/Siyeon/Gallery",
             
             # Red Velvet members (redvelvet.fandom.com)
@@ -1909,9 +2029,21 @@ check official music platforms and databases like:
         
         member_lower = member_name.lower()
         
-        # Check direct mapping first
-        if member_lower in gallery_mappings:
-            return gallery_mappings[member_lower]
+        # Create search key with group context for ambiguous names
+        search_key = member_lower
+        if group_name:
+            search_key_with_group = f"{member_lower} {group_name.lower()}"
+            group_member_key = f"{group_name.lower()} {member_lower}"
+            
+            # Check group-specific mappings first
+            if search_key_with_group in gallery_mappings:
+                return gallery_mappings[search_key_with_group]
+            elif group_member_key in gallery_mappings:
+                return gallery_mappings[group_member_key]
+        
+        # Check direct mapping
+        if search_key in gallery_mappings:
+            return gallery_mappings[search_key]
         
         # Universal pattern: try {group}.fandom.com/wiki/{member}/Gallery first
         if group_name:
@@ -2084,6 +2216,9 @@ check official music platforms and databases like:
 
     async def scrape_kpop_image(self, query, group_name=None):
         """Scrape foto K-pop dari berbagai sumber dengan multiple fallback strategies"""
+        # Clean query untuk menghindari format seperti "Hina From Qwer"
+        clean_query = self._clean_member_name_from_query(query)
+        
         # Enhanced image sources dengan lebih banyak fallback
         image_sources = [
             # Fandom Gallery - NEW: Primary source for member photos
@@ -2108,13 +2243,13 @@ check official music platforms and databases like:
             {"url": "https://www.allkpop.com/search?keyword={}", "selector": ".article-image img, .content img", "type": "allkpop"}
         ]
         
-        formatted_query = query.lower().replace(' ', '-')
+        formatted_query = clean_query.lower().replace(' ', '-')
         
         for source in image_sources:
             try:
                 # Handle Fandom Gallery search - NEW
                 if source["type"] == "fandom_gallery":
-                    gallery_url = self._generate_gallery_url(query, group_name)
+                    gallery_url = self._generate_gallery_url(clean_query, group_name)
                     if gallery_url:
                         logger.info(f"🖼️ Scraping image from Fandom Gallery: {gallery_url}")
                         
