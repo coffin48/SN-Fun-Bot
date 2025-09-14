@@ -15,7 +15,15 @@ class MaintenanceManager:
         self.bot = bot
         self.maintenance_file = "data/maintenance_status.json"
         self.maintenance_channel_id = os.getenv("MAINTENANCE_CHANNEL_ID")  # Channel khusus maintenance
-        self.admin_ids = [371695179909824541]  # Admin yang bisa toggle maintenance
+        # Get admin IDs from environment variable
+        admin_ids_str = os.getenv('ADMIN_DISCORD_IDS', '')
+        self.admin_ids = []
+        if admin_ids_str:
+            try:
+                self.admin_ids = [int(id_str.strip()) for id_str in admin_ids_str.split(',') if id_str.strip()]
+            except ValueError:
+                logger.error("Invalid ADMIN_DISCORD_IDS format in environment variables")
+                self.admin_ids = []
         
         # Server configuration
         self.main_server_id = int(os.getenv("MAIN_SERVER_ID", "0"))  # Main production server
@@ -321,60 +329,61 @@ class MaintenanceManager:
         await ctx.send(embed=status_embed)
     
     async def _handle_control_server_maintenance(self, ctx, action, args, user_id):
-        """Handle maintenance command for test/control servers - simplified control"""
+        """Handle maintenance command for test/control servers - full control"""
         if not action:
-            # Show simple status
+            # Show detailed admin status
             status_embed = discord.Embed(
-                title="🧪 Maintenance Control",
+                title="🧪 Maintenance Control Panel",
                 color=0xFFA500 if self.is_maintenance_mode() else 0x00FF00
             )
             
             status_embed.add_field(
-                name="📊 Status",
+                name="📊 Current Status",
                 value="🔧 **MAINTENANCE MODE**" if self.is_maintenance_mode() else "✅ **NORMAL MODE**",
+                inline=False
+            )
+            
+            # Server configuration
+            status_embed.add_field(
+                name="🌐 Server Configuration",
+                value=f"🏭 **Main Server ID:** {self.main_server_id}\n🧪 **Test Server ID:** {self.test_server_id}\n📍 **Current Server:** Control Server",
                 inline=False
             )
             
             if self.is_maintenance_mode():
                 if self.maintenance_status.get("reason"):
-                    status_embed.add_field(name="📋 Alasan", value=self.maintenance_status["reason"], inline=False)
+                    status_embed.add_field(name="📋 Reason", value=self.maintenance_status["reason"], inline=False)
                 
                 if self.maintenance_status.get("start_time"):
-                    status_embed.add_field(name="⏰ Dimulai", value=self.maintenance_status["start_time"], inline=True)
+                    status_embed.add_field(name="⏰ Started", value=self.maintenance_status["start_time"], inline=True)
+                
+                if self.maintenance_status.get("estimated_end"):
+                    status_embed.add_field(name="⏱️ Estimated End", value=self.maintenance_status["estimated_end"], inline=True)
             
             status_embed.add_field(
-                name="🛠️ Commands",
-                value="`!sn maintenance on` - Masuk maintenance mode\n`!sn maintenance done` - Selesai maintenance",
+                name="🛠️ Admin Commands",
+                value="`!sn maintenance on [reason] [duration]` - Enable maintenance\n`!sn maintenance off` - Disable maintenance\n`!sn maintenance done` - Complete maintenance",
                 inline=False
             )
             
             await ctx.send(embed=status_embed)
             
         elif action.lower() == "on":
-            # Simple maintenance enable
-            reason = " ".join(args) if args else "Maintenance rutin"
+            reason = " ".join(args[:-1]) if len(args) > 1 else " ".join(args) if args else None
+            duration = args[-1] if args and len(args) > 1 and any(word in args[-1].lower() for word in ['menit', 'jam', 'hour', 'min']) else None
             
-            success, message = await self.enable_maintenance(reason, None, user_id)
-            if success:
-                await ctx.send("🔧 **Maintenance mode aktif!**\n"
-                             f"📋 Alasan: {reason}\n"
-                             f"🏭 Main server dinonaktifkan\n"
-                             f"🧪 Test server tetap aktif")
-            else:
-                await ctx.send(message)
+            success, message = await self.enable_maintenance(reason, duration, user_id)
+            await ctx.send(message)
             
-        elif action.lower() == "done":
-            # Simple maintenance disable
+        elif action.lower() in ["off", "done"]:
             success, message = await self.disable_maintenance(user_id)
             if success:
-                await ctx.send("✅ **Maintenance selesai!**\n"
-                             "🎉 Semua server kembali normal\n"
-                             "🏭 Main server aktif kembali")
-            else:
-                await ctx.send(message)
+                if action.lower() == "done":
+                    message += "\n🎉 **Maintenance selesai!** Semua server kembali normal."
+            await ctx.send(message)
             
         else:
-            await ctx.send("❌ Usage: `!sn maintenance on` atau `!sn maintenance done`")
+            await ctx.send("❌ Usage: `!sn maintenance [on/off/done] [reason] [duration]`")
     
     async def _handle_other_server_status(self, ctx):
         """Handle maintenance command for other servers - status only"""
