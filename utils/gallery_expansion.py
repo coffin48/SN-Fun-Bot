@@ -131,6 +131,8 @@ class GalleryExpansionService:
             # Step 2: Filter quality photos (safer limit)
             safe_limit = min(max_photos, 5)  # Max 5 photos untuk safety
             quality_photos = self._filter_quality_photos(gallery_data['images'], safe_limit)
+            logger.info(f"📊 Filtered {len(quality_photos)} quality photos from {len(gallery_data['images'])} total")
+            
             if not quality_photos:
                 return {
                     "success": False,
@@ -261,6 +263,8 @@ class GalleryExpansionService:
         temp_dir.mkdir(exist_ok=True)
         
         try:
+            logger.info(f"🔄 Memulai proses {len(photos)} foto...")
+            
             for i, photo in enumerate(photos):
                 try:
                     # Lewati URL yang tidak valid
@@ -284,7 +288,7 @@ class GalleryExpansionService:
                         logger.warning(f"⚠️ Melewati konten bukan gambar: {content_type}")
                         continue
                     
-                    # Generate filename
+                    # Generate nama file
                     filename = self._generate_filename(
                         member_name, group_name, photo['section'], i + 1, photo['url']
                     )
