@@ -243,76 +243,166 @@ class MaintenanceManager:
         return embed
     
     async def handle_maintenance_command(self, ctx, action=None, *args):
-        """Handle maintenance command"""
+        """Handle maintenance command with server-specific behavior"""
         user_id = ctx.author.id
         guild_id = ctx.guild.id if ctx.guild else None
         
-        # Check admin permission
-        if not self.is_admin(user_id):
-            await ctx.send("❌ Command ini hanya untuk admin.")
+        # Determine server type
+        is_main_server = guild_id == self.main_server_id
+        is_test_server = guild_id == self.test_server_id
+        is_control_server = is_test_server or (guild_id != self.main_server_id and guild_id != 0)
+        
+        # Main server behavior: Only show status, no control
+        if is_main_server:
+            await self._handle_main_server_status(ctx)
             return
         
+        # Test/maintenance server behavior: Full control (admin only)
+        if is_control_server:
+            # Check admin permission for control commands
+            if not self.is_admin(user_id):
+                await ctx.send("❌ Command ini hanya untuk admin.")
+                return
+            
+            await self._handle_control_server_maintenance(ctx, action, args, user_id)
+            return
+        
+        # Other servers: Show status only
+        await self._handle_other_server_status(ctx)
+    
+    async def _handle_main_server_status(self, ctx):
+        """Handle maintenance command for main production server - status only"""
+        status_embed = discord.Embed(
+            title="🏭 SN Fun Bot Status",
+            color=0xFFA500 if self.is_maintenance_mode() else 0x00FF00
+        )
+        
+        # Bot status
+        if self.is_maintenance_mode():
+            status_value = "🔧 **MAINTENANCE MODE**"
+            status_embed.add_field(
+                name="📊 Bot Status",
+                value=status_value,
+                inline=False
+            )
+            
+            # Maintenance details
+            if self.maintenance_status.get("reason"):
+                status_embed.add_field(name="📋 Alasan", value=self.maintenance_status["reason"], inline=False)
+            
+            if self.maintenance_status.get("estimated_end"):
+                status_embed.add_field(name="⏱️ Estimasi Selesai", value=self.maintenance_status["estimated_end"], inline=True)
+            
+            status_embed.add_field(
+                name="ℹ️ Info",
+                value="Bot sedang dalam maintenance. Sebagian fitur mungkin tidak tersedia.",
+                inline=False
+            )
+        else:
+            status_value = "✅ **ONLINE**"
+            status_embed.add_field(
+                name="📊 Bot Status",
+                value=status_value,
+                inline=False
+            )
+            
+            status_embed.add_field(
+                name="🎉 Info",
+                value="Bot berfungsi normal. Semua fitur tersedia!",
+                inline=False
+            )
+        
+        status_embed.add_field(
+            name="🌐 Server Info",
+            value="🏭 **MAIN PRODUCTION SERVER**\nServer utama untuk pengguna",
+            inline=False
+        )
+        
+        await ctx.send(embed=status_embed)
+    
+    async def _handle_control_server_maintenance(self, ctx, action, args, user_id):
+        """Handle maintenance command for test/control servers - simplified control"""
         if not action:
-            # Show current status
+            # Show simple status
             status_embed = discord.Embed(
-                title="🔧 Maintenance Status",
+                title="🧪 Maintenance Control",
                 color=0xFFA500 if self.is_maintenance_mode() else 0x00FF00
             )
             
             status_embed.add_field(
-                name="📊 Current Status",
+                name="📊 Status",
                 value="🔧 **MAINTENANCE MODE**" if self.is_maintenance_mode() else "✅ **NORMAL MODE**",
                 inline=False
             )
             
-            # Server-specific status
-            if guild_id:
-                server_status = "🔧 **DISABLED**" if self.is_maintenance_mode(guild_id) else "✅ **ACTIVE**"
-                server_type = "🏭 **MAIN SERVER**" if guild_id == self.main_server_id else "🧪 **TEST SERVER**" if guild_id == self.test_server_id else "🌐 **OTHER SERVER**"
-                status_embed.add_field(
-                    name=f"📍 Current Server Status",
-                    value=f"{server_type}\nStatus: {server_status}",
-                    inline=False
-                )
-            
             if self.is_maintenance_mode():
                 if self.maintenance_status.get("reason"):
-                    status_embed.add_field(name="📋 Reason", value=self.maintenance_status["reason"], inline=False)
+                    status_embed.add_field(name="📋 Alasan", value=self.maintenance_status["reason"], inline=False)
                 
                 if self.maintenance_status.get("start_time"):
-                    status_embed.add_field(name="⏰ Started", value=self.maintenance_status["start_time"], inline=True)
-                
-                if self.maintenance_status.get("estimated_end"):
-                    status_embed.add_field(name="⏱️ Estimated End", value=self.maintenance_status["estimated_end"], inline=True)
-                
-                status_embed.add_field(
-                    name="🌐 Server Configuration",
-                    value=f"🏭 **Main Server ID:** {self.main_server_id} (disabled during maintenance)\n🧪 **Test Server ID:** {self.test_server_id} (always active)",
-                    inline=False
-                )
+                    status_embed.add_field(name="⏰ Dimulai", value=self.maintenance_status["start_time"], inline=True)
             
             status_embed.add_field(
                 name="🛠️ Commands",
-                value="`!sn maintenance on [reason] [duration]` - Enable maintenance\n`!sn maintenance off` - Disable maintenance\n`!sn maintenance done` - Complete maintenance (alias for off)",
+                value="`!sn maintenance on` - Masuk maintenance mode\n`!sn maintenance done` - Selesai maintenance",
                 inline=False
             )
             
             await ctx.send(embed=status_embed)
             
         elif action.lower() == "on":
-            reason = " ".join(args[:-1]) if len(args) > 1 else " ".join(args) if args else None
-            duration = args[-1] if args and len(args) > 1 and any(word in args[-1].lower() for word in ['menit', 'jam', 'hour', 'min']) else None
+            # Simple maintenance enable
+            reason = " ".join(args) if args else "Maintenance rutin"
             
-            success, message = await self.enable_maintenance(reason, duration, user_id)
-            await ctx.send(message)
+            success, message = await self.enable_maintenance(reason, None, user_id)
+            if success:
+                await ctx.send("🔧 **Maintenance mode aktif!**\n"
+                             f"📋 Alasan: {reason}\n"
+                             f"🏭 Main server dinonaktifkan\n"
+                             f"🧪 Test server tetap aktif")
+            else:
+                await ctx.send(message)
             
-        elif action.lower() in ["off", "done"]:
+        elif action.lower() == "done":
+            # Simple maintenance disable
             success, message = await self.disable_maintenance(user_id)
             if success:
-                # Add completion message for "done" command
-                if action.lower() == "done":
-                    message += "\n🎉 **Maintenance selesai!** Semua server kembali normal."
-            await ctx.send(message)
+                await ctx.send("✅ **Maintenance selesai!**\n"
+                             "🎉 Semua server kembali normal\n"
+                             "🏭 Main server aktif kembali")
+            else:
+                await ctx.send(message)
             
         else:
-            await ctx.send("❌ Usage: `!sn maintenance [on/off/done] [reason] [duration]`")
+            await ctx.send("❌ Usage: `!sn maintenance on` atau `!sn maintenance done`")
+    
+    async def _handle_other_server_status(self, ctx):
+        """Handle maintenance command for other servers - status only"""
+        status_embed = discord.Embed(
+            title="🌐 SN Fun Bot Status",
+            color=0xFFA500 if self.is_maintenance_mode() else 0x00FF00
+        )
+        
+        status_embed.add_field(
+            name="📊 Bot Status",
+            value="🔧 **MAINTENANCE MODE**" if self.is_maintenance_mode() else "✅ **ONLINE**",
+            inline=False
+        )
+        
+        if self.is_maintenance_mode():
+            if self.maintenance_status.get("reason"):
+                status_embed.add_field(name="📋 Alasan", value=self.maintenance_status["reason"], inline=False)
+            
+            status_embed.add_field(
+                name="ℹ️ Info",
+                value="Bot sedang dalam maintenance. Sebagian fitur mungkin tidak tersedia.",
+                inline=False
+            )
+        else:
+            status_embed.add_field(
+                name="🎉 Info",
+                value="Bot berfungsi normal. Semua fitur tersedia!",
+                inline=False
+            )
+        
+        await ctx.send(embed=status_embed)
