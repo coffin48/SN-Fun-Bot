@@ -213,19 +213,54 @@ class GachaCommandsHandler:
                     # Last card (highest rarity) separate
                     highest_rarity_card = sorted_cards[4] if len(sorted_cards) == 5 else None
                     
-                    # Send pairs of cards
+                    # Send pairs of cards with back card reveal flow
                     for pair_num, pair in enumerate(card_pairs, 1):
-                        pair_embed = discord.Embed(
-                            title=f"🎴 Pack Opening - Cards {pair_num*2-1}-{min(pair_num*2, 4)}",
-                            description=f"✨ **Revealing cards in rarity order...**",
-                            color=0x9932cc
+                        # Phase 1: Show back cards
+                        back_embed = discord.Embed(
+                            title=f"🎴 Mystery Cards {pair_num*2-1}-{min(pair_num*2, 4)}",
+                            description=f"🔮 **Detecting rarities...**\n✨ What will you get?",
+                            color=0x808080
                         )
                         
-                        files = []
+                        back_files = []
                         for i, card in enumerate(pair):
-                            # Add card info to embed
+                            # Get appropriate card back
+                            card_back_path = self._get_card_back_path(card['rarity'])
+                            
+                            # Check if card back exists
+                            import os
+                            if not os.path.exists(card_back_path):
+                                card_back_path = "assets/templates/Back.png"  # Fallback
+                            
+                            if os.path.exists(card_back_path):
+                                back_files.append(discord.File(card_back_path, f"back_{pair_num}_{i+1}.png"))
+                                back_embed.add_field(
+                                    name=f"Card {(pair_num-1)*2 + i + 1}",
+                                    value="🔮 **Mystery Card**\n❓ Rarity Unknown",
+                                    inline=True
+                                )
+                        
+                        # Send back cards first
+                        if back_files:
+                            pair_msg = await ctx.send(embed=back_embed, files=back_files)
+                        else:
+                            pair_msg = await ctx.send(embed=back_embed)
+                        
+                        # Suspense delay
+                        await asyncio.sleep(2.0)
+                        
+                        # Phase 2: Reveal actual cards
+                        reveal_embed = discord.Embed(
+                            title=f"🎴 Cards {pair_num*2-1}-{min(pair_num*2, 4)} Revealed!",
+                            description=f"✨ **Here are your cards!**",
+                            color=0x00FF00
+                        )
+                        
+                        reveal_files = []
+                        for i, card in enumerate(pair):
+                            # Add revealed card info to embed
                             rarity_emoji = self._get_rarity_emoji(card['rarity'])
-                            pair_embed.add_field(
+                            reveal_embed.add_field(
                                 name=f"Card {(pair_num-1)*2 + i + 1}: {rarity_emoji} {card['rarity']}",
                                 value=f"**{card['member_name']}**\n{card['group_name']}",
                                 inline=True
@@ -234,10 +269,13 @@ class GachaCommandsHandler:
                             # Save card image
                             temp_path = self.gacha_system.save_card_temp(card['image'], f"pair_{pair_num}_card_{i+1}")
                             if temp_path:
-                                files.append(discord.File(temp_path, f"card_{(pair_num-1)*2 + i + 1}.png"))
+                                reveal_files.append(discord.File(temp_path, f"card_{(pair_num-1)*2 + i + 1}.png"))
                         
-                        if files:
-                            await ctx.send(embed=pair_embed, files=files)
+                        # Edit message to show revealed cards
+                        if reveal_files:
+                            await pair_msg.edit(embed=reveal_embed, attachments=reveal_files)
+                        else:
+                            await pair_msg.edit(embed=reveal_embed)
                         
                         # Cleanup temp files
                         import os
@@ -249,30 +287,61 @@ class GachaCommandsHandler:
                             except:
                                 pass
                         
-                        await asyncio.sleep(1.2)  # Delay antar pair
+                        await asyncio.sleep(1.5)  # Delay antar pair
                     
-                    # Show highest rarity card last with special treatment
+                    # Show highest rarity card last with special back card reveal
                     if highest_rarity_card:
                         await asyncio.sleep(0.5)
                         
-                        special_embed = discord.Embed(
+                        # Phase 1: Show special back card
+                        special_back_embed = discord.Embed(
+                            title="🌟 FINAL MYSTERY CARD",
+                            description="🔮 **The crown jewel awaits...**\n✨ Your highest rarity card!",
+                            color=0x800080
+                        )
+                        
+                        # Get special card back
+                        special_back_path = self._get_card_back_path(highest_rarity_card['rarity'])
+                        
+                        import os
+                        if not os.path.exists(special_back_path):
+                            special_back_path = "assets/templates/Back.png"  # Fallback
+                        
+                        special_back_embed.add_field(
+                            name="🎯 Final Card",
+                            value="🔮 **Ultimate Mystery**\n❓ Highest Rarity Detected",
+                            inline=False
+                        )
+                        
+                        # Send back card first
+                        if os.path.exists(special_back_path):
+                            special_back_file = discord.File(special_back_path, "special_back.png")
+                            special_msg = await ctx.send(embed=special_back_embed, file=special_back_file)
+                        else:
+                            special_msg = await ctx.send(embed=special_back_embed)
+                        
+                        # Extra suspense for final card
+                        await asyncio.sleep(3.0)
+                        
+                        # Phase 2: Reveal special card
+                        special_reveal_embed = discord.Embed(
                             title="🌟 SPECIAL REVEAL - Highest Rarity!",
                             description="✨ **The crown jewel of your pack!**",
                             color=self._get_rarity_color(highest_rarity_card['rarity'])
                         )
                         
                         rarity_emoji = self._get_rarity_emoji(highest_rarity_card['rarity'])
-                        special_embed.add_field(
+                        special_reveal_embed.add_field(
                             name=f"🎯 {rarity_emoji} {highest_rarity_card['rarity']} CARD",
                             value=f"**{highest_rarity_card['member_name']}**\n{highest_rarity_card['group_name']}\n\n{self._get_luck_message(highest_rarity_card['rarity'])}",
                             inline=False
                         )
                         
-                        # Save special card
+                        # Save special card for reveal
                         temp_path = self.gacha_system.save_card_temp(highest_rarity_card['image'], "special_card")
                         if temp_path:
-                            special_file = discord.File(temp_path, "special_card.png")
-                            await ctx.send(embed=special_embed, file=special_file)
+                            special_reveal_file = discord.File(temp_path, "special_card.png")
+                            await special_msg.edit(embed=special_reveal_embed, attachments=[special_reveal_file])
                             
                             # Cleanup
                             import os
@@ -280,6 +349,8 @@ class GachaCommandsHandler:
                                 os.unlink(temp_path)
                             except:
                                 pass
+                        else:
+                            await special_msg.edit(embed=special_reveal_embed)
                         
                         await asyncio.sleep(1.5)  # Pause before final summary
                     
