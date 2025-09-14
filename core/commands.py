@@ -24,6 +24,7 @@ except ImportError:
         def _save_analytics(self): pass
     analytics = BotAnalytics()
 from features.social_media.social_media_commands import SocialMediaCommandsHandler
+from core.maintenance_manager import MaintenanceManager
 # Conditional import for bias commands to avoid startup errors
 try:
     from features.bias_detector.bias_commands import BiasCommandsHandler
@@ -48,6 +49,9 @@ class CommandsHandler:
         
         # Initialize social media commands handler
         self.social_media_handler = SocialMediaCommandsHandler(self.social_monitor)
+        
+        # Initialize maintenance manager
+        self.maintenance_manager = MaintenanceManager(self.bot)
         
         # Initialize gacha commands handler
         try:
@@ -152,6 +156,11 @@ class CommandsHandler:
                     # Database status command
                     if user_input.lower().startswith("db status") or user_input.lower().startswith("database"):
                         await self._handle_database_status(ctx)
+                        return
+                    
+                    # Maintenance command
+                    if user_input.lower().startswith("maintenance"):
+                        await self._handle_maintenance_command(ctx, user_input)
                         return
                     
                     # Monitor command (social media monitoring)
@@ -1115,3 +1124,18 @@ class CommandsHandler:
         except Exception as e:
             logger.error(f"Monitor command error: {e}")
             await ctx.send(f"❌ Error: {e}")
+    
+    async def _handle_maintenance_command(self, ctx, user_input):
+        """Handle maintenance command"""
+        try:
+            # Parse maintenance command: "maintenance", "maintenance on", "maintenance off", etc.
+            parts = user_input.split()
+            action = parts[1] if len(parts) > 1 else None
+            args = parts[2:] if len(parts) > 2 else []
+            
+            # Delegate to MaintenanceManager
+            await self.maintenance_manager.handle_maintenance_command(ctx, action, *args)
+            
+        except Exception as e:
+            logger.error(f"Maintenance command error: {e}")
+            await ctx.send(f"❌ Error handling maintenance command: {e}")
