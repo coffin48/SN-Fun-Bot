@@ -53,14 +53,23 @@ class CommandsHandler:
         # Initialize maintenance manager
         self.maintenance_manager = MaintenanceManager(self.bot)
         
-        # Initialize gacha commands handler
+        # Initialize gacha system (optional)
         try:
             from features.gacha_system.gacha_commands import GachaCommandsHandler
-            self.gacha_handler = GachaCommandsHandler()
-            logger.info("✅ Gacha commands initialized successfully")
+            self.gacha_handler = GachaCommandsHandler(self.bot)
+            logger.info("✅ Gacha system initialized successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize gacha commands: {e}")
+            logger.warning(f"⚠️ Gacha system initialization failed: {e}")
             self.gacha_handler = None
+        
+        # Initialize gallery expansion service (optional)
+        try:
+            from utils.gallery_expansion import GalleryExpansionService
+            self.expansion_service = GalleryExpansionService()
+            logger.info("✅ Gallery expansion service initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Gallery expansion service initialization failed: {e}")
+            self.expansion_service = None
         
         # Initialize bias detector and commands handler with error handling
         self.bias_detector = None
@@ -190,6 +199,11 @@ class CommandsHandler:
                                           "🔧 **Penyebab:** Missing dependency `Pillow`\n"
                                           "💡 **Solusi:** Install dengan `pip install Pillow`\n"
                                           "📋 **Atau:** `pip install -r requirements.txt`")
+                        return
+                    
+                    # Gallery expansion commands (admin only)
+                    if user_input.lower().startswith("expand"):
+                        await self._handle_expansion_command(ctx, user_input)
                         return
                     
                     # Social media commands
@@ -468,14 +482,15 @@ class CommandsHandler:
         analytics.track_query_success("simple", False, detected_name)
     
     async def _cleanup_processing_messages(self):
-        """Periodic cleanup of old processing messages"""
-        if len(self.processing_messages) > 100:
-            logger.info(f"Cleaning up {len(self.processing_messages)} processing messages")
-            self.processing_messages.clear()
+        """Cleanup old processing messages"""
+        # Keep only recent 20 messages
+        if len(self.processing_messages) > 20:
+            # Convert to list, sort, and keep recent ones
+            messages_list = list(self.processing_messages)
+            self.processing_messages = set(messages_list[-20:])
     
     async def _send_kpop_embed(self, ctx, loading_msg, category, detected_name, summary, image_data=None):
-        """Send K-pop info dengan embed dan foto tanpa menampilkan URL"""
-        # Emoji berdasarkan kategori
+        """Send K-pop information as Discord embed"""
         emoji_map = {
             "MEMBER": "👤",
             "GROUP": "🎵", 
