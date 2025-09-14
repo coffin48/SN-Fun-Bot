@@ -198,15 +198,96 @@ class GachaCommandsHandler:
                 cards, pack_summary = self.gacha_system.gacha_pack_5()
                 
                 if cards and len(cards) == 5:
-                    # Show card flip animation for each card
-                    for i, card in enumerate(cards, 1):
-                        await self._card_flip_animation(ctx, card)
-                        await asyncio.sleep(0.8)  # Delay antar kartu
-                    # Create pack result embed
-                    embed = discord.Embed(
-                        title="🎴 5-Card Gacha Pack Results",
-                        description="✨ **Guaranteed Rarity Distribution Achieved!**",
-                        color=0xffd700
+                    # Sort cards by rarity (lowest to highest)
+                    rarity_order = {"Common": 1, "Rare": 2, "DR": 3, "SR": 4, "SAR": 5}
+                    sorted_cards = sorted(cards, key=lambda x: rarity_order.get(x['rarity'], 0))
+                    
+                    # Group cards: first 4 in pairs, last (highest rarity) separate
+                    card_pairs = []
+                    for i in range(0, 4, 2):
+                        if i + 1 < len(sorted_cards):
+                            card_pairs.append([sorted_cards[i], sorted_cards[i + 1]])
+                        else:
+                            card_pairs.append([sorted_cards[i]])
+                    
+                    # Last card (highest rarity) separate
+                    highest_rarity_card = sorted_cards[4] if len(sorted_cards) == 5 else None
+                    
+                    # Send pairs of cards
+                    for pair_num, pair in enumerate(card_pairs, 1):
+                        pair_embed = discord.Embed(
+                            title=f"🎴 Pack Opening - Cards {pair_num*2-1}-{min(pair_num*2, 4)}",
+                            description=f"✨ **Revealing cards in rarity order...**",
+                            color=0x9932cc
+                        )
+                        
+                        files = []
+                        for i, card in enumerate(pair):
+                            # Add card info to embed
+                            rarity_emoji = self._get_rarity_emoji(card['rarity'])
+                            pair_embed.add_field(
+                                name=f"Card {(pair_num-1)*2 + i + 1}: {rarity_emoji} {card['rarity']}",
+                                value=f"**{card['member_name']}**\n{card['group_name']}",
+                                inline=True
+                            )
+                            
+                            # Save card image
+                            temp_path = self.gacha_system.save_card_temp(card['image'], f"pair_{pair_num}_card_{i+1}")
+                            if temp_path:
+                                files.append(discord.File(temp_path, f"card_{(pair_num-1)*2 + i + 1}.png"))
+                        
+                        if files:
+                            await ctx.send(embed=pair_embed, files=files)
+                        
+                        # Cleanup temp files
+                        import os
+                        for i in range(len(pair)):
+                            try:
+                                temp_path = f"temp_pair_{pair_num}_card_{i+1}.png"
+                                if os.path.exists(temp_path):
+                                    os.unlink(temp_path)
+                            except:
+                                pass
+                        
+                        await asyncio.sleep(1.2)  # Delay antar pair
+                    
+                    # Show highest rarity card last with special treatment
+                    if highest_rarity_card:
+                        await asyncio.sleep(0.5)
+                        
+                        special_embed = discord.Embed(
+                            title="🌟 SPECIAL REVEAL - Highest Rarity!",
+                            description="✨ **The crown jewel of your pack!**",
+                            color=self._get_rarity_color(highest_rarity_card['rarity'])
+                        )
+                        
+                        rarity_emoji = self._get_rarity_emoji(highest_rarity_card['rarity'])
+                        special_embed.add_field(
+                            name=f"🎯 {rarity_emoji} {highest_rarity_card['rarity']} CARD",
+                            value=f"**{highest_rarity_card['member_name']}**\n{highest_rarity_card['group_name']}\n\n{self._get_luck_message(highest_rarity_card['rarity'])}",
+                            inline=False
+                        )
+                        
+                        # Save special card
+                        temp_path = self.gacha_system.save_card_temp(highest_rarity_card['image'], "special_card")
+                        if temp_path:
+                            special_file = discord.File(temp_path, "special_card.png")
+                            await ctx.send(embed=special_embed, file=special_file)
+                            
+                            # Cleanup
+                            import os
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+                        
+                        await asyncio.sleep(1.5)  # Pause before final summary
+                    
+                    # Final summary embed with all cards
+                    final_embed = discord.Embed(
+                        title="🎉 Pack Complete - Final Summary",
+                        description="✨ **Your complete 5-card gacha pack!**",
+                        color=0x00FF00
                     )
                     
                     # Count rarities for display
@@ -221,19 +302,19 @@ class GachaCommandsHandler:
                         emoji = self._get_rarity_emoji(rarity)
                         rarity_summary += f"{emoji} **{rarity}:** {count}x\n"
                     
-                    embed.add_field(
+                    final_embed.add_field(
                         name="📊 Rarity Distribution",
                         value=rarity_summary,
                         inline=True
                     )
                     
-                    # Add pack contents
+                    # Add pack contents (in original order)
                     pack_contents = ""
                     for i, card in enumerate(cards, 1):
                         emoji = self._get_rarity_emoji(card['rarity'])
                         pack_contents += f"{i}. {emoji} **{card['member_name']}** ({card['group_name']})\n"
                     
-                    embed.add_field(
+                    final_embed.add_field(
                         name="📦 Pack Contents",
                         value=pack_contents,
                         inline=True
@@ -241,74 +322,19 @@ class GachaCommandsHandler:
                     
                     # Calculate total luck
                     total_luck = self._calculate_pack_luck(cards)
-                    embed.add_field(
+                    final_embed.add_field(
                         name="🍀 Pack Luck",
                         value=total_luck,
                         inline=True
                     )
                     
-                    
-                    embed.add_field(
-                        name="💎 Value",
-                        value="Premium Pack",
-                        inline=True
-                    )
-                    
-                    embed.set_footer(
+                    final_embed.set_footer(
                         text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
                         icon_url=ctx.author.avatar.url if ctx.author.avatar else None
                     )
                     
-                    # NEW: Progressive loading dengan progress indicator
-                    progress_embed = discord.Embed(
-                        title="🎴 Generating Your 5-Card Pack...",
-                        description="⏳ **Processing cards:** 0/5",
-                        color=0xFFD700
-                    )
-                    progress_msg = await ctx.send(embed=progress_embed)
-                    
-                    # Send all cards in one compact message
-                    pack_results_embed = discord.Embed(
-                        title="🎴 5-Card Pack Results",
-                        description="✨ **Your gacha pack is ready!**",
-                        color=0xFFD700
-                    )
-                    
-                    # Add each card as a field
-                    for i, card in enumerate(cards, 1):
-                        rarity_emoji = self._get_rarity_emoji(card['rarity'])
-                        pack_results_embed.add_field(
-                            name=f"Card {i}: {rarity_emoji} {card['rarity']}",
-                            value=f"**{card['member_name']}**\n{card['group_name']}",
-                            inline=True
-                        )
-                    
-                    await progress_msg.edit(embed=pack_results_embed)
-                    
-                    # Send individual card images in one batch message
-                    files = []
-                    for i, card in enumerate(cards, 1):
-                        temp_path = self.gacha_system.save_card_temp(card['image'], f"pack_card_{i}")
-                        if temp_path:
-                            files.append(discord.File(temp_path, f"card_{i}.png"))
-                    
-                    if files:
-                        batch_embed = discord.Embed(
-                            title="📦 Your 5-Card Pack",
-                            description=f"**Pack Luck:** {self._calculate_pack_luck(cards)}",
-                            color=0x00FF00
-                        )
-                        await ctx.send(embed=batch_embed, files=files)
-                        
-                        # Cleanup temp files
-                        import os
-                        for i in range(1, 6):
-                            try:
-                                temp_path = f"temp_card_pack_card_{i}.png"
-                                if os.path.exists(temp_path):
-                                    os.unlink(temp_path)
-                            except:
-                                pass
+                    # Send final summary
+                    await ctx.send(embed=final_embed)
                 else:
                     error_embed = discord.Embed(
                         title="❌ Pack Generation Failed",
