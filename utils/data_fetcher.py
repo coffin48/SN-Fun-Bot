@@ -1529,8 +1529,13 @@ class DataFetcher:
                 if priority_group in groups:
                     return priority_group
             
-            # If no priority group, return first alphabetically
-            return sorted(groups)[0]
+            # If no priority group, return first alphabetically (filter out NaN)
+            import pandas as pd
+            valid_groups = [g for g in groups if pd.notna(g) and str(g).strip()]
+            if valid_groups:
+                return sorted(valid_groups)[0]
+            else:
+                return None
     
     def _extract_member_name_from_query(self, query):
         """Extract member name from query (for use with group context)"""
@@ -1656,22 +1661,30 @@ check official music platforms and databases like:
         
         return content
     
-    async def scrape_member_gallery(self, member_name, group_name=None):
-        """Scrape gallery images dari Fandom.com untuk member K-pop"""
+    async def scrape_member_gallery(self, member_name, group_name=None, section=None):
+        """Scrape gallery images dari Fandom.com untuk member K-pop dengan support untuk sections"""
         try:
             gallery_url = self._generate_gallery_url(member_name, group_name)
             if not gallery_url:
-                return {"error": "Could not generate gallery URL", "images": []}
+                return {"error": "Could not generate gallery URL", "images": [], "sections": []}
+            
+            # Add section fragment if specified
+            if section:
+                section_fragment = section.replace(' ', '_').replace('-', '_')
+                gallery_url += f"#{section_fragment}"
             
             logger.info(f"Scraping gallery for {member_name}: {gallery_url}")
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(gallery_url, timeout=10) as response:
                     if response.status != 200:
-                        return {"error": f"HTTP {response.status}", "images": []}
+                        return {"error": f"HTTP {response.status}", "images": [], "sections": []}
                     
                     html = await response.text()
                     soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # Detect available gallery sections
+                    sections = self._detect_gallery_sections(soup)
                     
                     images = []
                     
@@ -1718,16 +1731,109 @@ check official music platforms and databases like:
                     
                     return {
                         "success": True,
-                        "total_images": len(images),
-                        "images": images[:50],  # Limit to first 50 images
-                        "gallery_url": gallery_url,
+                        "images": images[:20],  # Limit to 20 images
+                        "total_found": len(images),
+                        "url": gallery_url,
                         "member": member_name,
-                        "group": group_name
+                        "group": group_name,
+                        "sections": sections,
+                        "current_section": section
                     }
                     
         except Exception as e:
             logger.error(f"Gallery scraping failed for {member_name}: {e}")
-            return {"error": str(e), "images": []}
+            return {"error": str(e), "images": [], "sections": []}
+    
+    def _detect_gallery_sections(self, soup):
+        """Detect available gallery sections dari HTML"""
+        sections = []
+        
+        try:
+            # Method 1: Look for navigation sections (common pattern)
+            nav_items = soup.find_all(['li', 'div'], class_=lambda x: x and any(
+                keyword in str(x).lower() for keyword in ['nav', 'tab', 'section']
+            ))
+            
+            for item in nav_items:
+                text = item.get_text(strip=True)
+                if text and len(text) > 2 and len(text) < 50:
+                    # Filter common gallery section names
+                    if any(keyword in text.lower() for keyword in [
+                        'concept', 'pictorial', 'magazine', 'behind', 'performance', 
+                        'teaser', 'promotional', 'official', 'candid', 'event', 'misc'
+                    ]):
+                        sections.append({
+                            'name': text,
+                            'fragment': text.replace(' ', '_').replace('-', '_'),
+                            'type': self._categorize_section(text)
+                        })
+            
+            # Method 2: Look for heading sections (h2, h3, h4)
+            headings = soup.find_all(['h2', 'h3', 'h4'], class_=lambda x: x and 'mw-headline' in str(x))
+            for heading in headings:
+                text = heading.get_text(strip=True)
+                if text and len(text) > 2 and len(text) < 50:
+                    if any(keyword in text.lower() for keyword in [
+                        'concept', 'pictorial', 'magazine', 'behind', 'performance',
+                        'teaser', 'promotional', 'official', 'candid', 'event', 'misc'
+                    ]):
+                        sections.append({
+                            'name': text,
+                            'fragment': text.replace(' ', '_').replace('-', '_'),
+                            'type': self._categorize_section(text)
+                        })
+            
+            # Method 3: Look for anchor links with fragments
+            anchors = soup.find_all('a', href=lambda x: x and '#' in str(x))
+            for anchor in anchors:
+                href = anchor.get('href', '')
+                if '#' in href:
+                    fragment = href.split('#')[-1]
+                    if fragment and '_' in fragment:
+                        # Convert URL fragment to readable text
+                        readable = fragment.replace('_', ' ').title()
+                        if any(keyword in readable.lower() for keyword in [
+                            'concept', 'pictorial', 'magazine', 'behind', 'performance',
+                            'teaser', 'promotional', 'official', 'candid', 'event', 'misc'
+                        ]):
+                            sections.append({
+                                'name': readable,
+                                'fragment': fragment,
+                                'type': self._categorize_section(readable)
+                            })
+            
+            # Remove duplicates based on fragment
+            seen_fragments = set()
+            unique_sections = []
+            for section in sections:
+                if section['fragment'].lower() not in seen_fragments:
+                    seen_fragments.add(section['fragment'].lower())
+                    unique_sections.append(section)
+            
+            return unique_sections[:10]  # Limit to 10 sections
+            
+        except Exception as e:
+            logger.error(f"Error detecting gallery sections: {e}")
+            return []
+    
+    def _categorize_section(self, section_name):
+        """Categorize gallery section type"""
+        name_lower = section_name.lower()
+        
+        if any(keyword in name_lower for keyword in ['concept', 'teaser']):
+            return 'concept'
+        elif any(keyword in name_lower for keyword in ['pictorial', 'magazine', 'dispatch']):
+            return 'pictorial'
+        elif any(keyword in name_lower for keyword in ['behind', 'bts']):
+            return 'behind_scenes'
+        elif any(keyword in name_lower for keyword in ['performance', 'stage']):
+            return 'performance'
+        elif any(keyword in name_lower for keyword in ['official', 'promotional']):
+            return 'official'
+        elif any(keyword in name_lower for keyword in ['candid', 'misc', 'other']):
+            return 'misc'
+        else:
+            return 'other'
     
     async def scrape_member_trivia(self, member_name, group_name=None):
         """Scrape trivia/facts dari halaman member di Fandom.com dengan fallback URLs"""
