@@ -19,12 +19,21 @@ from utils.data_fetcher import DataFetcher
 from utils.google_drive_setup import GoogleDriveUploader
 from core.logger import logger
 
+# Import untuk hybrid authentication
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
+
 class GalleryExpansionService:
-    """Safe gallery expansion service yang tidak mengganggu existing system"""
+    """Safe gallery expansion service dengan hybrid authentication"""
     
     def __init__(self, test_mode=False):
         """
-        Initialize expansion service
+        Initialize expansion service dengan hybrid authentication
         
         Args:
             test_mode: Jika True, gunakan test database dan folder
@@ -45,24 +54,112 @@ class GalleryExpansionService:
             self.gdrive_folder = "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI"
             self.backup_prefix = 'backup'
         
-        # Initialize Google Drive uploader only if enabled
+        # Hybrid authentication setup
+        self.auth_method = os.getenv('GALLERY_EXPANSION_AUTH_METHOD', 'hybrid').lower()
+        self.drive_service = None
         self.gdrive_uploader = None
+        
         if self.enabled:
-            try:
-                self.gdrive_uploader = GoogleDriveUploader()
-                logger.info("✅ Gallery expansion service initialized with Google Drive")
-            except Exception as e:
-                logger.error(f"❌ Google Drive uploader failed to initialize: {e}")
-                logger.error("💡 Make sure credentials.json and token.json are available")
-                self.enabled = False
-                # Set to None for debugging
-                self.gdrive_uploader = None
+            self._initialize_hybrid_auth()
         else:
             logger.info("⚠️ Gallery expansion service disabled (GALLERY_EXPANSION_ENABLED=false)")
     
+    def _initialize_hybrid_auth(self):
+        """Initialize hybrid authentication (OAuth + Service Account)"""
+        scopes = ['https://www.googleapis.com/auth/drive.file']
+        
+        # Method 1: Try OAuth first (untuk development)
+        if self.auth_method in ['oauth', 'hybrid']:
+            try:
+                oauth_success = self._setup_oauth_auth(scopes)
+                if oauth_success:
+                    logger.info("✅ OAuth authentication berhasil")
+                    return
+            except Exception as e:
+                logger.warning(f"⚠️ OAuth authentication gagal: {e}")
+        
+        # Method 2: Try Service Account (untuk production)
+        if self.auth_method in ['service_account', 'hybrid']:
+            try:
+                sa_success = self._setup_service_account_auth(scopes)
+                if sa_success:
+                    logger.info("✅ Service Account authentication berhasil")
+                    return
+            except Exception as e:
+                logger.warning(f"⚠️ Service Account authentication gagal: {e}")
+        
+        # Method 3: Fallback ke existing GoogleDriveUploader
+        try:
+            self.gdrive_uploader = GoogleDriveUploader()
+            logger.info("✅ Fallback ke GoogleDriveUploader berhasil")
+        except Exception as e:
+            logger.error(f"❌ Semua authentication method gagal: {e}")
+            self.enabled = False
+    
+    def _setup_oauth_auth(self, scopes) -> bool:
+        """Setup OAuth authentication"""
+        try:
+            creds = None
+            
+            # Load existing token
+            if os.path.exists('token.json'):
+                creds = Credentials.from_authorized_user_file('token.json', scopes)
+            
+            # Refresh or get new credentials
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    if not os.path.exists('credentials.json'):
+                        return False
+                    
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        'credentials.json', scopes)
+                    creds = flow.run_local_server(port=0, open_browser=False)
+                    
+                    # Save token
+                    with open('token.json', 'w') as token:
+                        token.write(creds.to_json())
+            
+            # Build service
+            self.drive_service = build('drive', 'v3', credentials=creds)
+            return True
+            
+        except Exception as e:
+            logger.error(f"OAuth setup error: {e}")
+            return False
+    
+    def _setup_service_account_auth(self, scopes) -> bool:
+        """Setup Service Account authentication"""
+        try:
+            # Try environment variable first
+            sa_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+            if sa_json:
+                sa_info = json.loads(sa_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    sa_info, scopes=scopes
+                )
+            else:
+                # Try service account file
+                sa_file = 'sn-fun-bot-06bff108efa3.json'
+                if not os.path.exists(sa_file):
+                    return False
+                
+                creds = service_account.Credentials.from_service_account_file(
+                    sa_file, scopes=scopes
+                )
+            
+            # Build service
+            self.drive_service = build('drive', 'v3', credentials=creds)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Service Account setup error: {e}")
+            return False
+    
     def is_enabled(self) -> bool:
         """Check if expansion service is enabled"""
-        return self.enabled and self.gdrive_uploader is not None
+        return self.enabled and (self.drive_service is not None or self.gdrive_uploader is not None)
     
     async def expand_member_photos(self, member_name: str, group_name: str, test_mode: bool = False, max_photos: int = 5) -> Dict:
         """
@@ -145,8 +242,9 @@ class GalleryExpansionService:
             )
             
             if not uploaded_files:
-                logger.error(f"❌ No photos uploaded successfully for {member_name}")
-                logger.error(f"📊 Processed {len(quality_photos)} quality photos, 0 uploaded")
+                logger.error(f"❌ CRITICAL: No photos uploaded successfully for {member_name}")
+                logger.error(f"📊 SUMMARY: Processed {len(quality_photos)} quality photos, 0 uploaded")
+                logger.error(f"🔧 DEBUG: Check Railway logs above for detailed error messages")
                 return {
                     "success": False,
                     "error": f"Failed to upload any photos. Processed {len(quality_photos)} photos but all uploads failed. Check Google Drive credentials and folder permissions."
@@ -299,11 +397,9 @@ class GalleryExpansionService:
                     with open(temp_path, 'wb') as f:
                         f.write(response.content)
                     
-                    # Upload to Google Drive
+                    # Upload to Google Drive dengan hybrid method
                     try:
-                        file_id = self.gdrive_uploader.upload_file(
-                            str(temp_path), self.gdrive_folder
-                        )
+                        file_id = await self._upload_file_hybrid(str(temp_path), filename)
                         
                         if file_id:
                             uploaded_files.append({
@@ -334,6 +430,53 @@ class GalleryExpansionService:
             shutil.rmtree(temp_dir, ignore_errors=True)
         
         return uploaded_files
+    
+    async def _upload_file_hybrid(self, file_path: str, filename: str) -> Optional[str]:
+        """Upload file menggunakan hybrid authentication"""
+        try:
+            # Method 1: Try direct Drive API jika tersedia
+            if self.drive_service:
+                return self._upload_with_drive_api(file_path, filename)
+            
+            # Method 2: Fallback ke GoogleDriveUploader
+            elif self.gdrive_uploader:
+                return self.gdrive_uploader.upload_file(file_path, self.gdrive_folder)
+            
+            else:
+                logger.error("❌ No authentication method available for upload")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Hybrid upload error: {e}")
+            return None
+    
+    def _upload_with_drive_api(self, file_path: str, filename: str) -> Optional[str]:
+        """Upload file menggunakan Google Drive API langsung"""
+        try:
+            file_metadata = {
+                'name': filename,
+                'parents': [self.gdrive_folder]
+            }
+            
+            media = MediaFileUpload(file_path, resumable=True)
+            
+            file = self.drive_service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id'
+            ).execute()
+            
+            return file.get('id')
+            
+        except HttpError as e:
+            if "storageQuotaExceeded" in str(e):
+                logger.error(f"❌ Storage quota exceeded: {e}")
+            else:
+                logger.error(f"❌ Drive API upload error: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Upload error: {e}")
+            return None
     
     def _is_valid_image_url(self, url: str) -> bool:
         """Check if URL is valid for image download"""
