@@ -23,12 +23,25 @@ class GachaCommandsHandler:
     
     def _increment_usage(self, user_id, command_type):
         """Increment usage count for user"""
+        # Admin bypass - don't increment usage for admins
+        if self._is_admin(user_id):
+            return 0
+            
         usage = self._get_user_usage(user_id)
         usage[command_type] += 1
         return usage[command_type]
     
+    def _is_admin(self, user_id):
+        """Check if user is admin/mod with unlimited access"""
+        admin_ids = [371695179909824541]  # Admin Discord IDs
+        return user_id in admin_ids
+    
     def _check_usage_limit(self, user_id, command_type):
         """Check if user has exceeded usage limits"""
+        # Admin bypass
+        if self._is_admin(user_id):
+            return False
+            
         usage = self._get_user_usage(user_id)
         
         if command_type == 'random':
@@ -110,6 +123,9 @@ class GachaCommandsHandler:
         elif subcommand == "member":
             member_name = " ".join(args[1:]) if len(args) > 1 else None
             await self._handle_gacha_by_member(ctx, member_name)
+        elif subcommand == "sar":
+            # Admin command untuk demo SAR card
+            await self._handle_gacha_sar_demo(ctx)
         elif subcommand == "stats":
             await self._handle_gacha_stats(ctx)
         else:
@@ -685,6 +701,107 @@ class GachaCommandsHandler:
                 color=0xff0000
             )
             await ctx.send(embed=error_embed)
+    
+    async def _handle_gacha_sar_demo(self, ctx):
+        """Handle SAR demo command - admin only, auto-delete after 5 seconds"""
+        user_id = ctx.author.id
+        
+        # Check if user is admin
+        if not self._is_admin(user_id):
+            await ctx.send("❌ Command ini hanya untuk admin/mod untuk demo kepada user lain.")
+            return
+        
+        try:
+            async with ctx.typing():
+                # Demo message
+                demo_embed = discord.Embed(
+                    title="🌟 SAR Demo - Admin Preview",
+                    description="✨ **Menampilkan contoh kartu SAR untuk demo...**\n🎯 Kartu akan dihapus otomatis setelah 5 detik",
+                    color=0xFF6B9D
+                )
+                loading_msg = await ctx.send(embed=demo_embed)
+                
+                await asyncio.sleep(1.5)
+                
+                # Generate guaranteed SAR card
+                card_image, card_data = self.gacha_system.gacha_guaranteed_sar()
+                
+                if card_image:
+                    # Parse card data
+                    lines = card_data.split('\n')
+                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
+                    member_name = member_info[0]
+                    group_name = member_info[1] if len(member_info) > 1 else "Unknown"
+                    
+                    # Create SAR demo embed
+                    sar_embed = discord.Embed(
+                        title="🌟 SAR DEMO - Special Art Rare",
+                        description="✨ **Ini contoh kartu SAR rarity tertinggi!**\n🎯 Auto-delete dalam 5 detik...",
+                        color=0xFF1493
+                    )
+                    
+                    sar_embed.add_field(
+                        name="🎯 SAR Card",
+                        value=f"**{member_name}**\n{group_name}\n\n🌟 **Rarity:** SAR (0.5-2% chance)\n💎 **Ultra Rare dengan holo effects!**",
+                        inline=False
+                    )
+                    
+                    sar_embed.add_field(
+                        name="ℹ️ Demo Info",
+                        value="🔧 **Admin Demo Mode**\n⏰ **Auto-delete:** 5 detik\n🎯 **Purpose:** Showcase SAR quality",
+                        inline=False
+                    )
+                    
+                    # Save and send SAR card
+                    temp_path = self.gacha_system.save_card_temp(card_image, "sar_demo")
+                    if temp_path:
+                        sar_file = discord.File(temp_path, "sar_demo.png")
+                        demo_msg = await loading_msg.edit(embed=sar_embed, attachments=[sar_file])
+                        
+                        # Auto-delete after 5 seconds
+                        await asyncio.sleep(5)
+                        
+                        try:
+                            await demo_msg.delete()
+                            
+                            # Send confirmation
+                            confirm_embed = discord.Embed(
+                                title="✅ SAR Demo Complete",
+                                description="🌟 **Demo kartu SAR telah selesai dan dihapus**\n💡 User dapat melihat kualitas SAR selama 5 detik",
+                                color=0x00FF00
+                            )
+                            confirm_embed.add_field(
+                                name="📊 Demo Stats",
+                                value=f"👤 **Member:** {member_name}\n🎵 **Group:** {group_name}\n⭐ **Rarity:** SAR\n⏰ **Duration:** 5 seconds",
+                                inline=False
+                            )
+                            await ctx.send(embed=confirm_embed, delete_after=10)
+                            
+                        except discord.NotFound:
+                            pass  # Message already deleted
+                        
+                        # Cleanup temp file
+                        import os
+                        try:
+                            os.unlink(temp_path)
+                        except:
+                            pass
+                    else:
+                        await loading_msg.edit(embed=discord.Embed(
+                            title="❌ Demo Failed",
+                            description="Gagal generate kartu SAR demo.",
+                            color=0xff0000
+                        ))
+                else:
+                    await loading_msg.edit(embed=discord.Embed(
+                        title="❌ SAR Demo Failed", 
+                        description="Gagal generate kartu SAR untuk demo.",
+                        color=0xff0000
+                    ))
+                    
+        except Exception as e:
+            logger.error(f"Error in SAR demo: {e}")
+            await ctx.send("❌ Terjadi error saat demo SAR.")
     
     async def _handle_gacha_info(self, ctx):
         """Handle gacha info command - comprehensive gacha system information"""
