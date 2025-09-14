@@ -367,17 +367,20 @@ class GalleryExpansionService:
                 try:
                     # Lewati URL yang tidak valid
                     if not self._is_valid_image_url(photo['url']):
-                        logger.warning(f"⚠️ Melewati URL tidak valid: {photo['url'][:100]}...")
+                        logger.warning(f"WARNING: Melewati URL tidak valid: {photo['url'][:100]}...")
                         continue
                     
+                    # Convert thumbnail URL to full image URL
+                    full_url = self._convert_to_full_image_url(photo['url'])
+                    
                     # Log URL yang sedang diproses
-                    logger.info(f"📥 Memproses foto {i+1}: {photo['url'][:80]}...")
+                    logger.info(f"PROCESSING: Memproses foto {i+1}: {full_url[:80]}...")
                     
                     # Download foto dengan penanganan error yang lebih baik
                     headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                     }
-                    response = requests.get(photo['url'], timeout=30, headers=headers)
+                    response = requests.get(full_url, timeout=30, headers=headers)
                     response.raise_for_status()
                     
                     # Cek apakah response benar-benar gambar
@@ -478,6 +481,26 @@ class GalleryExpansionService:
             logger.error(f"❌ Upload error: {e}")
             return None
     
+    def _convert_to_full_image_url(self, url: str) -> str:
+        """Convert thumbnail/scaled URL to full image URL"""
+        if not url:
+            return url
+            
+        # Convert Wikia/Fandom thumbnail URLs to full size
+        if '/scale-to-width-down/' in url:
+            # Remove the scaling part
+            url = url.split('/scale-to-width-down/')[0]
+        
+        if '/thumb/' in url:
+            # Remove thumb directory
+            url = url.replace('/thumb/', '/')
+        
+        # Remove size prefixes
+        import re
+        url = re.sub(r'/\d+px-', '/', url)
+        
+        return url
+    
     def _is_valid_image_url(self, url: str) -> bool:
         """Check if URL is valid for image download"""
         if not url or not isinstance(url, str):
@@ -495,20 +518,14 @@ class GalleryExpansionService:
         if not url.startswith(('http://', 'https://')):
             return False
         
-        # Skip thumbnail/scaled versions that often 404
-        skip_patterns = [
-            '/scale-to-width-down/',
-            '/thumb/',
-            '/150px-',
-            '/200px-',
-            'data:image',
-            '....'  # Skip truncated URLs ending with ....
-        ]
+        # Skip URLs ending with .... (truncated)
+        if url.endswith('....'):
+            return False
         
-        for pattern in skip_patterns:
-            if pattern in url:
-                return False
+        # Convert thumbnail URL to full URL and check again
+        full_url = self._convert_to_full_image_url(url)
         
+        # Now allow the converted URL
         return True
 
     def _generate_filename(self, member_name: str, group_name: str, section: str, index: int, url: str) -> str:
