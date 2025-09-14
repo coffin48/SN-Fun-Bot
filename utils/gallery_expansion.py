@@ -44,12 +44,13 @@ class GalleryExpansionService:
         # Initialize existing components - tidak modify
         self.data_fetcher = DataFetcher()
         
-        # Setup paths berdasarkan mode
-        if test_mode:
-            self.json_path = 'data/member_data/test_Path_Foto_DriveIDs.json'
-            self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', '1Oveb-cdjKRpanoSFaMFoi6z3X4I0F4mX')
-            self.backup_prefix = 'test_backup'
-        else:
+        # Setup paths
+        self.json_path = os.getenv('GALLERY_JSON_PATH', 'data/member_data/Path_Foto_DriveIDs_Real.json')
+        self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', '1Oveb-cdjKRpanoSFaMFoi6z3X4I0F4mX')
+        self.json_gdrive_folder = os.getenv('JSON_GDRIVE_FOLDER_ID', '1Rqi7XKPTEe8Et_1nzHPh14fwYQlkVqpf')
+        self.backup_prefix = 'test_backup'
+        
+        if not test_mode:
             self.json_path = 'data/member_data/Path_Foto_DriveIDs_Real.json'
             self.gdrive_folder = "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI"
             self.backup_prefix = 'backup'
@@ -456,6 +457,14 @@ class GalleryExpansionService:
     def _upload_with_drive_api(self, file_path: str, filename: str) -> Optional[str]:
         """Upload file menggunakan Google Drive API langsung"""
         try:
+            # Validate folder exists first
+            try:
+                self.drive_service.files().get(fileId=self.gdrive_folder).execute()
+            except HttpError as folder_error:
+                logger.error(f"❌ Target folder not accessible: {self.gdrive_folder}")
+                logger.error(f"❌ Folder error: {folder_error}")
+                return None
+            
             file_metadata = {
                 'name': filename,
                 'parents': [self.gdrive_folder]
@@ -479,6 +488,57 @@ class GalleryExpansionService:
             return None
         except Exception as e:
             logger.error(f"❌ Upload error: {e}")
+            return None
+    
+    async def _upload_json_backup(self, json_data: dict, filename: str) -> Optional[str]:
+        """Upload JSON backup ke folder khusus di Google Drive"""
+        if not self.drive_service or not self.json_gdrive_folder:
+            return None
+        
+        try:
+            import tempfile
+            import json
+            from googleapiclient.http import MediaFileUpload
+            
+            # Create temp JSON file dengan proper cleanup
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.json', text=True)
+            try:
+                with os.fdopen(temp_fd, 'w', encoding='utf-8') as temp_file:
+                    json.dump(json_data, temp_file, indent=2, ensure_ascii=False)
+                
+                # Validate JSON folder exists first
+                try:
+                    self.drive_service.files().get(fileId=self.json_gdrive_folder).execute()
+                except HttpError as folder_error:
+                    logger.error(f"❌ JSON folder not accessible: {self.json_gdrive_folder}")
+                    logger.error(f"❌ JSON folder error: {folder_error}")
+                    return None
+                
+                # Upload to JSON folder
+                file_metadata = {
+                    'name': filename,
+                    'parents': [self.json_gdrive_folder]
+                }
+                
+                media = MediaFileUpload(temp_path, mimetype='application/json')
+                
+                file = self.drive_service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id'
+                ).execute()
+                
+            finally:
+                # Cleanup temp file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            
+            file_id = file.get('id')
+            logger.info(f"JSON backup uploaded: {filename} -> {file_id}")
+            return file_id
+            
+        except Exception as e:
+            logger.error(f"Failed to upload JSON backup: {e}")
             return None
     
     def _convert_to_full_image_url(self, url: str) -> str:
@@ -586,13 +646,20 @@ class GalleryExpansionService:
             with open(self.json_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             
+            # Upload JSON backup to Google Drive
+            backup_filename = f"gallery_backup_{member_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            backup_file_id = await self._upload_json_backup(data, backup_filename)
+            
             logger.info(f"✅ JSON updated: Added {len(unique_new_ids)} photos for {member_key}")
             logger.info(f"📄 Backup created: {backup_path}")
+            if backup_file_id:
+                logger.info(f"☁️ JSON backup uploaded to Drive: {backup_file_id}")
             
             return {
                 "success": True,
                 "added_photos": len(unique_new_ids),
-                "backup_path": backup_path
+                "backup_path": backup_path,
+                "gdrive_backup_id": backup_file_id
             }
             
         except Exception as e:
