@@ -1151,6 +1151,93 @@ class CommandsHandler:
             logger.error(f"Monitor command error: {e}")
             await ctx.send(f"❌ Error: {e}")
     
+    async def _handle_expansion_command(self, ctx, user_input):
+        """Handle gallery expansion command (admin only)"""
+        try:
+            # Check if user is admin
+            if not self._is_admin(ctx.author.id):
+                await ctx.send("❌ This command is admin-only.")
+                return
+            
+            # Check if expansion service is available
+            if not hasattr(self, 'expansion_service') or not self.expansion_service:
+                await ctx.send("❌ Gallery expansion service not available.")
+                return
+            
+            # Parse command: "expand", "expand member karina aespa", "expand test karina aespa", "expand stats"
+            parts = user_input.split()
+            
+            if len(parts) == 1:
+                # Show help
+                embed = discord.Embed(
+                    title="🖼️ Gallery Expansion Commands",
+                    description="Admin-only commands for expanding photo database",
+                    color=0x00ff00
+                )
+                embed.add_field(
+                    name="Commands",
+                    value="`!sn expand member <name> <group>` - Expand member photos\n"
+                          "`!sn expand test <name> <group>` - Test expansion\n"
+                          "`!sn expand stats` - Show expansion statistics",
+                    inline=False
+                )
+                await ctx.send(embed=embed)
+                return
+            
+            subcommand = parts[1].lower()
+            
+            if subcommand == "stats":
+                # Show expansion statistics
+                stats = self.expansion_service.get_expansion_stats()
+                embed = discord.Embed(
+                    title="📊 Gallery Expansion Statistics",
+                    color=0x0099ff
+                )
+                for key, value in stats.items():
+                    embed.add_field(name=key.replace('_', ' ').title(), value=str(value), inline=True)
+                await ctx.send(embed=embed)
+                
+            elif subcommand in ["member", "test"] and len(parts) >= 4:
+                # Extract member and group
+                member_name = parts[2]
+                group_name = " ".join(parts[3:])
+                test_mode = (subcommand == "test")
+                
+                # Send processing message
+                processing_msg = await ctx.send(f"🔄 {'Testing' if test_mode else 'Expanding'} gallery for {member_name} ({group_name})...")
+                
+                try:
+                    # Run expansion
+                    result = await self.expansion_service.expand_member_photos(
+                        member_name, group_name, test_mode=test_mode
+                    )
+                    
+                    if result['success']:
+                        embed = discord.Embed(
+                            title=f"✅ Gallery Expansion {'Test' if test_mode else ''} Complete",
+                            description=f"Successfully processed {member_name} from {group_name}",
+                            color=0x00ff00
+                        )
+                        embed.add_field(name="Photos Added", value=str(result.get('photos_added', 0)), inline=True)
+                        embed.add_field(name="Drive IDs Generated", value=str(result.get('drive_ids', 0)), inline=True)
+                        if test_mode:
+                            embed.add_field(name="Mode", value="🧪 Test Mode", inline=True)
+                        
+                        await processing_msg.edit(content="", embed=embed)
+                    else:
+                        await processing_msg.edit(content=f"❌ Expansion failed: {result.get('error', 'Unknown error')}")
+                        
+                except Exception as e:
+                    await processing_msg.edit(content=f"❌ Error during expansion: {str(e)}")
+                    logger.error(f"Gallery expansion error: {e}")
+            
+            else:
+                await ctx.send("❌ Invalid expansion command. Use `!sn expand` for help.")
+                
+        except Exception as e:
+            logger.error(f"Expansion command error: {e}")
+            await ctx.send(f"❌ Error handling expansion command: {e}")
+
     async def _handle_maintenance_command(self, ctx, user_input):
         """Handle maintenance command"""
         try:
