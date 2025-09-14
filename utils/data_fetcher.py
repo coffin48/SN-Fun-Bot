@@ -54,10 +54,16 @@ class DataFetcher:
             {"url": "https://en.wikipedia.org/wiki/{}_discography", "selector": ".mw-parser-output", "type": "wiki_discography", "priority": 0.87, "timeout": 6},
             {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.85, "timeout": 6},
             {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.83, "timeout": 6},
+            {"url": "https://kpopping.com/profiles/group/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_group", "priority": 0.82, "timeout": 7},
+            {"url": "https://kpopping.com/profiles/soloist/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_solo", "priority": 0.82, "timeout": 7},
+            {"url": "https://kpopping.com/profiles/idol/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_idol", "priority": 0.80, "timeout": 7},
+            {"url": "https://dbkpop.com/db/{}", "selector": ".artist-info, .group-info, .content", "type": "dbkpop_main", "priority": 0.78, "timeout": 6},
+            {"url": "https://kpop.fandom.com/wiki/{}", "selector": ".mw-parser-output p, .portable-infobox", "type": "fandom_wiki", "priority": 0.76, "timeout": 7},
             {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english", "priority": 0.75, "timeout": 7},
             {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_encoded", "priority": 0.75, "timeout": 7},
             {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_hangul", "priority": 0.75, "timeout": 7},
             {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile", "priority": 0.70, "timeout": 6},
+            {"url": "https://kpopping.com/search?keyword={}", "selector": ".search-result, .profile-card", "type": "kpopping_search", "priority": 0.68, "timeout": 6},
             {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database", "priority": 0.65, "timeout": 5},
             {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news", "priority": 0.60, "timeout": 5},
             {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news", "priority": 0.55, "timeout": 5}
@@ -183,6 +189,196 @@ class DataFetcher:
             "qwer": "QWER",  # English format
             "secret number": "SECRET%20NUMBER",  # URL encoded space
             "hearts2hearts": "%EC%8A%A4%ED%85%94%EB%9D%BC(Hearts2Hearts)"  # Mixed format
+        }
+        
+        # KPopping.com URL mappings untuk grup-grup populer
+        self.kpopping_mappings = {
+            "bts": "BTS",
+            "blackpink": "BLACKPINK",
+            "twice": "TWICE",
+            "red velvet": "Red-Velvet",
+            "itzy": "ITZY",
+            "aespa": "aespa",
+            "newjeans": "NewJeans",
+            "ive": "IVE",
+            "le sserafim": "LE-SSERAFIM",
+            "gidle": "G-I-DLE",
+            "(g)i-dle": "G-I-DLE",
+            "stray kids": "Stray-Kids",
+            "seventeen": "SEVENTEEN",
+            "txt": "TXT",
+            "tomorrow x together": "TXT",
+            "enhypen": "ENHYPEN",
+            "nct": "NCT",
+            "exo": "EXO",
+            "secret number": "SECRET-NUMBER",
+            "fifty fifty": "FIFTY-FIFTY",
+            "fiftyfifty": "FIFTY-FIFTY",
+            "qwer": "QWER",
+            "hearts2hearts": "Hearts2Hearts",
+            "weeekly": "Weeekly",
+            "purple kiss": "Purple-Kiss",
+            "rocket punch": "Rocket-Punch",
+            "weki meki": "Weki-Meki",
+            "fromis_9": "fromis-9",
+            "everglow": "EVERGLOW",
+            "dreamcatcher": "Dreamcatcher",
+            "nct dream": "NCT-Dream",
+            "nct 127": "NCT-127",
+            "nct u": "NCT-U",
+            "wayv": "WayV",
+            "red velvet irene seulgi": "Red-Velvet-Irene-Seulgi",
+            "girls generation taetiseo": "Girls-Generation-TaeTiSeo",
+            "exo cbx": "EXO-CBX",
+            "exo sc": "EXO-SC",
+            "super junior d&e": "Super-Junior-D-E",
+            "tri.be": "TRI.BE",
+            "hot issue": "HOT-ISSUE",
+            "class:y": "CLASS-y",
+            "bugaboo": "bugAboo",
+            "ichillin": "ICHILLIN",
+            "lapillus": "Lapillus",
+            "young posse": "YOUNG-POSSE",
+            "unis": "UNIS",
+            "artms": "ARTMS",
+            "loossemble": "LOOSSEMBLE",
+            "odd eye circle": "ODD-EYE-CIRCLE",
+            # Individual members/Solo artists mappings (for /profiles/idol/ endpoint)
+            "blackpink rosé": "Rose",
+            "blackpink rose": "Rose",
+            "rosé": "Rose",
+            "rose": "Rose",
+            "bts rm": "RM",
+            "rm": "RM",
+            "twice nayeon": "Nayeon",
+            "nayeon": "Nayeon",
+            "red velvet irene": "Irene",
+            "irene": "Irene",
+            "seventeen woozi": "Woozi",
+            "woozi": "Woozi",
+            "jisoo": "Jisoo",
+            "blackpink jisoo": "Jisoo",
+            "chodan": "Chodan",
+            "qwer chodan": "Chodan",
+            "soodam": "Soodam",
+            "secret number soodam": "Soodam",
+            "iu": "IU",
+            "lee ji-eun": "IU",
+            # Additional case sensitivity fixes
+            "dreamcatcher": "Dreamcatcher",
+            "everglow": "EVERGLOW",
+            "fromis_9": "fromis_9",
+            "nct dream": "NCT-Dream",
+            "nct 127": "NCT-127",
+            "nct u": "NCT-U",
+            "wayv": "WayV",
+            "exo cbx": "EXO-CBX",
+            "exo sc": "EXO-SC",
+            "tri.be": "TRI.BE",
+            "hot issue": "HOT-ISSUE",
+            "class:y": "CLASS-y",
+            "bugaboo": "bugAboo",
+            "ichillin": "ICHILLIN",
+            "young posse": "YOUNG-POSSE",
+            "unis": "UNIS",
+            "artms": "ARTMS",
+            "loossemble": "LOOSSEMBLE"
+        }
+        
+        # DBKpop.com URL mappings
+        self.dbkpop_mappings = {
+            # Group mappings (DBKpop uses lowercase with hyphens)
+            "bts": "bts",
+            "blackpink": "blackpink",
+            "twice": "twice",
+            "red velvet": "red-velvet",
+            "itzy": "itzy",
+            "aespa": "aespa",
+            "newjeans": "newjeans",
+            "ive": "ive",
+            "le sserafim": "le-sserafim",
+            "gidle": "g-i-dle",
+            "(g)i-dle": "g-i-dle",
+            "stray kids": "stray-kids",
+            "seventeen": "seventeen",
+            "txt": "tomorrow-x-together",
+            "tomorrow x together": "tomorrow-x-together",
+            "enhypen": "enhypen",
+            "nct": "nct",
+            "exo": "exo",
+            "secret number": "secret-number",
+            "fifty fifty": "fifty-fifty",
+            "fiftyfifty": "fifty-fifty",
+            "qwer": "qwer"
+        }
+        
+        # Fandom.com (K-pop Wiki) URL mappings
+        self.fandom_mappings = {
+            # Group mappings (Fandom uses various patterns)
+            "bts": "BTS",
+            "blackpink": "BLACKPINK",
+            "twice": "TWICE",
+            "red velvet": "Red_Velvet",
+            "itzy": "ITZY",
+            "aespa": "Aespa",
+            "newjeans": "NewJeans",
+            "ive": "IVE",
+            "le sserafim": "LE_SSERAFIM",
+            "gidle": "(G)I-DLE",
+            "(g)i-dle": "(G)I-DLE",
+            "stray kids": "Stray_Kids",
+            "seventeen": "SEVENTEEN",
+            "txt": "TXT",
+            "tomorrow x together": "TXT",
+            "enhypen": "ENHYPEN",
+            "nct": "NCT",
+            "exo": "EXO",
+            # Special cases based on sample URLs
+            "secret number": "SECRET_NUMBER_(group)",  # Has (group) suffix
+            "iz*one": "IZ*ONE",  # Special characters preserved
+            "izone": "IZ*ONE",
+            "girls generation": "Girls%27_Generation",  # URL encoded apostrophe
+            "girls' generation": "Girls%27_Generation",
+            "snsd": "Girls%27_Generation",
+            "fifty fifty": "FIFTY_FIFTY",
+            "fiftyfifty": "FIFTY_FIFTY",
+            "artbeat": "ARTBEAT_v",
+            "qwer": "QWER",
+            "hearts2hearts": "Hearts2Hearts",
+            "weeekly": "Weeekly",
+            # Individual member mappings
+            "chodan": "Chodan",  # QWER member
+            "magenta": "Magenta_(QWER)",  # QWER member with group disambiguation
+            "soodam": "Soodam",  # Secret Number member
+            "xiumin": "Xiumin",  # EXO member
+            "chen": "Chen_(EXO)",  # EXO member with group disambiguation
+            "irene": "Irene_(Red_Velvet)",  # Red Velvet member with group disambiguation
+            "yeri": "Yeri_(Red_Velvet)",  # Red Velvet member with group disambiguation
+            "jisoo": "Jisoo_(BLACKPINK)",  # BLACKPINK member with group disambiguation
+            "tiffany": "Tiffany",  # Girls' Generation member
+            "siyeon": "Siyeon",  # Dreamcatcher member
+            "hyein": "Hyein",  # NewJeans member
+            "nayeon": "Nayeon",  # TWICE member
+            "karina": "Karina",  # aespa member
+            "minji": "Minji_(NewJeans)",  # NewJeans member with group disambiguation
+            # Special subdomain cases
+            "taeyeon": "Taeyeon",  # Note: uses girls-generation.fandom.com subdomain
+            "qwer chodan": "Chodan",
+            "qwer magenta": "Magenta_(QWER)",
+            "secret number soodam": "Soodam",
+            "exo xiumin": "Xiumin",
+            "exo chen": "Chen_(EXO)",
+            "red velvet irene": "Irene_(Red_Velvet)",
+            "red velvet yeri": "Yeri_(Red_Velvet)",
+            "blackpink jisoo": "Jisoo_(BLACKPINK)",
+            "girls generation tiffany": "Tiffany",
+            "girls generation taeyeon": "Taeyeon",
+            # Additional group+member combinations
+            "dreamcatcher siyeon": "Siyeon",
+            "newjeans hyein": "Hyein",
+            "twice nayeon": "Nayeon",
+            "aespa karina": "Karina",
+            "newjeans minji": "Minji_(NewJeans)"
         }
     
     async def fetch_kpop_info(self, query):
@@ -371,6 +567,59 @@ class DataFetcher:
                 else:
                     return site["url"].format(formatted_name)
                     
+            elif site.get("type") in ["kpopping_group", "kpopping_solo", "kpopping_idol", "kpopping_search"]:
+                # Format khusus untuk KPopping.com (Enhanced with pattern analysis)
+                query_lower = query.lower()
+                
+                if site.get("type") == "kpopping_search":
+                    # Search endpoint
+                    formatted_name = query.replace(' ', '+')
+                    return site["url"].format(formatted_name)
+                else:
+                    # Direct profile endpoints dengan smart formatting
+                    if query_lower in self.kpopping_mappings:
+                        formatted_name = self.kpopping_mappings[query_lower]
+                        return site["url"].format(formatted_name)
+                    else:
+                        # Enhanced fallback dengan pattern recognition
+                        formatted_name = self._smart_kpopping_format(query)
+                        return site["url"].format(formatted_name)
+                        
+            elif site.get("type") == "dbkpop_main":
+                # Format khusus untuk DBKpop.com
+                query_lower = query.lower()
+                
+                if query_lower in self.dbkpop_mappings:
+                    formatted_name = self.dbkpop_mappings[query_lower]
+                    return site["url"].format(formatted_name)
+                else:
+                    # Fallback to formatted query
+                    formatted_name = query.lower().replace(' ', '-')
+                    return site["url"].format(formatted_name)
+                    
+            elif site.get("type") == "fandom_wiki":
+                # Format khusus untuk Fandom.com (K-pop Wiki)
+                query_lower = query.lower()
+                
+                # Handle special subdomain cases
+                if query_lower in ["taeyeon", "girls generation taeyeon"]:
+                    # Uses girls-generation.fandom.com subdomain
+                    return "https://girls-generation.fandom.com/wiki/Taeyeon"
+                elif query_lower in ["chodan", "qwer chodan"]:
+                    # Uses qwer.fandom.com subdomain
+                    return "https://qwer.fandom.com/wiki/Chodan"
+                elif query_lower in ["magenta", "qwer magenta"]:
+                    # Uses qwer.fandom.com subdomain with disambiguation
+                    return "https://qwer.fandom.com/wiki/Magenta"
+                
+                if query_lower in self.fandom_mappings:
+                    formatted_name = self.fandom_mappings[query_lower]
+                    return site["url"].format(formatted_name)
+                else:
+                    # Enhanced fallback dengan pattern recognition
+                    formatted_name = self._smart_fandom_format(query)
+                    return site["url"].format(formatted_name)
+                    
             elif site.get("type") in ["namu_english", "namu_encoded", "namu_hangul"]:
                 # Format khusus untuk Namu Wiki
                 query_lower = query.lower()
@@ -396,7 +645,84 @@ class DataFetcher:
         except Exception as e:
             logger.error(f"URL formatting failed: {e}")
             return None
-    
+                
+    def _smart_kpopping_format(self, query):
+        """Smart formatting untuk KPopping.com berdasarkan pattern analysis"""
+        query_lower = query.lower()
+        
+        # Pattern 1: Individual members/Solo artists → Use just the member name
+        # KPopping.com uses /profiles/idol/{MemberName} for individual members
+        # Check this FIRST before major groups pattern
+        if ' ' in query:
+            parts = query.split(' ')
+            
+            # Check if this looks like a "Group Member" pattern
+            major_groups = ['bts', 'blackpink', 'twice', 'itzy', 'seventeen', 'enhypen', 'exo', 'red velvet', 'secret number', 'qwer']
+            
+            # Try to identify group + member pattern
+            member_part = parts[-1]  # Last word is likely the member name
+            group_part = ' '.join(parts[:-1]).lower()  # Everything except last word
+            
+            # Check if the group part matches any known groups
+            if group_part in major_groups or any(major in group_part for major in major_groups):
+                # For individual members, use just the member name in title case
+                return member_part.title()
+            else:
+                # For sub-units or unknown patterns, use hyphenated format
+                return query.title().replace(' ', '-')
+        
+        # Pattern 2: Major groups (single word) → UPPERCASE
+        major_groups = ['bts', 'blackpink', 'twice', 'itzy', 'seventeen', 'enhypen', 'exo']
+        if query_lower in major_groups:
+            return query.upper()
+        
+        # Pattern 3: Special characters handling
+        if any(char in query for char in ['(', ')', '*', '_']):
+            # Handle specific cases
+            if 'f(x)' in query_lower:
+                return 'f-x'  # KPopping uses f-x for f(x)
+            elif '*' in query:
+                return query.replace('*', '').replace(' ', '-').title()
+            elif '_' in query:
+                # Keep underscores for groups like fromis_9
+                return query.lower()
+            elif '(' in query and ')' in query:
+                # Remove parentheses and format
+                clean_query = query.replace('(', '').replace(')', '')
+                return clean_query.replace(' ', '-').title()
+        
+        # Pattern 4: Numbers in name → Keep original case but handle special cases
+        if any(char.isdigit() for char in query):
+            # Special handling for specific groups
+            return query.title().replace(' ', '-')
+        
+        # Default fallback → Title case with hyphens
+        return query.title().replace(' ', '-')
+
+    def _smart_fandom_format(self, query):
+        """Smart formatting untuk Fandom.com berdasarkan pattern analysis"""
+        query_lower = query.lower()
+        
+        # Pattern 1: Special characters handling
+        if '*' in query:
+            # Keep asterisks for groups like IZ*ONE
+            return query.upper()
+        elif "'" in query or "'" in query:
+            # URL encode apostrophes for groups like Girls' Generation
+            return query.title().replace("'", "%27").replace("'", "%27").replace(' ', '_')
+        
+        # Pattern 2: Major groups → UPPERCASE
+        major_groups = ['bts', 'blackpink', 'twice', 'itzy', 'seventeen', 'enhypen', 'exo']
+        if query_lower in major_groups:
+            return query.upper()
+        
+        # Pattern 3: Multi-word groups → Title_Case_With_Underscores
+        if ' ' in query:
+            return query.title().replace(' ', '_')
+        
+        # Default fallback → Title case
+        return query.title()
+
     def _extract_site_content(self, soup, site, url, query):
         """Extract content dari soup berdasarkan site type"""
         site_type = site.get("type", "default")
@@ -433,6 +759,76 @@ class DataFetcher:
                         not text.startswith("From Wikipedia") and
                         "disambiguation" not in text.lower()):
                         site_results.append(text)
+            
+            elif site_type in ["kpopping_group", "kpopping_solo", "kpopping_idol"]:
+                # KPopping.com direct profiles (Enhanced extraction)
+                # Extract from multiple sections
+                intro_section = soup.select(".profile-intro, .group-intro")[:2]
+                member_section = soup.select(".member-list, .profile-members")[:1]
+                info_section = soup.select(".profile-info, .group-info")[:3]
+                
+                # Process introduction
+                for section in intro_section:
+                    text = section.get_text().strip()
+                    if text and len(text) > 50:
+                        site_results.append(f"Introduction: {text}")
+                
+                # Process member info
+                for section in member_section:
+                    text = section.get_text().strip()
+                    if text and len(text) > 30:
+                        site_results.append(f"Members: {text}")
+                
+                # Process general info
+                for section in info_section:
+                    text = section.get_text().strip()
+                    if text and len(text) > 20 and "profile" not in text.lower():
+                        site_results.append(text)
+                
+                # Fallback to original selector if no specific sections found
+                if not site_results:
+                    content_elements = soup.select(site["selector"])[:8]
+                    for el in content_elements:
+                        text = el.get_text().strip()
+                        if text and len(text) > 20 and "profile" not in text.lower():
+                            site_results.append(text)
+                        
+            elif site_type == "kpopping_search":
+                # KPopping.com search results
+                search_elements = soup.select(site["selector"])[:3]
+                for el in search_elements:
+                    text = el.get_text().strip()
+                    if text and len(text) > 15:
+                        site_results.append(text)
+                        
+            elif site_type == "dbkpop_main":
+                # DBKpop.com main content
+                content_elements = soup.select(site["selector"])[:6]
+                for el in content_elements:
+                    text = el.get_text().strip()
+                    if text and len(text) > 25 and not text.startswith("Search"):
+                        site_results.append(text)
+                        
+            elif site_type == "fandom_wiki":
+                # Fandom.com (K-pop Wiki)
+                # Extract from both paragraphs and infobox
+                wiki_paragraphs = soup.select(".mw-parser-output p")[:4]
+                infobox_data = soup.select(".portable-infobox .pi-data-value")[:6]
+                
+                # Process paragraphs
+                for p in wiki_paragraphs:
+                    text = p.get_text().strip()
+                    if (text and len(text) > 40 and 
+                        not text.startswith("This article") and
+                        not text.startswith("For other uses") and
+                        "disambiguation" not in text.lower()):
+                        site_results.append(text)
+                        
+                # Process infobox data
+                for data in infobox_data:
+                    text = data.get_text().strip()
+                    if text and len(text) > 5 and len(text) < 200:
+                        site_results.append(f"Info: {text}")
             
             elif site_type == "profile":
                 # KProfiles search
@@ -899,6 +1295,526 @@ check official music platforms and databases like:
         
         return content
     
+    async def scrape_member_gallery(self, member_name, group_name=None):
+        """Scrape gallery images dari Fandom.com untuk member K-pop"""
+        try:
+            gallery_url = self._generate_gallery_url(member_name, group_name)
+            if not gallery_url:
+                return {"error": "Could not generate gallery URL", "images": []}
+            
+            logger.info(f"Scraping gallery for {member_name}: {gallery_url}")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(gallery_url, timeout=10) as response:
+                    if response.status != 200:
+                        return {"error": f"HTTP {response.status}", "images": []}
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    images = []
+                    
+                    # Pattern 1: Gallery thumbnails
+                    gallery_items = soup.select('.wikia-gallery-item img, .gallery img')
+                    for img in gallery_items:
+                        src = img.get('src') or img.get('data-src')
+                        if src:
+                            clean_src = re.sub(r'/revision/.*?/', '/', src)
+                            clean_src = re.sub(r'\?.*$', '', clean_src)
+                            images.append({
+                                'url': clean_src,
+                                'alt': img.get('alt', ''),
+                                'type': 'gallery_thumbnail'
+                            })
+                    
+                    # Pattern 2: Lightbox images
+                    lightbox_images = soup.select('.lightbox img, .image img')
+                    for img in lightbox_images:
+                        src = img.get('src') or img.get('data-src')
+                        if src and src not in [i['url'] for i in images]:
+                            clean_src = re.sub(r'/revision/.*?/', '/', src)
+                            clean_src = re.sub(r'\?.*$', '', clean_src)
+                            images.append({
+                                'url': clean_src,
+                                'alt': img.get('alt', ''),
+                                'type': 'lightbox_image'
+                            })
+                    
+                    # Pattern 3: Direct images
+                    direct_images = soup.select('img[src*="static.wikia"], img[src*="vignette.wikia"]')
+                    for img in direct_images:
+                        src = img.get('src')
+                        if src and src not in [i['url'] for i in images]:
+                            clean_src = re.sub(r'/revision/.*?/', '/', src)
+                            clean_src = re.sub(r'\?.*$', '', clean_src)
+                            images.append({
+                                'url': clean_src,
+                                'alt': img.get('alt', ''),
+                                'type': 'direct_image'
+                            })
+                    
+                    logger.info(f"Found {len(images)} images in gallery for {member_name}")
+                    
+                    return {
+                        "success": True,
+                        "total_images": len(images),
+                        "images": images[:50],  # Limit to first 50 images
+                        "gallery_url": gallery_url,
+                        "member": member_name,
+                        "group": group_name
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Gallery scraping failed for {member_name}: {e}")
+            return {"error": str(e), "images": []}
+    
+    async def scrape_member_trivia(self, member_name, group_name=None):
+        """Scrape trivia/facts dari halaman member di Fandom.com dengan fallback URLs"""
+        
+        # Generate multiple URL attempts untuk fallback
+        urls_to_try = []
+        
+        # Primary URL dari mapping
+        primary_url = self._generate_trivia_url(member_name, group_name)
+        urls_to_try.append(primary_url)
+        
+        # Universal fallback URLs untuk semua grup
+        if group_name:
+            subdomain = self._format_group_to_subdomain(group_name)
+            
+            # Add universal fallback patterns
+            urls_to_try.extend([
+                # Try /Facts endpoint on group subdomain
+                f"https://{subdomain}.fandom.com/wiki/{member_name.title()}/Facts",
+                # Try main kpop.fandom.com with /Facts
+                f"https://kpop.fandom.com/wiki/{member_name.title()}/Facts",
+                # Try main kpop.fandom.com with /Trivia
+                f"https://kpop.fandom.com/wiki/{member_name.title()}/Trivia"
+            ])
+        
+        # Try each URL until one works
+        for trivia_url in urls_to_try:
+            logger.info(f"Scraping trivia for {member_name}: {trivia_url}")
+            
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(trivia_url, timeout=10) as response:
+                        if response.status == 200:
+                            html = await response.text()
+                            soup = BeautifulSoup(html, 'html.parser')
+                            
+                            facts = []
+                            
+                            # Extract facts dari list items dengan filtering yang lebih ketat
+                            fact_items = soup.select('li')
+                            
+                            for item in fact_items:
+                                text = item.get_text(strip=True)
+                                
+                                # Enhanced filtering untuk menghindari noise
+                                if (text and len(text) > 15 and len(text) < 500 and
+                                    not text.startswith(('History', 'Purge', 'Edit', 'View', 'Talk', 'Read', 
+                                                       'Category', 'Template', 'File', 'Special', 'Help',
+                                                       'Main Page', 'Recent changes', 'Random page')) and
+                                    not 'fandom.com' in text.lower() and
+                                    not text.lower().startswith(('about', 'movies', 'filmography', 'shows')) and
+                                    ('her' in text.lower() or 'she' in text.lower() or 
+                                     'his' in text.lower() or 'he' in text.lower() or
+                                     'born' in text.lower() or 'age' in text.lower() or
+                                     'favorite' in text.lower() or 'favourite' in text.lower() or
+                                     'like' in text.lower() or 'love' in text.lower())):
+                                    
+                                    facts.append(text)
+                            
+                            # Jika tidak ada facts dari list, coba extract dari paragraf
+                            if not facts:
+                                paragraphs = soup.select('p')
+                                for p in paragraphs:
+                                    text = p.get_text(strip=True)
+                                    if (text and len(text) > 30 and len(text) < 300 and
+                                        ('her' in text.lower() or 'she' in text.lower() or
+                                         'his' in text.lower() or 'he' in text.lower())):
+                                        facts.append(text)
+                            
+                            if facts:  # If we found facts, return success
+                                logger.info(f"Found {len(facts)} facts for {member_name}")
+                                
+                                return {
+                                    "success": True,
+                                    "total_facts": len(facts),
+                                    "facts": facts[:20],  # Limit to 20 facts
+                                    "trivia_url": trivia_url,
+                                    "member": member_name,
+                                    "group": group_name
+                                }
+                        
+                        # If no facts found or HTTP error, try next URL
+                        continue
+                        
+            except Exception as e:
+                logger.error(f"Error scraping trivia from {trivia_url}: {str(e)}")
+                continue
+        
+        # If all URLs failed
+        return {"error": f"No trivia found after trying {len(urls_to_try)} URLs", "facts": []}
+    
+    async def scrape_group_discography(self, group_name):
+        """Scrape discography dari Fandom.com untuk grup K-pop dengan dual URL fallback"""
+        try:
+            # Try multiple URL patterns for discography
+            urls_to_try = []
+            
+            # Pattern 1: Dedicated discography page {group}.fandom.com/wiki/{group}/Discography
+            discography_url = self._generate_discography_url(group_name)
+            if discography_url:
+                urls_to_try.append(discography_url)
+            
+            # Pattern 2: Main group page with discography section {group}.fandom.com/wiki/{group}
+            subdomain = self._format_group_to_subdomain(group_name)
+            main_page_url = f"https://{subdomain}.fandom.com/wiki/{group_name.replace(' ', '_')}"
+            urls_to_try.append(main_page_url)
+            
+            # Pattern 3: Fallback to kpop.fandom.com main page
+            fallback_url = f"https://kpop.fandom.com/wiki/{group_name.replace(' ', '_')}"
+            urls_to_try.append(fallback_url)
+            
+            logger.info(f"Trying {len(urls_to_try)} URLs for {group_name} discography")
+            
+            for url in urls_to_try:
+                logger.info(f"Attempting discography scrape: {url}")
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=10) as response:
+                        if response.status != 200:
+                            logger.warning(f"HTTP {response.status} for {url}")
+                            continue
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    albums = []
+                    
+                    # Extract album information from structured content
+                    # Look for album titles and track lists with enhanced album type detection
+                    album_keywords = ['album', 'discography', 'single', 'ep', 'mini', 'studio', 'compilation', 'repackage', 'special']
+                    album_sections = soup.find_all(['h2', 'h3', 'div'], 
+                        class_=lambda x: x and any(keyword in x.lower() for keyword in album_keywords))
+                    
+                    # Alternative approach: look for common discography patterns
+                    content_text = soup.get_text()
+                    lines = content_text.split('\n')
+                    
+                    current_album = None
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                            
+                        # Detect album titles and types with enhanced pattern matching
+                        album_type_patterns = [
+                            'Title:', 'Album:', 'Single:', 'EP:', 'Mini Album:', 'Studio Album:', 
+                            'Compilation Album:', 'Repackage Album:', 'Special Album:', 'Digital Single:'
+                        ]
+                        
+                        detected_type = None
+                        for pattern in album_type_patterns:
+                            if line.startswith(pattern) and len(line) > len(pattern) + 3:
+                                detected_type = pattern.replace(':', '').strip()
+                                if current_album:
+                                    albums.append(current_album)
+                                current_album = {
+                                    'title': line.replace(pattern, '').strip(),
+                                    'type': detected_type,
+                                    'tracks': [],
+                                    'release_date': '',
+                                    'genre': '',
+                                    'length': ''
+                                }
+                                break
+                        
+                        if line.startswith('Release Date:') and current_album:
+                            current_album['release_date'] = line.replace('Release Date:', '').strip()
+                        elif line.startswith('Genre:') and current_album:
+                            current_album['genre'] = line.replace('Genre:', '').strip()
+                        elif line.startswith('Length:') and current_album:
+                            current_album['length'] = line.replace('Length:', '').strip()
+                        elif current_album and line and len(line) < 100:
+                            # Potential track name (numbered or simple title)
+                            if (line[0].isdigit() and '.' in line[:5]) or len(line.split()) <= 5:
+                                current_album['tracks'].append(line)
+                    
+                    # Add the last album
+                    if current_album:
+                        albums.append(current_album)
+                    
+                    # If we found albums, return success
+                    if albums:
+                        logger.info(f"Found {len(albums)} albums for {group_name} from {url}")
+                        return {
+                            "success": True,
+                            "total_albums": len(albums),
+                            "albums": albums,
+                            "discography_url": url,
+                            "group": group_name
+                        }
+                    else:
+                        logger.warning(f"No albums found in {url}, trying next URL...")
+                        continue
+            
+            # If all URLs failed to find albums
+            return {"error": f"No discography found after trying {len(urls_to_try)} URLs", "albums": []}
+                    
+        except Exception as e:
+            logger.error(f"Error scraping discography for {group_name}: {e}")
+            return {"error": str(e), "albums": []}
+    
+    def _generate_gallery_url(self, member_name, group_name=None):
+        """Generate gallery URL berdasarkan member dan grup"""
+        
+        # Gallery mappings untuk subdomain dan format URL
+        gallery_mappings = {
+            # QWER members (qwer.fandom.com)
+            "chodan": "https://qwer.fandom.com/wiki/Chodan/Gallery",
+            "magenta": "https://qwer.fandom.com/wiki/Magenta/Gallery",
+            
+            # Red Velvet members (redvelvet.fandom.com)
+            "irene": "https://redvelvet.fandom.com/wiki/Irene/Gallery",
+            "yeri": "https://redvelvet.fandom.com/wiki/Yeri/Gallery",
+            "seulgi": "https://redvelvet.fandom.com/wiki/Seulgi/Gallery",
+            "wendy": "https://redvelvet.fandom.com/wiki/Wendy/Gallery",
+            "joy": "https://redvelvet.fandom.com/wiki/Joy/Gallery",
+            
+            # Secret Number members (secretnumber.fandom.com)
+            "soodam": "https://secretnumber.fandom.com/wiki/Soodam/Gallery",
+            "lea": "https://secretnumber.fandom.com/wiki/Lea/Gallery",
+            "jinny": "https://secretnumber.fandom.com/wiki/Jinny/Gallery",
+            "denise": "https://secretnumber.fandom.com/wiki/Denise/Gallery",
+            "dita": "https://secretnumber.fandom.com/wiki/Dita/Gallery",
+            "zuu": "https://secretnumber.fandom.com/wiki/Zuu/Gallery",
+            
+            # IZ*ONE members (iz-one.fandom.com)
+            "sakura": "https://iz-one.fandom.com/wiki/Sakura/Gallery",
+            "chaeyeon": "https://iz-one.fandom.com/wiki/Chaeyeon/Gallery",
+            "chaewon": "https://iz-one.fandom.com/wiki/Chaewon/Gallery",
+            "minju": "https://iz-one.fandom.com/wiki/Minju/Gallery",
+            "yujin": "https://iz-one.fandom.com/wiki/Yujin/Gallery",
+            "wonyoung": "https://iz-one.fandom.com/wiki/Wonyoung/Gallery",
+            
+            # Dreamcatcher members (dreamcatcher.fandom.com)
+            "siyeon": "https://dreamcatcher.fandom.com/wiki/Siyeon/Gallery",
+            "jiu": "https://dreamcatcher.fandom.com/wiki/JiU/Gallery",
+            "sua": "https://dreamcatcher.fandom.com/wiki/SuA/Gallery",
+            "yoohyeon": "https://dreamcatcher.fandom.com/wiki/Yoohyeon/Gallery",
+            "dami": "https://dreamcatcher.fandom.com/wiki/Dami/Gallery",
+            "handong": "https://dreamcatcher.fandom.com/wiki/Handong/Gallery",
+            "gahyeon": "https://dreamcatcher.fandom.com/wiki/Gahyeon/Gallery",
+            
+            # NewJeans members (newjeans.fandom.com)
+            "minji": "https://newjeans.fandom.com/wiki/Minji/Gallery",
+            "hanni": "https://newjeans.fandom.com/wiki/Hanni/Gallery",
+            "danielle": "https://newjeans.fandom.com/wiki/Danielle/Gallery",
+            "haerin": "https://newjeans.fandom.com/wiki/Haerin/Gallery",
+            "hyein": "https://newjeans.fandom.com/wiki/Hyein/Gallery",
+            
+            # TWICE members (twice.fandom.com)
+            "nayeon": "https://twice.fandom.com/wiki/Nayeon/Gallery",
+            "jeongyeon": "https://twice.fandom.com/wiki/Jeongyeon/Gallery",
+            "momo": "https://twice.fandom.com/wiki/Momo/Gallery",
+            "sana": "https://twice.fandom.com/wiki/Sana/Gallery",
+            "jihyo": "https://twice.fandom.com/wiki/Jihyo/Gallery",
+            "mina": "https://twice.fandom.com/wiki/Mina/Gallery",
+            "dahyun": "https://twice.fandom.com/wiki/Dahyun/Gallery",
+            "chaeyoung": "https://twice.fandom.com/wiki/Chaeyoung/Gallery",
+            "tzuyu": "https://twice.fandom.com/wiki/Tzuyu/Gallery",
+            
+            # aespa members (aespa.fandom.com)
+            "karina": "https://aespa.fandom.com/wiki/Karina/Gallery",
+            "giselle": "https://aespa.fandom.com/wiki/Giselle/Gallery",
+            "winter": "https://aespa.fandom.com/wiki/Winter/Gallery",
+            "ningning": "https://aespa.fandom.com/wiki/NingNing/Gallery",
+            
+            # Main kpop.fandom.com dengan disambiguation
+            "jisoo": "https://kpop.fandom.com/wiki/Jisoo_(BLACKPINK)/Gallery",
+            "jennie": "https://kpop.fandom.com/wiki/Jennie/Gallery",
+            "rose": "https://kpop.fandom.com/wiki/Ros%C3%A9/Gallery",
+            "lisa": "https://kpop.fandom.com/wiki/Lisa/Gallery",
+            "xiumin": "https://kpop.fandom.com/wiki/Xiumin/Gallery",
+            "chen": "https://kpop.fandom.com/wiki/Chen_(EXO)/Gallery",
+            "tiffany": "https://kpop.fandom.com/wiki/Tiffany/Gallery",
+            "taeyeon": "https://girls-generation.fandom.com/wiki/Taeyeon/Gallery",
+        }
+        
+        member_lower = member_name.lower()
+        
+        # Check direct mapping first
+        if member_lower in gallery_mappings:
+            return gallery_mappings[member_lower]
+        
+        # Universal pattern: try {group}.fandom.com/wiki/{member}/Gallery first
+        if group_name:
+            # Convert group name to subdomain format
+            subdomain = self._format_group_to_subdomain(group_name)
+            
+            # Try group-specific subdomain with /Gallery endpoint first
+            return f"https://{subdomain}.fandom.com/wiki/{member_name.title()}/Gallery"
+        
+        # Default fallback to main kpop.fandom.com
+        return f"https://kpop.fandom.com/wiki/{member_name.title()}/Gallery"
+    
+    def _generate_trivia_url(self, member_name, group_name=None):
+        """Generate trivia/facts URL berdasarkan member dan grup dengan support /Facts dan /Trivia"""
+        
+        # Trivia mappings untuk subdomain dan format URL
+        trivia_mappings = {
+            # QWER members (qwer.fandom.com)
+            "chodan": "https://qwer.fandom.com/wiki/Chodan/Trivia",
+            "magenta": "https://qwer.fandom.com/wiki/Magenta/Trivia",
+            
+            # Secret Number members (secretnumber.fandom.com) - uses /Facts
+            "soodam": "https://secretnumber.fandom.com/wiki/Soodam/Facts",
+            "lea": "https://secretnumber.fandom.com/wiki/Lea/Facts",
+            "jinny": "https://secretnumber.fandom.com/wiki/Jinny/Facts",
+            "denise": "https://secretnumber.fandom.com/wiki/Denise/Facts",
+            "dita": "https://secretnumber.fandom.com/wiki/Dita/Facts",
+            "zuu": "https://secretnumber.fandom.com/wiki/Zuu/Facts",
+            
+            # IZ*ONE members (iz-one.fandom.com)
+            "sakura": "https://iz-one.fandom.com/wiki/Sakura/Trivia",
+            "chaeyeon": "https://iz-one.fandom.com/wiki/Chaeyeon/Trivia",
+            "chaewon": "https://iz-one.fandom.com/wiki/Chaewon/Trivia",
+            "minju": "https://iz-one.fandom.com/wiki/Minju/Trivia",
+            "yujin": "https://iz-one.fandom.com/wiki/Yujin/Trivia",
+            "wonyoung": "https://iz-one.fandom.com/wiki/Wonyoung/Trivia",
+            
+            # BLACKPINK members - use blackpink.fandom.com subdomain
+            "jisoo": "https://blackpink.fandom.com/wiki/Jisoo/Trivia",
+            "jennie": "https://blackpink.fandom.com/wiki/Jennie/Trivia",
+            "rose": "https://blackpink.fandom.com/wiki/Ros%C3%A9/Trivia",
+            "lisa": "https://blackpink.fandom.com/wiki/Lisa/Trivia",
+            
+            # Dreamcatcher members - try main kpop.fandom.com
+            "siyeon": "https://kpop.fandom.com/wiki/Siyeon/Trivia",
+            "jiu": "https://kpop.fandom.com/wiki/JiU/Trivia",
+            "sua": "https://kpop.fandom.com/wiki/SuA/Trivia",
+            "yoohyeon": "https://kpop.fandom.com/wiki/Yoohyeon/Trivia",
+            "dami": "https://kpop.fandom.com/wiki/Dami/Trivia",
+            "handong": "https://kpop.fandom.com/wiki/Handong/Trivia",
+            "gahyeon": "https://kpop.fandom.com/wiki/Gahyeon/Trivia",
+            
+            # NewJeans members - use newjeans.fandom.com subdomain
+            "minji": "https://newjeans.fandom.com/wiki/Minji/Trivia",
+            "hanni": "https://newjeans.fandom.com/wiki/Hanni/Trivia",
+            "danielle": "https://newjeans.fandom.com/wiki/Danielle/Trivia",
+            "haerin": "https://newjeans.fandom.com/wiki/Haerin/Trivia",
+            "hyein": "https://newjeans.fandom.com/wiki/Hyein/Trivia",
+            
+            # TWICE members - use twice.fandom.com with /Facts endpoint
+            "nayeon": "https://twice.fandom.com/wiki/Nayeon/Facts",
+            "jeongyeon": "https://twice.fandom.com/wiki/Jeongyeon/Facts",
+            "momo": "https://twice.fandom.com/wiki/Momo/Facts",
+            "sana": "https://twice.fandom.com/wiki/Sana/Facts",
+            "jihyo": "https://twice.fandom.com/wiki/Jihyo/Facts",
+            "mina": "https://twice.fandom.com/wiki/Mina/Facts",
+            "dahyun": "https://twice.fandom.com/wiki/Dahyun/Facts",
+            "chaeyoung": "https://twice.fandom.com/wiki/Chaeyoung/Facts",
+            "tzuyu": "https://twice.fandom.com/wiki/Tzuyu/Facts",
+            
+            # aespa members - try main kpop.fandom.com
+            "karina": "https://kpop.fandom.com/wiki/Karina/Trivia",
+            "giselle": "https://kpop.fandom.com/wiki/Giselle/Trivia",
+            "winter": "https://kpop.fandom.com/wiki/Winter_(aespa)/Trivia",
+            "ningning": "https://kpop.fandom.com/wiki/NingNing/Trivia",
+        }
+        
+        member_lower = member_name.lower()
+        
+        # Check direct mapping first
+        if member_lower in trivia_mappings:
+            return trivia_mappings[member_lower]
+        
+        # Generate based on group subdomain pattern
+        if group_name:
+            group_lower = group_name.lower()
+            
+            # Universal pattern: try {group}.fandom.com/wiki/{member}/Trivia first
+            # Convert group name to subdomain format
+            subdomain = self._format_group_to_subdomain(group_name)
+            
+            # Try group-specific subdomain with /Trivia endpoint first
+            return f"https://{subdomain}.fandom.com/wiki/{member_name.title()}/Trivia"
+        
+        # Default fallback to main kpop.fandom.com
+        return f"https://kpop.fandom.com/wiki/{member_name.title()}/Trivia"
+    
+    def _format_group_to_subdomain(self, group_name):
+        """Convert group name to fandom subdomain format"""
+        group_lower = group_name.lower()
+        
+        # Special subdomain mappings
+        subdomain_mappings = {
+            "secret number": "secretnumber",
+            "iz*one": "iz-one",
+            "izone": "iz-one",
+            "girls generation": "girls-generation",
+            "girls' generation": "girls-generation",
+            "snsd": "girls-generation",
+            "red velvet": "redvelvet",
+            "oh my girl": "oh-my-girl",
+            "weki meki": "weki-meki",
+            "rocket punch": "rocket-punch",
+            "cherry bullet": "cherry-bullet",
+            "purple kiss": "purple-kiss",
+            "itzy": "itzy",
+            "stray kids": "stray-kids",
+            "txt": "tomorrow-x-together",
+            "tomorrow x together": "tomorrow-x-together",
+            "enhypen": "enhypen",
+            "le sserafim": "le-sserafim",
+            "ive": "ive",
+            "nmixx": "nmixx",
+            "kep1er": "kep1er",
+            "class:y": "classy",
+            "classy": "classy"
+        }
+        
+        # Check direct mapping first
+        if group_lower in subdomain_mappings:
+            return subdomain_mappings[group_lower]
+        
+        # Default: convert spaces to nothing and make lowercase
+        return group_lower.replace(" ", "").replace("'", "").replace(":", "").replace("*", "")
+    
+    def _generate_discography_url(self, group_name):
+        """Generate discography URL berdasarkan grup"""
+        
+        # Discography mappings untuk subdomain dan format URL
+        discography_mappings = {
+            # Groups with specific subdomain
+            "qwer": "https://qwer.fandom.com/wiki/QWER/Discography",
+            "blackpink": "https://blackpink.fandom.com/wiki/Discography",
+            "red velvet": "https://redvelvet.fandom.com/wiki/Red_Velvet/Discography",
+            "secret number": "https://kpop.fandom.com/wiki/Secret_Number/Discography",
+            "iz*one": "https://iz-one.fandom.com/wiki/IZ*ONE/Discography",
+            "izone": "https://iz-one.fandom.com/wiki/IZ*ONE/Discography",
+            "dreamcatcher": "https://dreamcatcher.fandom.com/wiki/Dreamcatcher/Discography",
+            "newjeans": "https://kpop.fandom.com/wiki/NewJeans/Discography",
+            "twice": "https://kpop.fandom.com/wiki/Twice/Discography",
+            "aespa": "https://kpop.fandom.com/wiki/Aespa/Discography",
+            "girls generation": "https://girls-generation.fandom.com/wiki/Girls%27_Generation/Discography",
+            "girls' generation": "https://girls-generation.fandom.com/wiki/Girls%27_Generation/Discography",
+            "snsd": "https://girls-generation.fandom.com/wiki/Girls%27_Generation/Discography",
+        }
+        
+        group_lower = group_name.lower()
+        
+        # Check direct mapping first
+        if group_lower in discography_mappings:
+            return discography_mappings[group_lower]
+        
+        # Universal pattern: try {group}.fandom.com/wiki/{group}/Discography
+        subdomain = self._format_group_to_subdomain(group_name)
+        return f"https://{subdomain}.fandom.com/wiki/{group_name.replace(' ', '_')}/Discography"
+
     async def scrape_kpop_image(self, query):
         """Scrape foto K-pop dari berbagai sumber dengan multiple fallback strategies"""
         # Enhanced image sources dengan lebih banyak fallback
