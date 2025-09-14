@@ -57,7 +57,7 @@ class CommandsHandler:
         # Initialize gacha system (optional)
         try:
             from features.gacha_system.gacha_commands import GachaCommandsHandler
-            self.gacha_handler = GachaCommandsHandler(self.bot)
+            self.gacha_handler = GachaCommandsHandler()
             logger.info("✅ Gacha system initialized successfully")
         except Exception as e:
             logger.warning(f"⚠️ Gacha system initialization failed: {e}")
