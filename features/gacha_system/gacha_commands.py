@@ -1232,4 +1232,3 @@ class GachaCommandsHandler:
             return "✨ GOOD LUCK!"
         else:
             return "🍀 NORMAL LUCK"
-
