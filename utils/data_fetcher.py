@@ -439,8 +439,24 @@ class DataFetcher:
             except Exception as e:
                 logger.error(f"Database fallback failed: {e}")
             
+            # Enhanced trivia/facts extraction untuk semua member
+            try:
+                if len(all_results) > 0:  # Only if we have some results
+                    trivia_results = await self.scrape_member_trivia(query, self._extract_group_name_from_query(query))
+                    if trivia_results.get('success') and trivia_results.get('facts'):
+                        # Ambil 1-4 facts terbaik
+                        selected_facts = trivia_results['facts'][:4]
+                        facts_text = "\n\n🎭 **Fun Facts & Trivia:**\n" + "\n".join([f"• {fact}" for fact in selected_facts])
+                        all_results.append(facts_text)
+                        logger.info(f"Added {len(selected_facts)} trivia facts for {query}")
+            except Exception as e:
+                logger.error(f"Trivia extraction failed: {e}")
+            
             # Clean and combine results
             final_text = self._clean_text(all_results)
+            
+            # Enhanced birth date extraction dari hasil scraping
+            final_text = self._enhance_birth_date_extraction(final_text, query)
             
             # Enhance with discography information if needed
             final_text = self._enhance_discography_content(final_text, query)
@@ -1365,6 +1381,93 @@ class DataFetcher:
         
         return clean_text
     
+    def _extract_group_name_from_query(self, query):
+        """Extract group name dari query untuk trivia scraping"""
+        # Mapping untuk member ke grup
+        member_to_group = {
+            'soodam': 'Secret Number',
+            'lea': 'Secret Number', 
+            'dita': 'Secret Number',
+            'jinny': 'Secret Number',
+            'denise': 'Secret Number',
+            'zuu': 'Secret Number',
+            'minji': 'NewJeans',
+            'hanni': 'NewJeans',
+            'danielle': 'NewJeans',
+            'haerin': 'NewJeans',
+            'hyein': 'NewJeans',
+            'jisoo': 'BLACKPINK',
+            'jennie': 'BLACKPINK',
+            'rosé': 'BLACKPINK',
+            'lisa': 'BLACKPINK',
+            'nayeon': 'TWICE',
+            'jeongyeon': 'TWICE',
+            'momo': 'TWICE',
+            'sana': 'TWICE',
+            'jihyo': 'TWICE',
+            'mina': 'TWICE',
+            'dahyun': 'TWICE',
+            'chaeyoung': 'TWICE',
+            'tzuyu': 'TWICE',
+            'karina': 'aespa',
+            'giselle': 'aespa',
+            'winter': 'aespa',
+            'ningning': 'aespa',
+            'hina': 'QWER',
+            'chodan': 'QWER',
+            'magenta': 'QWER',
+            'siyeon': 'QWER'
+        }
+        
+        query_lower = query.lower()
+        return member_to_group.get(query_lower)
+    
+    def _enhance_birth_date_extraction(self, text, query):
+        """Enhanced birth date extraction dari text hasil scraping"""
+        try:
+            # Pattern untuk birth date detection yang lebih komprehensif
+            birth_patterns = [
+                r'(?:birthday|birth date|born|date of birth)\s*:?\s*([^\n\r]+?)(?:\n|\r|$)',
+                r'([A-Za-z]+ \d{1,2},? \d{4})',  # Format: January 1, 2000
+                r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})',  # Format: 01/01/2000
+                r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})',  # Format: 2000/01/01
+                r'(?:lahir|birth)\s*:?\s*([^\n\r]+?)(?:\n|\r|$)'  # Indonesian format
+            ]
+            
+            birth_date_found = None
+            
+            for pattern in birth_patterns:
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                for match in matches:
+                    # Clean up the match
+                    cleaned_match = re.sub(r'[()\[\]{}]', '', match).strip()
+                    if len(cleaned_match) > 4 and any(char.isdigit() for char in cleaned_match):
+                        birth_date_found = cleaned_match
+                        break
+                if birth_date_found:
+                    break
+            
+            # Jika birth date ditemukan, replace placeholder text
+            if birth_date_found:
+                # Remove common placeholder text
+                text = re.sub(
+                    r'Tanggal Lahir: \(Informasi tidak tersedia di sumber yang diberikan, jadi saya tidak bisa memberikan tanggal lahir yang akurat\)',
+                    f'Tanggal Lahir: {birth_date_found}',
+                    text
+                )
+                
+                # Also add if not present
+                if 'Tanggal Lahir:' not in text and 'Birth Date:' not in text:
+                    text = f"**{query}**\n\nTanggal Lahir: {birth_date_found}\n\n" + text
+                
+                logger.info(f"Enhanced birth date found for {query}: {birth_date_found}")
+            
+            return text
+            
+        except Exception as e:
+            logger.error(f"Birth date enhancement failed: {e}")
+            return text
+    
     def _get_database_info(self, query):
         """Ambil informasi dari database sebagai fallback"""
         if self.kpop_df is None:
@@ -1554,18 +1657,24 @@ check official music platforms and databases like:
                             for item in fact_items:
                                 text = item.get_text(strip=True)
                                 
-                                # Enhanced filtering untuk menghindari noise
-                                if (text and len(text) > 15 and len(text) < 500 and
+                                # Enhanced filtering untuk menghindari noise dan ambil facts berkualitas
+                                if (text and len(text) > 20 and len(text) < 300 and
                                     not text.startswith(('History', 'Purge', 'Edit', 'View', 'Talk', 'Read', 
                                                        'Category', 'Template', 'File', 'Special', 'Help',
-                                                       'Main Page', 'Recent changes', 'Random page')) and
-                                    not 'fandom.com' in text.lower() and
-                                    not text.lower().startswith(('about', 'movies', 'filmography', 'shows')) and
-                                    ('her' in text.lower() or 'she' in text.lower() or 
-                                     'his' in text.lower() or 'he' in text.lower() or
-                                     'born' in text.lower() or 'age' in text.lower() or
-                                     'favorite' in text.lower() or 'favourite' in text.lower() or
-                                     'like' in text.lower() or 'love' in text.lower())):
+                                                       'Main Page', 'Recent changes', 'Random page', 'Navigation',
+                                                       'Community', 'Explore', 'Fandom', 'Games', 'Movies')) and
+                                    not any(skip in text.lower() for skip in ['fandom.com', 'wiki', 'edit', 'source', 
+                                                                              'citation', 'reference', 'external link']) and
+                                    not text.lower().startswith(('about', 'movies', 'filmography', 'shows', 'the following')) and
+                                    # Prioritas facts dengan personal pronouns dan informasi personal
+                                    (any(keyword in text.lower() for keyword in ['her', 'she', 'his', 'he', 'born', 'age', 
+                                                                                 'favorite', 'favourite', 'like', 'love', 
+                                                                                 'hobby', 'blood type', 'height', 'weight',
+                                                                                 'nickname', 'education', 'family', 'sibling',
+                                                                                 'pet', 'color', 'food', 'song', 'movie',
+                                                                                 'actor', 'actress', 'model', 'idol']) or
+                                     # Facts dengan angka (birth date, measurements, dll)
+                                     any(char.isdigit() for char in text))):
                                     
                                     facts.append(text)
                             
@@ -1579,13 +1688,22 @@ check official music platforms and databases like:
                                          'his' in text.lower() or 'he' in text.lower())):
                                         facts.append(text)
                             
-                            if facts:  # If we found facts, return success
-                                logger.info(f"Found {len(facts)} facts for {member_name}")
+                            if facts:  # If we found facts, return success dengan quality filtering
+                                # Sort facts by quality (longer and more informative first)
+                                quality_facts = sorted(facts, key=lambda x: (
+                                    len(x),  # Length priority
+                                    sum(1 for keyword in ['favorite', 'hobby', 'born', 'blood', 'height'] if keyword in x.lower()),  # Keyword relevance
+                                    -x.count('.')  # Prefer complete sentences
+                                ), reverse=True)
+                                
+                                # Limit to best 1-4 facts
+                                selected_facts = quality_facts[:4]
+                                logger.info(f"Found {len(facts)} total facts, selected {len(selected_facts)} best for {member_name}")
                                 
                                 return {
                                     "success": True,
                                     "total_facts": len(facts),
-                                    "facts": facts[:20],  # Limit to 20 facts
+                                    "facts": selected_facts,
                                     "trivia_url": trivia_url,
                                     "member": member_name,
                                     "group": group_name
@@ -1719,6 +1837,8 @@ check official music platforms and databases like:
             # QWER members (qwer.fandom.com)
             "chodan": "https://qwer.fandom.com/wiki/Chodan/Gallery",
             "magenta": "https://qwer.fandom.com/wiki/Magenta/Gallery",
+            "hina": "https://qwer.fandom.com/wiki/Hina/Gallery",
+            "siyeon qwer": "https://qwer.fandom.com/wiki/Siyeon/Gallery",
             
             # Red Velvet members (redvelvet.fandom.com)
             "irene": "https://redvelvet.fandom.com/wiki/Irene/Gallery",
@@ -1923,6 +2043,10 @@ check official music platforms and databases like:
         # Check direct mapping first
         if group_lower in subdomain_mappings:
             return subdomain_mappings[group_lower]
+        
+        # QWER special case
+        if group_lower == "qwer":
+            return "qwer"
         
         # Default: convert spaces to nothing and make lowercase
         return group_lower.replace(" ", "").replace("'", "").replace(":", "").replace("*", "")
