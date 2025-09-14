@@ -5,15 +5,18 @@ Menggunakan Google Drive API untuk upload foto dan generate file ID mapping
 
 import os
 import json
+import mimetypes
+import logging
+from pathlib import Path
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from googleapiclient.errors import HttpError
-import mimetypes
-from pathlib import Path
+from google.oauth2 import service_account
+
+logger = logging.getLogger(__name__)
 
 # Scopes yang dibutuhkan untuk Google Drive API
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
