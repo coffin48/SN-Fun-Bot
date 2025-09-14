@@ -67,9 +67,13 @@ class CommandsHandler:
         try:
             from utils.gallery_expansion import GalleryExpansionService
             self.expansion_service = GalleryExpansionService()
-            logger.info("✅ Gallery expansion service initialized")
+            if self.expansion_service.is_enabled():
+                logger.info("✅ Gallery expansion service initialized and enabled")
+            else:
+                logger.warning("⚠️ Gallery expansion service initialized but disabled (check GALLERY_EXPANSION_ENABLED and Google Drive setup)")
+                # Keep service object for debugging, but mark as disabled
         except Exception as e:
-            logger.warning(f"⚠️ Gallery expansion service initialization failed: {e}")
+            logger.error(f"❌ Gallery expansion service initialization failed: {e}")
             self.expansion_service = None
         
         # Initialize bias detector and commands handler with error handling
@@ -1180,6 +1184,11 @@ class CommandsHandler:
                 await ctx.send("❌ Gallery expansion service not available.")
                 return
             
+            # Check if service is enabled
+            if not self.expansion_service.is_enabled():
+                await ctx.send("❌ Gallery expansion service is disabled. Check GALLERY_EXPANSION_ENABLED and Google Drive setup.")
+                return
+            
             # Parse command: "expand", "expand member karina aespa", "expand test karina aespa", "expand stats"
             parts = user_input.split()
             
@@ -1268,4 +1277,3 @@ class CommandsHandler:
         except Exception as e:
             logger.error(f"Maintenance command error: {e}")
             await ctx.send(f"❌ Error handling maintenance command: {e}")
-
