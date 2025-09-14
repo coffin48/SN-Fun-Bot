@@ -50,15 +50,57 @@ class GalleryExpansionService:
         if self.enabled:
             try:
                 self.gdrive_uploader = GoogleDriveUploader()
-                logger.info("✅ Gallery expansion service initialized")
+                logger.info("✅ Gallery expansion service initialized with Google Drive")
             except Exception as e:
-                logger.warning(f"⚠️ Google Drive uploader failed to initialize: {e}")
+                logger.error(f"❌ Google Drive uploader failed to initialize: {e}")
+                logger.error("💡 Make sure credentials.json and token.json are available")
                 self.enabled = False
+                # Set to None for debugging
+                self.gdrive_uploader = None
+        else:
+            logger.info("⚠️ Gallery expansion service disabled (GALLERY_EXPANSION_ENABLED=false)")
     
     def is_enabled(self) -> bool:
         """Check if expansion service is enabled"""
         return self.enabled and self.gdrive_uploader is not None
     
+    async def expand_member_photos(self, member_name: str, group_name: str, test_mode: bool = False, max_photos: int = 5) -> Dict:
+        """
+        Expand member photos - main entry point for gallery expansion
+        
+        Args:
+            member_name: Nama member
+            group_name: Nama group  
+            test_mode: Jika True, gunakan test mode untuk expansion ini
+            max_photos: Maximum photos to add
+            
+        Returns:
+            Dict dengan hasil expansion
+        """
+        # Override test mode jika diperlukan
+        original_test_mode = self.test_mode
+        if test_mode:
+            self.test_mode = True
+            self.json_path = 'data/member_data/test_Path_Foto_DriveIDs.json'
+            self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', 'test_folder')
+            self.backup_prefix = 'test_backup'
+        
+        try:
+            result = await self.expand_member_safely(member_name, group_name, max_photos)
+            return result
+        finally:
+            # Restore original test mode
+            if test_mode:
+                self.test_mode = original_test_mode
+                if original_test_mode:
+                    self.json_path = 'data/member_data/test_Path_Foto_DriveIDs.json'
+                    self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', 'test_folder')
+                    self.backup_prefix = 'test_backup'
+                else:
+                    self.json_path = 'data/member_data/Path_Foto_DriveIDs_Real.json'
+                    self.gdrive_folder = "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI"
+                    self.backup_prefix = 'backup'
+
     async def expand_member_safely(self, member_name: str, group_name: str, max_photos: int = 5) -> Dict:
         """
         Safe member expansion - tidak affect existing system
