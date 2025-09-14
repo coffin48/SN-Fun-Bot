@@ -143,9 +143,11 @@ class GalleryExpansionService:
             )
             
             if not uploaded_files:
+                logger.error(f"❌ No photos uploaded successfully for {member_name}")
+                logger.error(f"📊 Processed {len(quality_photos)} quality photos, 0 uploaded")
                 return {
                     "success": False,
-                    "error": "Failed to upload any photos"
+                    "error": f"Failed to upload any photos. Processed {len(quality_photos)} photos but all uploads failed. Check Google Drive credentials and folder permissions."
                 }
             
             # Step 4: Update JSON database safely
@@ -291,18 +293,23 @@ class GalleryExpansionService:
                         f.write(response.content)
                     
                     # Upload to Google Drive
-                    file_id = self.gdrive_uploader.upload_file(
-                        str(temp_path), self.gdrive_folder
-                    )
-                    
-                    if file_id:
-                        uploaded_files.append({
-                            'file_id': file_id,
-                            'filename': filename,
-                            'section': photo['section'],
-                            'original_url': photo['url']
-                        })
-                        logger.info(f"✅ Uploaded: {filename} -> {file_id}")
+                    try:
+                        file_id = self.gdrive_uploader.upload_file(
+                            str(temp_path), self.gdrive_folder
+                        )
+                        
+                        if file_id:
+                            uploaded_files.append({
+                                'file_id': file_id,
+                                'filename': filename,
+                                'section': photo['section'],
+                                'original_url': photo['url']
+                            })
+                            logger.info(f"✅ Uploaded: {filename} -> {file_id}")
+                        else:
+                            logger.error(f"❌ Upload failed: No file ID returned for {filename}")
+                    except Exception as upload_error:
+                        logger.error(f"❌ Upload error for {filename}: {upload_error}")
                     
                     # Cleanup temp file
                     temp_path.unlink(missing_ok=True)
