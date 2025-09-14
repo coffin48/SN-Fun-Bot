@@ -33,8 +33,17 @@ class GachaCommandsHandler:
     
     def _is_admin(self, user_id):
         """Check if user is admin/mod with unlimited access"""
-        admin_ids = [371695179909824541]  # Admin Discord IDs
-        return user_id in admin_ids
+        # Get admin IDs from environment variable
+        admin_ids_str = os.getenv('ADMIN_DISCORD_IDS', '')
+        if not admin_ids_str:
+            return False
+        
+        try:
+            admin_ids = [int(id_str.strip()) for id_str in admin_ids_str.split(',') if id_str.strip()]
+            return user_id in admin_ids
+        except ValueError:
+            logger.error("Invalid ADMIN_DISCORD_IDS format in environment variables")
+            return False
     
     def _check_usage_limit(self, user_id, command_type):
         """Check if user has exceeded usage limits"""
