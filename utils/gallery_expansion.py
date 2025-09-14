@@ -268,6 +268,9 @@ class GalleryExpansionService:
                         logger.warning(f"⚠️ Skipping invalid URL: {photo['url'][:100]}...")
                         continue
                     
+                    # Log valid URL being processed
+                    logger.info(f"📥 Processing photo {i+1}: {photo['url'][:80]}...")
+                    
                     # Download photo with better error handling
                     headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -350,7 +353,8 @@ class GalleryExpansionService:
             '/thumb/',
             '/150px-',
             '/200px-',
-            'data:image'
+            'data:image',
+            '....'  # Skip truncated URLs ending with ....
         ]
         
         for pattern in skip_patterns:
