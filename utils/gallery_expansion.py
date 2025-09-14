@@ -1,0 +1,382 @@
+"""
+Gallery Expansion Service - Safe Implementation
+Module terpisah untuk expand database foto gacha dari gallery scraping
+TIDAK mengubah existing functionality, hanya menambah fitur baru
+"""
+
+import os
+import json
+import asyncio
+import requests
+import shutil
+from datetime import datetime
+from pathlib import Path
+import re
+from typing import Dict, List, Optional, Tuple
+
+# Import existing modules - tidak modify
+from utils.data_fetcher import DataFetcher
+from utils.google_drive_setup import GoogleDriveUploader
+from core.logger import logger
+
+class GalleryExpansionService:
+    """Safe gallery expansion service yang tidak mengganggu existing system"""
+    
+    def __init__(self, test_mode=False):
+        """
+        Initialize expansion service
+        
+        Args:
+            test_mode: Jika True, gunakan test database dan folder
+        """
+        self.test_mode = test_mode
+        self.enabled = os.getenv('GALLERY_EXPANSION_ENABLED', 'false').lower() == 'true'
+        
+        # Initialize existing components - tidak modify
+        self.data_fetcher = DataFetcher()
+        
+        # Setup paths berdasarkan mode
+        if test_mode:
+            self.json_path = 'data/member_data/test_Path_Foto_DriveIDs.json'
+            self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', 'test_folder')
+            self.backup_prefix = 'test_backup'
+        else:
+            self.json_path = 'data/member_data/Path_Foto_DriveIDs_Real.json'
+            self.gdrive_folder = "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI"
+            self.backup_prefix = 'backup'
+        
+        # Initialize Google Drive uploader only if enabled
+        self.gdrive_uploader = None
+        if self.enabled:
+            try:
+                self.gdrive_uploader = GoogleDriveUploader()
+                logger.info("✅ Gallery expansion service initialized")
+            except Exception as e:
+                logger.warning(f"⚠️ Google Drive uploader failed to initialize: {e}")
+                self.enabled = False
+    
+    def is_enabled(self) -> bool:
+        """Check if expansion service is enabled"""
+        return self.enabled and self.gdrive_uploader is not None
+    
+    async def expand_member_safely(self, member_name: str, group_name: str, max_photos: int = 5) -> Dict:
+        """
+        Safe member expansion - tidak affect existing system
+        
+        Args:
+            member_name: Nama member
+            group_name: Nama group
+            max_photos: Maximum photos to add (default 5)
+            
+        Returns:
+            Dict dengan hasil expansion
+        """
+        if not self.is_enabled():
+            return {
+                "success": False,
+                "error": "Gallery expansion service is disabled",
+                "reason": "GALLERY_EXPANSION_ENABLED=false or Google Drive not configured"
+            }
+        
+        try:
+            logger.info(f"🚀 Starting safe expansion for {member_name} ({group_name})")
+            
+            # Step 1: Scrape gallery photos
+            gallery_data = await self._scrape_gallery_safely(member_name, group_name)
+            if not gallery_data.get('success'):
+                return gallery_data
+            
+            # Step 2: Filter quality photos
+            quality_photos = self._filter_quality_photos(gallery_data['images'], max_photos)
+            if not quality_photos:
+                return {
+                    "success": False,
+                    "error": "No quality photos found for expansion"
+                }
+            
+            # Step 3: Download and upload photos
+            uploaded_files = await self._process_photos_safely(
+                quality_photos, member_name, group_name
+            )
+            
+            if not uploaded_files:
+                return {
+                    "success": False,
+                    "error": "Failed to upload any photos"
+                }
+            
+            # Step 4: Update JSON database safely
+            update_result = await self._update_json_safely(
+                member_name, group_name, uploaded_files
+            )
+            
+            if not update_result['success']:
+                return update_result
+            
+            logger.info(f"✅ Safe expansion completed for {member_name}")
+            return {
+                "success": True,
+                "member": member_name,
+                "group": group_name,
+                "new_photos": len(uploaded_files),
+                "drive_ids": [f['file_id'] for f in uploaded_files],
+                "sections": list(set(f['section'] for f in uploaded_files)),
+                "test_mode": self.test_mode
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Safe expansion failed for {member_name}: {e}")
+            return {
+                "success": False,
+                "error": f"Expansion failed: {str(e)}",
+                "member": member_name,
+                "group": group_name
+            }
+    
+    async def _scrape_gallery_safely(self, member_name: str, group_name: str) -> Dict:
+        """Safe gallery scraping dengan error isolation"""
+        try:
+            # Use existing scrape_member_gallery - tidak modify
+            gallery_data = await self.data_fetcher.scrape_member_gallery(
+                member_name, group_name
+            )
+            
+            if gallery_data.get('error'):
+                return {
+                    "success": False,
+                    "error": f"Gallery scraping failed: {gallery_data['error']}"
+                }
+            
+            if not gallery_data.get('images'):
+                return {
+                    "success": False,
+                    "error": "No images found in gallery"
+                }
+            
+            logger.info(f"📸 Found {len(gallery_data['images'])} images for {member_name}")
+            return {
+                "success": True,
+                "images": gallery_data['images'],
+                "sections": gallery_data.get('sections', [])
+            }
+            
+        except Exception as e:
+            logger.error(f"Gallery scraping error for {member_name}: {e}")
+            return {
+                "success": False,
+                "error": f"Gallery scraping exception: {str(e)}"
+            }
+    
+    def _filter_quality_photos(self, images: List[Dict], max_photos: int) -> List[Dict]:
+        """Filter photos berdasarkan quality dan priority"""
+        quality_photos = []
+        
+        # Priority keywords untuk section detection
+        priority_keywords = {
+            'concept': ['concept', 'teaser', 'promotional'],
+            'pictorial': ['pictorial', 'magazine', 'photoshoot'],
+            'official': ['official', 'press', 'event'],
+            'misc': ['behind', 'candid', 'misc']
+        }
+        
+        for img in images:
+            # Skip thumbnails dan low quality
+            if ('thumb' in img['url'] or 
+                'revision' in img['url'] or
+                len(img['url']) < 50):
+                continue
+            
+            # Categorize by alt text atau URL
+            section = 'misc'  # default
+            alt_text = img.get('alt', '').lower()
+            
+            for section_name, keywords in priority_keywords.items():
+                if any(keyword in alt_text for keyword in keywords):
+                    section = section_name
+                    break
+            
+            quality_photos.append({
+                'url': img['url'],
+                'alt': img.get('alt', ''),
+                'section': section,
+                'type': img.get('type', 'unknown')
+            })
+        
+        # Sort by priority (concept > pictorial > official > misc)
+        priority_order = ['concept', 'pictorial', 'official', 'misc']
+        quality_photos.sort(key=lambda x: priority_order.index(x['section']))
+        
+        # Limit photos
+        return quality_photos[:max_photos]
+    
+    async def _process_photos_safely(self, photos: List[Dict], member_name: str, group_name: str) -> List[Dict]:
+        """Process dan upload photos dengan error handling"""
+        uploaded_files = []
+        temp_dir = Path("temp_expansion")
+        temp_dir.mkdir(exist_ok=True)
+        
+        try:
+            for i, photo in enumerate(photos):
+                try:
+                    # Download photo
+                    response = requests.get(photo['url'], timeout=30)
+                    response.raise_for_status()
+                    
+                    # Generate filename
+                    filename = self._generate_filename(
+                        member_name, group_name, photo['section'], i + 1, photo['url']
+                    )
+                    
+                    temp_path = temp_dir / filename
+                    
+                    # Save temporary file
+                    with open(temp_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    # Upload to Google Drive
+                    file_id = self.gdrive_uploader.upload_file(
+                        str(temp_path), self.gdrive_folder
+                    )
+                    
+                    if file_id:
+                        uploaded_files.append({
+                            'file_id': file_id,
+                            'filename': filename,
+                            'section': photo['section'],
+                            'original_url': photo['url']
+                        })
+                        logger.info(f"✅ Uploaded: {filename} -> {file_id}")
+                    
+                    # Cleanup temp file
+                    temp_path.unlink(missing_ok=True)
+                    
+                    # Rate limiting
+                    await asyncio.sleep(2)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to process photo {i+1}: {e}")
+                    continue
+            
+        finally:
+            # Cleanup temp directory
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        
+        return uploaded_files
+    
+    def _generate_filename(self, member_name: str, group_name: str, section: str, index: int, url: str) -> str:
+        """Generate consistent filename"""
+        # Clean names
+        clean_member = re.sub(r'[^\w\-_]', '', member_name)
+        clean_group = re.sub(r'[^\w\-_]', '', group_name.replace(' ', ''))
+        clean_section = re.sub(r'[^\w\-_]', '', section)
+        
+        # Extract extension
+        ext = 'jpg'
+        if '.' in url:
+            ext = url.split('.')[-1].split('?')[0].lower()
+            if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                ext = 'jpg'
+        
+        # Format: MEMBER_GROUP_SECTION_INDEX.ext
+        filename = f"{clean_member}_{clean_group}_{clean_section}_{index:03d}.{ext}"
+        return filename
+    
+    async def _update_json_safely(self, member_name: str, group_name: str, uploaded_files: List[Dict]) -> Dict:
+        """Update JSON database dengan backup dan rollback"""
+        try:
+            # Create backup first
+            backup_path = self._create_backup()
+            
+            # Load existing JSON
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Generate member key
+            member_key = self._generate_member_key(member_name, group_name)
+            
+            # Update atau create member entry
+            if member_key not in data['members']:
+                data['members'][member_key] = {
+                    "name": member_name,
+                    "korean_name": "",
+                    "full_name": "",
+                    "birth_date": "",
+                    "group": group_name,
+                    "photos": []
+                }
+                data['total_members'] = data.get('total_members', 0) + 1
+            
+            # Add new Google Drive IDs
+            existing_photos = data['members'][member_key]['photos']
+            new_drive_ids = [f['file_id'] for f in uploaded_files]
+            unique_new_ids = [id for id in new_drive_ids if id not in existing_photos]
+            
+            data['members'][member_key]['photos'].extend(unique_new_ids)
+            
+            # Update metadata
+            data['total_files'] = data.get('total_files', 0) + len(unique_new_ids)
+            data['last_updated'] = datetime.now().isoformat()
+            
+            # Save updated JSON
+            with open(self.json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"✅ JSON updated: Added {len(unique_new_ids)} photos for {member_key}")
+            logger.info(f"📄 Backup created: {backup_path}")
+            
+            return {
+                "success": True,
+                "added_photos": len(unique_new_ids),
+                "backup_path": backup_path
+            }
+            
+        except Exception as e:
+            # Rollback on error
+            if 'backup_path' in locals():
+                try:
+                    shutil.copy2(backup_path, self.json_path)
+                    logger.info(f"🔄 Rolled back to backup: {backup_path}")
+                except:
+                    pass
+            
+            logger.error(f"❌ JSON update failed: {e}")
+            return {
+                "success": False,
+                "error": f"JSON update failed: {str(e)}"
+            }
+    
+    def _create_backup(self) -> str:
+        """Create backup of JSON file"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"{self.backup_prefix}_Path_Foto_DriveIDs_{timestamp}.json"
+        backup_path = f"data/member_data/{backup_filename}"
+        
+        shutil.copy2(self.json_path, backup_path)
+        return backup_path
+    
+    def _generate_member_key(self, member_name: str, group_name: str) -> str:
+        """Generate consistent member key"""
+        clean_member = member_name.lower().replace(' ', '_')
+        clean_group = group_name.lower().replace(' ', '_')
+        return f"{clean_member}_{clean_group}"
+    
+    def get_expansion_stats(self) -> Dict:
+        """Get expansion service statistics"""
+        try:
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            return {
+                "enabled": self.is_enabled(),
+                "test_mode": self.test_mode,
+                "total_members": data.get('total_members', 0),
+                "total_photos": data.get('total_files', 0),
+                "last_updated": data.get('last_updated', 'Unknown'),
+                "json_path": self.json_path
+            }
+        except Exception as e:
+            return {
+                "enabled": self.is_enabled(),
+                "test_mode": self.test_mode,
+                "error": f"Failed to load stats: {e}"
+            }
