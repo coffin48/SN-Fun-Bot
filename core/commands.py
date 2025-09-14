@@ -395,11 +395,22 @@ class CommandsHandler:
         total_time = time.time() - start_time
         analytics.track_response_time("total_response", total_time)
         
-        # Scrape image untuk embed
+        # Scrape image untuk embed dengan group context
         image_data = None
         try:
             await loading_msg.edit(content="🖼️ Mencari foto...")
-            image_data = await self.data_fetcher.scrape_kpop_image(detected_name)
+            
+            # Extract group name from enhanced query for better image scraping
+            group_name = None
+            if category == "MEMBER_GROUP" and " from " in detected_name:
+                group_name = detected_name.split(" from ")[1]
+            elif category == "MEMBER":
+                # Try to get group from database
+                member_rows = self.kpop_df[self.kpop_df['Stage Name'].str.lower() == detected_name.lower()]
+                if len(member_rows) > 0:
+                    group_name = str(member_rows.iloc[0].get('Group', '')).strip()
+            
+            image_data = await self.data_fetcher.scrape_kpop_image(detected_name, group_name)
         except Exception as e:
             logger.debug(f"Image scraping failed: {e}")
         
