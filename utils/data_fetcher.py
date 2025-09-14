@@ -5,7 +5,17 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import re
+import time
+import asyncio
+import aiohttp
+import redis
+import json
+from typing import List, Dict, Optional
+from datetime import datetime, timedelta
+from io import BytesIO
+from urllib.parse import urljoin
 from core.logger import logger
+
 try:
     from features.analytics.analytics import BotAnalytics
     analytics = BotAnalytics()
@@ -14,14 +24,6 @@ except ImportError:
         def track_source_performance(self, source, success, time_taken): pass
         def track_daily_usage(self): pass
     analytics = BotAnalytics()
-import time
-import asyncio
-import aiohttp
-import redis
-from typing import List, Dict, Optional
-import json
-from datetime import datetime, timedelta
-from io import BytesIO
 
 class DataFetcher:
     def __init__(self, kpop_df=None):
@@ -43,30 +45,36 @@ class DataFetcher:
         self.site_performance = {}
         self.session = None
         
-        # Site configuration dengan prioritas dan timeout
+        # Site configuration dengan prioritas dan timeout - TOP 3 MAIN SOURCES PRIORITIZED
         self.scraping_sites = [
-            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".entry-content p", "type": "kprofile_group", "priority": 0.95, "timeout": 8},
-            {"url": "https://kprofiles.com/{}-discography/", "selector": ".entry-content", "type": "kprofile_discography", "priority": 0.93, "timeout": 8},
-            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_solo1", "priority": 0.90, "timeout": 8},
-            {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".entry-content p", "type": "kprofile_solo2", "priority": 0.90, "timeout": 8},
-            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_member", "priority": 0.88, "timeout": 8},
-            {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts", "priority": 0.88, "timeout": 8},
-            {"url": "https://en.wikipedia.org/wiki/{}_discography", "selector": ".mw-parser-output", "type": "wiki_discography", "priority": 0.87, "timeout": 6},
-            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.85, "timeout": 6},
-            {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.83, "timeout": 6},
-            {"url": "https://kpopping.com/profiles/group/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_group", "priority": 0.82, "timeout": 7},
-            {"url": "https://kpopping.com/profiles/soloist/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_solo", "priority": 0.82, "timeout": 7},
-            {"url": "https://kpopping.com/profiles/idol/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_idol", "priority": 0.80, "timeout": 7},
-            {"url": "https://dbkpop.com/db/{}", "selector": ".artist-info, .group-info, .content", "type": "dbkpop_main", "priority": 0.78, "timeout": 6},
-            {"url": "https://kpop.fandom.com/wiki/{}", "selector": ".mw-parser-output p, .portable-infobox", "type": "fandom_wiki", "priority": 0.76, "timeout": 7},
-            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english", "priority": 0.75, "timeout": 7},
-            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_encoded", "priority": 0.75, "timeout": 7},
-            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_hangul", "priority": 0.75, "timeout": 7},
-            {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile", "priority": 0.70, "timeout": 6},
-            {"url": "https://kpopping.com/search?keyword={}", "selector": ".search-result, .profile-card", "type": "kpopping_search", "priority": 0.68, "timeout": 6},
-            {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database", "priority": 0.65, "timeout": 5},
-            {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news", "priority": 0.60, "timeout": 5},
-            {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news", "priority": 0.55, "timeout": 5}
+            # TOP 3 MAIN SOURCES - Prioritas tertinggi untuk info, trivia, facts
+            {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".entry-content p", "type": "kprofile_group", "priority": 1.0, "timeout": 10, "main_source": True},
+            {"url": "https://{}.fandom.com/wiki/{}", "selector": ".portable-infobox, .infobox, .mw-parser-output p", "type": "fandom_infobox", "priority": 0.98, "timeout": 10, "main_source": True},
+            {"url": "https://kpopping.com/profiles/idol/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_idol", "priority": 0.96, "timeout": 10, "main_source": True},
+            
+            # SECONDARY SOURCES - Hanya digunakan jika TOP 3 gagal
+            {"url": "https://kprofiles.com/{}-discography/", "selector": ".entry-content", "type": "kprofile_discography", "priority": 0.85, "timeout": 8, "main_source": False},
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_solo1", "priority": 0.83, "timeout": 8, "main_source": False},
+            {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".entry-content p", "type": "kprofile_solo2", "priority": 0.83, "timeout": 8, "main_source": False},
+            {"url": "https://kprofiles.com/{}-profile/", "selector": ".entry-content p", "type": "kprofile_member", "priority": 0.81, "timeout": 8, "main_source": False},
+            {"url": "https://kprofiles.com/{}-profile-and-facts/", "selector": ".entry-content p", "type": "kprofile_member_facts", "priority": 0.81, "timeout": 8, "main_source": False},
+            {"url": "https://kpopping.com/profiles/group/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_group", "priority": 0.80, "timeout": 7, "main_source": False},
+            {"url": "https://kpopping.com/profiles/soloist/{}", "selector": ".profile-content, .profile-info", "type": "kpopping_solo", "priority": 0.80, "timeout": 7, "main_source": False},
+            {"url": "https://kpop.fandom.com/wiki/{}", "selector": ".mw-parser-output p, .portable-infobox", "type": "fandom_wiki", "priority": 0.78, "timeout": 7, "main_source": False},
+            
+            # FALLBACK SOURCES - Digunakan sebagai last resort
+            {"url": "https://en.wikipedia.org/wiki/{}_discography", "selector": ".mw-parser-output", "type": "wiki_discography", "priority": 0.70, "timeout": 6, "main_source": False},
+            {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.68, "timeout": 6, "main_source": False},
+            {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".mw-parser-output p", "type": "wiki", "priority": 0.66, "timeout": 6, "main_source": False},
+            {"url": "https://dbkpop.com/db/{}", "selector": ".artist-info, .group-info, .content", "type": "dbkpop_main", "priority": 0.65, "timeout": 6, "main_source": False},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_english", "priority": 0.60, "timeout": 7, "main_source": False},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_encoded", "priority": 0.60, "timeout": 7, "main_source": False},
+            {"url": "https://en.namu.wiki/w/{}", "selector": ".wiki-paragraph", "type": "namu_hangul", "priority": 0.60, "timeout": 7, "main_source": False},
+            {"url": "https://kprofiles.com/?s={}", "selector": ".post-title a", "type": "profile", "priority": 0.50, "timeout": 6, "main_source": False},
+            {"url": "https://kpopping.com/search?keyword={}", "selector": ".search-result, .profile-card", "type": "kpopping_search", "priority": 0.48, "timeout": 6, "main_source": False},
+            {"url": "https://www.dbkpop.com/?s={}", "selector": ".entry-title a", "type": "database", "priority": 0.45, "timeout": 5, "main_source": False},
+            {"url": "https://www.soompi.com/?s={}", "selector": ".post-title a", "type": "news", "priority": 0.40, "timeout": 5, "main_source": False},
+            {"url": "https://www.allkpop.com/search/{}", "selector": ".akp_article_title a", "type": "news", "priority": 0.35, "timeout": 5, "main_source": False}
         ]
         
         # Mapping grup dengan nama lengkap untuk format extended KProfiles
@@ -451,7 +459,7 @@ class DataFetcher:
             return f"**{query}**\n\nMaaf, terjadi kesalahan saat mengambil informasi. Silakan coba lagi nanti."
     
     async def _scrape_websites_async(self, query, sorted_sites):
-        """Optimized async scraping dengan concurrent requests dan early termination"""
+        """Optimized async scraping dengan TOP 3 MAIN SOURCES prioritas tertinggi"""
         results = []
         
         # Create aiohttp session if not exists
@@ -463,33 +471,42 @@ class DataFetcher:
         # Create semaphore untuk limit concurrent requests
         semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
         
-        # Create tasks for high priority sites first
-        high_priority_sites = [site for site in sorted_sites if site.get('priority', 0) >= 0.8]
-        medium_priority_sites = [site for site in sorted_sites if 0.6 <= site.get('priority', 0) < 0.8]
-        low_priority_sites = [site for site in sorted_sites if site.get('priority', 0) < 0.6]
+        # STEP 1: Process TOP 3 MAIN SOURCES first (main_source: True)
+        main_sources = [site for site in sorted_sites if site.get('main_source', False)]
+        logger.info(f"Processing TOP 3 MAIN SOURCES: {len(main_sources)} sites")
         
-        # Process high priority sites first
-        high_priority_results = await self._process_sites_batch(query, high_priority_sites, semaphore)
-        results.extend(high_priority_results)
+        if main_sources:
+            main_results = await self._process_sites_batch(query, main_sources, semaphore)
+            results.extend(main_results)
+            logger.info(f"Main sources completed: {len(main_results)} results")
+            
+            # Check if main sources provide sufficient data
+            if self._is_sufficient_data(results):
+                logger.info(f"✅ Sufficient data from TOP 3 MAIN SOURCES: {len(results)} items")
+                return results
         
-        # Check if we have sufficient data from high priority sources
-        if self._is_sufficient_data(results):
-            logger.info(f"Sufficient data from high priority sites: {len(results)} items")
-            return results
+        # STEP 2: Only if main sources insufficient, try secondary sources
+        secondary_sources = [site for site in sorted_sites if not site.get('main_source', False) and site.get('priority', 0) >= 0.7]
+        logger.info(f"Main sources insufficient, trying secondary sources: {len(secondary_sources)} sites")
         
-        # Process medium priority sites
-        medium_priority_results = await self._process_sites_batch(query, medium_priority_sites, semaphore)
-        results.extend(medium_priority_results)
+        if secondary_sources:
+            secondary_results = await self._process_sites_batch(query, secondary_sources, semaphore)
+            results.extend(secondary_results)
+            
+            # Check again after secondary
+            if self._is_sufficient_data(results):
+                logger.info(f"✅ Sufficient data after secondary sources: {len(results)} items")
+                return results
         
-        # Check again
-        if self._is_sufficient_data(results):
-            logger.info(f"Sufficient data after medium priority: {len(results)} items")
-            return results
+        # STEP 3: Last resort - fallback sources
+        fallback_sources = [site for site in sorted_sites if not site.get('main_source', False) and site.get('priority', 0) < 0.7]
+        logger.info(f"Still insufficient, trying fallback sources: {len(fallback_sources)} sites")
         
-        # Process low priority sites only if still needed
-        low_priority_results = await self._process_sites_batch(query, low_priority_sites, semaphore)
-        results.extend(low_priority_results)
+        if fallback_sources:
+            fallback_results = await self._process_sites_batch(query, fallback_sources, semaphore)
+            results.extend(fallback_results)
         
+        logger.info(f"🏁 Final scraping completed: {len(results)} total results")
         return results
     
     async def _process_sites_batch(self, query, sites, semaphore):
@@ -596,6 +613,42 @@ class DataFetcher:
                     # Fallback to formatted query
                     formatted_name = query.lower().replace(' ', '-')
                     return site["url"].format(formatted_name)
+                    
+            elif site.get("type") == "fandom_infobox":
+                # Format khusus untuk Fandom.com infobox scraping dengan subdomain detection
+                query_lower = query.lower()
+                
+                # Detect group and member for subdomain mapping
+                group_name = None
+                member_name = query
+                
+                if " from " in query_lower:
+                    parts = query.split(" from ")
+                    member_name = parts[0].strip()
+                    group_name = parts[1].strip()
+                elif " " in query:
+                    # Try to detect if this is a member query
+                    words = query.split()
+                    if len(words) == 2:
+                        # Could be "Group Member" format
+                        potential_group = words[0].lower()
+                        potential_member = words[1]
+                        
+                        # Check if first word is a known group
+                        known_groups = ["secret", "blackpink", "twice", "newjeans", "aespa", "itzy", "red", "stray"]
+                        if potential_group in known_groups or any(g in potential_group for g in known_groups):
+                            group_name = words[0] if potential_group != "red" else "Red Velvet"
+                            member_name = potential_member
+                
+                # Generate subdomain and member name
+                if group_name:
+                    subdomain = self._format_group_to_subdomain(group_name)
+                    formatted_member = member_name.replace(' ', '_')
+                    return f"https://{subdomain}.fandom.com/wiki/{formatted_member}"
+                else:
+                    # Fallback to kpop.fandom.com
+                    formatted_name = query.replace(' ', '_')
+                    return f"https://kpop.fandom.com/wiki/{formatted_name}"
                     
             elif site.get("type") == "fandom_wiki":
                 # Format khusus untuk Fandom.com (K-pop Wiki)
@@ -730,13 +783,28 @@ class DataFetcher:
         
         try:
             if site_type in ["kprofile_group", "kprofile_solo1", "kprofile_solo2", "kprofile_member", "kprofile_member_facts"]:
-                # KProfiles direct
-                content_elements = soup.select(site["selector"])[:10]
-                site_results = [
-                    el.get_text().strip() 
-                    for el in content_elements 
-                    if el.get_text().strip() and len(el.get_text().strip()) > 30
-                ]
+                # KProfiles direct dengan enhanced extraction untuk birth date dan social media
+                content_elements = soup.select(site["selector"])[:15]
+                
+                for el in content_elements:
+                    text = el.get_text().strip()
+                    if text and len(text) > 20:
+                        # Universal birth date detection (works for any member)
+                        if any(keyword in text.lower() for keyword in ['birthday:', 'birth name:', 'zodiac sign:', 'height:', 'blood type:', 'nationality:', 'position(s):']):
+                            site_results.append(text)
+                        # Universal social media detection (Instagram, TikTok, YouTube, Twitter/X, SNS)
+                        elif any(keyword in text.lower() for keyword in ['instagram:', 'tiktok:', 'youtube:', 'twitter:', 'x:', 'sns:', 'soundcloud:', 'facebook:', 'threads:']):
+                            site_results.append(text)
+                        # Universal facts and trivia detection (gender-neutral)
+                        elif any(keyword in text.lower() for keyword in ['facts:', 'favorite', 'hobby', 'role model', 'education:', 'religion:', 'nickname:', 'charming point']):
+                            if len(text) > 30:
+                                site_results.append(text)
+                        # Universal member info detection
+                        elif any(keyword in text.lower() for keyword in ['stage name:', 'real name:', 'korean name:', 'english name:', 'mbti type:', 'weight:']):
+                            site_results.append(text)
+                        # General content with universal filtering
+                        elif len(text) > 30 and not any(skip in text.lower() for skip in ['copyright', 'kprofiles.com', 'note:', 'poll:', 'related:']):
+                            site_results.append(text)
             
             elif site_type == "wiki":
                 # Wikipedia dengan URL mapping
@@ -809,6 +877,81 @@ class DataFetcher:
                     if text and len(text) > 25 and not text.startswith("Search"):
                         site_results.append(text)
                         
+            elif site_type == "fandom_infobox":
+                # Fandom.com infobox scraping untuk General Information
+                # Extract structured data from infobox dengan multiple selectors
+                infobox_selectors = [
+                    ".portable-infobox .pi-data-value",
+                    ".infobox td",
+                    ".infobox-data-value", 
+                    ".wikitable td",
+                    ".mw-parser-output .infobox tr td"
+                ]
+                
+                # Universal extraction untuk semua member K-pop
+                birth_info = []
+                personal_info = []
+                social_media = []
+                
+                for selector in infobox_selectors:
+                    infobox_elements = soup.select(selector)[:15]
+                    for element in infobox_elements:
+                        text = element.get_text().strip()
+                        parent_text = element.parent.get_text().strip() if element.parent else ""
+                        
+                        # Universal filtering untuk semua member
+                        if text and len(text) > 2 and len(text) < 150:
+                            lower_parent = parent_text.lower()
+                            lower_text = text.lower()
+                            
+                            # Universal birth date detection
+                            if any(keyword in lower_parent for keyword in ['birth', 'born', 'birthday', 'date of birth']):
+                                if any(char.isdigit() for char in text):
+                                    birth_info.append(f"Birth Date: {text}")
+                            
+                            # Universal name detection  
+                            elif any(keyword in lower_parent for keyword in ['birth name', 'real name', 'full name', 'korean name', 'stage name']):
+                                if not any(char.isdigit() for char in text) and len(text) > 2:
+                                    personal_info.append(f"Name: {text}")
+                            
+                            # Universal location detection
+                            elif any(keyword in lower_parent for keyword in ['birth place', 'birthplace', 'hometown', 'nationality', 'origin']):
+                                personal_info.append(f"Origin: {text}")
+                            
+                            # Universal physical info detection
+                            elif any(keyword in lower_parent for keyword in ['blood type', 'blood']):
+                                if len(text) <= 5:
+                                    personal_info.append(f"Blood Type: {text}")
+                            elif any(keyword in lower_parent for keyword in ['height']):
+                                if 'cm' in text or any(char.isdigit() for char in text):
+                                    personal_info.append(f"Height: {text}")
+                            elif any(keyword in lower_parent for keyword in ['weight']):
+                                if 'kg' in text or any(char.isdigit() for char in text):
+                                    personal_info.append(f"Weight: {text}")
+                            
+                            # Universal social media detection
+                            elif any(keyword in lower_parent for keyword in ['instagram', 'twitter', 'tiktok', 'youtube', 'sns', 'social']):
+                                if '@' in text or 'http' in text or len(text) > 3:
+                                    social_media.append(f"Social Media: {text}")
+                            
+                            # Universal position/role detection
+                            elif any(keyword in lower_parent for keyword in ['position', 'role', 'occupation']):
+                                personal_info.append(f"Position: {text}")
+                
+                # Combine results dengan prioritas universal
+                site_results.extend(birth_info)
+                site_results.extend(personal_info)
+                site_results.extend(social_media)
+                
+                # Fallback ke paragraph jika infobox kosong
+                if not site_results:
+                    wiki_paragraphs = soup.select(".mw-parser-output p")[:3]
+                    for p in wiki_paragraphs:
+                        text = p.get_text().strip()
+                        if (text and len(text) > 40 and 
+                            any(keyword in text.lower() for keyword in ['born', 'birth', 'birthday'])):
+                            site_results.append(text)
+            
             elif site_type == "fandom_wiki":
                 # Fandom.com (K-pop Wiki)
                 # Extract from both paragraphs and infobox
@@ -1815,16 +1958,19 @@ check official music platforms and databases like:
         subdomain = self._format_group_to_subdomain(group_name)
         return f"https://{subdomain}.fandom.com/wiki/{group_name.replace(' ', '_')}/Discography"
 
-    async def scrape_kpop_image(self, query):
+    async def scrape_kpop_image(self, query, group_name=None):
         """Scrape foto K-pop dari berbagai sumber dengan multiple fallback strategies"""
         # Enhanced image sources dengan lebih banyak fallback
         image_sources = [
-            # KProfiles - Primary source
+            # Fandom Gallery - NEW: Primary source for member photos
+            {"type": "fandom_gallery"},
+            
+            # KProfiles - Secondary source
             {"url": "https://kprofiles.com/{}-profile/", "selector": ".wp-image, .entry-content img, .profile-image", "type": "kprofile"},
             {"url": "https://kprofiles.com/{}-members-profile/", "selector": ".wp-image, .entry-content img, .group-image", "type": "kprofile_group"},
             {"url": "https://kprofiles.com/{}-profile-facts/", "selector": ".wp-image, .entry-content img", "type": "kprofile_facts"},
             
-            # Wikipedia - Secondary source
+            # Wikipedia - Tertiary source
             {"url": "https://en.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage, .mw-file-element", "type": "wiki"},
             {"url": "https://id.wikipedia.org/wiki/{}", "selector": ".infobox img, .thumbimage, .mw-file-element", "type": "wiki_id"},
             
@@ -1842,6 +1988,57 @@ check official music platforms and databases like:
         
         for source in image_sources:
             try:
+                # Handle Fandom Gallery search - NEW
+                if source["type"] == "fandom_gallery":
+                    gallery_url = self._generate_gallery_url(query, group_name)
+                    if gallery_url:
+                        logger.info(f"🖼️ Scraping image from Fandom Gallery: {gallery_url}")
+                        
+                        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                            async with session.get(gallery_url) as response:
+                                if response.status == 200:
+                                    soup = BeautifulSoup(await response.text(), 'html.parser')
+                                    
+                                    # Fandom gallery image selectors
+                                    gallery_selectors = [
+                                        ".wikia-gallery img",
+                                        ".gallery img", 
+                                        ".mw-gallery-traditional img",
+                                        ".thumb img",
+                                        ".image img",
+                                        "img[data-src*='static.wikia']",
+                                        "img[src*='static.wikia']"
+                                    ]
+                                    
+                                    for selector in gallery_selectors:
+                                        img_tags = soup.select(selector)
+                                        if img_tags:
+                                            for img in img_tags[:5]:  # Try first 5 images
+                                                img_url = img.get('data-src') or img.get('src')
+                                                if img_url and 'static.wikia' in img_url:
+                                                    # Make URL absolute if needed
+                                                    if img_url.startswith('//'):
+                                                        img_url = 'https:' + img_url
+                                                    elif img_url.startswith('/'):
+                                                        img_url = urljoin(gallery_url, img_url)
+                                                    
+                                                    # Download and return first valid image
+                                                    try:
+                                                        async with session.get(img_url) as img_response:
+                                                            if img_response.status == 200:
+                                                                image_data = await img_response.read()
+                                                                
+                                                                # Check if image is valid size (> 10KB, < 5MB)
+                                                                if 10000 < len(image_data) < 5000000:
+                                                                    logger.info(f"✅ Found image from Fandom Gallery: {gallery_url}")
+                                                                    return BytesIO(image_data)
+                                                    except Exception as e:
+                                                        logger.debug(f"Failed to download Fandom image {img_url}: {e}")
+                                                        continue
+                                else:
+                                    logger.warning(f"HTTP {response.status} for Fandom Gallery: {gallery_url}")
+                    continue
+                
                 # Handle Google Images search
                 if source["type"] == "google_images":
                     image_data = await self._search_google_images(query)
@@ -1890,7 +2087,6 @@ check official music platforms and databases like:
                                 if img_url.startswith('//'):
                                     img_url = 'https:' + img_url
                                 elif img_url.startswith('/'):
-                                    from urllib.parse import urljoin
                                     img_url = urljoin(url, img_url)
                                 
                                 # Download image
@@ -2147,22 +2343,22 @@ check official music platforms and databases like:
                                 img_url = img.get('src') or img.get('data-src')
                                 if not img_url:
                                     continue
-                                
                                 # Skip unwanted images
-                                if any(skip in img_url.lower() for skip in ['icon', 'logo', 'avatar']):
+                                if any(skip in img_url.lower() for skip in ['icon', 'logo', 'avatar', 'gif']):
                                     continue
-                                
+
                                 # Make URL absolute
                                 if img_url.startswith('//'):
                                     img_url = 'https:' + img_url
                                 elif img_url.startswith('/'):
-                                    from urllib.parse import urljoin
                                     img_url = urljoin(url, img_url)
-                                
+
                                 try:
                                     async with session.get(img_url) as img_response:
                                         if img_response.status == 200:
                                             image_data = await img_response.read()
+                                            
+                                            # Validate image size
                                             if 10000 < len(image_data) < 5000000:
                                                 logger.info(f"✅ Alternative query success: {query}")
                                                 return BytesIO(image_data)
