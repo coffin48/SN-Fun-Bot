@@ -198,6 +198,10 @@ class GachaCommandsHandler:
                 cards, pack_summary = self.gacha_system.gacha_pack_5()
                 
                 if cards and len(cards) == 5:
+                    # Show card flip animation for each card
+                    for i, card in enumerate(cards, 1):
+                        await self._card_flip_animation(ctx, card)
+                        await asyncio.sleep(0.8)  # Delay antar kartu
                     # Create pack result embed
                     embed = discord.Embed(
                         title="🎴 5-Card Gacha Pack Results",
@@ -356,71 +360,24 @@ class GachaCommandsHandler:
                 card_image, card_data = self.gacha_system.gacha_by_group(group_name)
                 
                 if card_image:
-                    # Parse card data from message
+                    # Parse card data untuk card flip animation
                     lines = card_data.split('\n')
                     member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
                     member_name = member_info[0]
                     actual_group = member_info[1] if len(member_info) > 1 else group_name
                     rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
                     
-                    # Create beautiful embed
-                    embed = discord.Embed(
-                        title=f"🎴 {group_name} Gacha Result",
-                        color=self._get_rarity_color(rarity)
-                    )
+                    # Create card object for animation
+                    card = {
+                        'member_name': member_name,
+                        'group_name': actual_group,
+                        'rarity': rarity,
+                        'image': card_image
+                    }
                     
-                    embed.add_field(
-                        name="👤 Member",
-                        value=f"**{member_name}**",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="🎵 Group", 
-                        value=f"**{actual_group}**",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="✨ Rarity",
-                        value=f"**{rarity}**",
-                        inline=True
-                    )
-                    
-                    
-                    embed.add_field(
-                        name="🎲 Luck",
-                        value=self._get_luck_message(rarity),
-                        inline=True
-                    )
-                    
-                    embed.set_footer(
-                        text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
-                        icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-                    )
-                    
-                    # Save kartu ke temporary file
-                    temp_path = self.gacha_system.save_card_temp(card_image)
-                    
-                    if temp_path:
-                        # Kirim kartu sebagai file dengan embed
-                        with open(temp_path, 'rb') as f:
-                            file = discord.File(f, filename="gacha_card.png")
-                            embed.set_image(url="attachment://gacha_card.png")
-                            await loading_msg.edit(embed=embed, attachments=[file])
-                        
-                        # Cleanup temporary file
-                        import os
-                        try:
-                            os.unlink(temp_path)
-                        except:
-                            pass
-                    else:
-                        await loading_msg.edit(embed=discord.Embed(
-                            title="❌ Error",
-                            description="Gagal menyimpan kartu gacha.",
-                            color=0xff0000
-                        ))
+                    # Show card flip animation
+                    await self._card_flip_animation(ctx, card)
+                    return
                 else:
                     error_embed = discord.Embed(
                         title="❌ Group Gacha Failed",
@@ -472,71 +429,24 @@ class GachaCommandsHandler:
                 card_image, card_data = self.gacha_system.gacha_by_member(member_name)
                 
                 if card_image:
-                    # Parse card data from message
+                    # Parse card data untuk card flip animation
                     lines = card_data.split('\n')
                     member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
                     actual_member = member_info[0]
                     group_name = member_info[1] if len(member_info) > 1 else "Unknown"
                     rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
                     
-                    # Create beautiful embed
-                    embed = discord.Embed(
-                        title=f"🎴 {member_name} Gacha Result",
-                        color=self._get_rarity_color(rarity)
-                    )
+                    # Create card object for animation
+                    card = {
+                        'member_name': actual_member,
+                        'group_name': group_name,
+                        'rarity': rarity,
+                        'image': card_image
+                    }
                     
-                    embed.add_field(
-                        name="👤 Member",
-                        value=f"**{actual_member}**",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="🎵 Group", 
-                        value=f"**{group_name}**",
-                        inline=True
-                    )
-                    
-                    embed.add_field(
-                        name="✨ Rarity",
-                        value=f"**{rarity}**",
-                        inline=True
-                    )
-                    
-                    
-                    embed.add_field(
-                        name="🎲 Luck",
-                        value=self._get_luck_message(rarity),
-                        inline=True
-                    )
-                    
-                    embed.set_footer(
-                        text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
-                        icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-                    )
-                    
-                    # Save kartu ke temporary file
-                    temp_path = self.gacha_system.save_card_temp(card_image)
-                    
-                    if temp_path:
-                        # Kirim kartu sebagai file dengan embed
-                        with open(temp_path, 'rb') as f:
-                            file = discord.File(f, filename="gacha_card.png")
-                            embed.set_image(url="attachment://gacha_card.png")
-                            await loading_msg.edit(embed=embed, attachments=[file])
-                        
-                        # Cleanup temporary file
-                        import os
-                        try:
-                            os.unlink(temp_path)
-                        except:
-                            pass
-                    else:
-                        await loading_msg.edit(embed=discord.Embed(
-                            title="❌ Error",
-                            description="Gagal menyimpan kartu gacha.",
-                            color=0xff0000
-                        ))
+                    # Show card flip animation
+                    await self._card_flip_animation(ctx, card)
+                    return
                 else:
                     error_embed = discord.Embed(
                         title="❌ Member Gacha Failed",
