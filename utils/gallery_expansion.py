@@ -47,7 +47,7 @@ class GalleryExpansionService:
         # Setup paths berdasarkan mode
         if test_mode:
             self.json_path = 'data/member_data/test_Path_Foto_DriveIDs.json'
-            self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', 'test_folder')
+            self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', '1Oveb-cdjKRpanoSFaMFoi6z3X4I0F4mX')
             self.backup_prefix = 'test_backup'
         else:
             self.json_path = 'data/member_data/Path_Foto_DriveIDs_Real.json'
