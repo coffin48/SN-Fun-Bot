@@ -12,7 +12,46 @@ class GachaCommandsHandler:
     def __init__(self):
         """Initialize Gacha Commands Handler"""
         self.gacha_system = None
+        self.user_usage = {}  # Track usage per user: {user_id: {'random': count, 'member': count, 'group': count}}
         self._initialize_gacha_system()
+    
+    def _get_user_usage(self, user_id):
+        """Get user usage stats"""
+        if user_id not in self.user_usage:
+            self.user_usage[user_id] = {'random': 0, 'member': 0, 'group': 0}
+        return self.user_usage[user_id]
+    
+    def _increment_usage(self, user_id, command_type):
+        """Increment usage count for user"""
+        usage = self._get_user_usage(user_id)
+        usage[command_type] += 1
+        return usage[command_type]
+    
+    def _check_usage_limit(self, user_id, command_type):
+        """Check if user has exceeded usage limits"""
+        usage = self._get_user_usage(user_id)
+        
+        if command_type == 'random':
+            return usage['random'] >= 3
+        elif command_type in ['member', 'group']:
+            return usage[command_type] >= 16  # 8 normal + 8 hard mode
+        
+        return False
+    
+    def _get_rarity_mode(self, user_id, command_type):
+        """Get rarity mode based on usage count"""
+        if command_type == 'random':
+            return 'normal'  # Random always normal
+        
+        usage = self._get_user_usage(user_id)
+        count = usage.get(command_type, 0)
+        
+        if count < 8:
+            return 'normal'  # First 8 uses: normal rarity
+        elif count < 16:
+            return 'hard'    # Next 8 uses: harder rarity (reduced SAR rates)
+        else:
+            return 'blocked' # After 16 uses: blocked
     
     def _initialize_gacha_system(self):
         """Initialize gacha system dengan error handling"""
@@ -170,8 +209,29 @@ class GachaCommandsHandler:
     
     async def _handle_gacha_random(self, ctx):
         """Handle gacha pack 5 kartu dengan guaranteed rarity"""
+        user_id = ctx.author.id
+        
+        # Check usage limit
+        if self._check_usage_limit(user_id, 'random'):
+            limit_embed = discord.Embed(
+                title="❌ Usage Limit Reached",
+                description="🎴 **Random Gacha Pack Limit:** 3 kali per user\n\n💡 **Tip:** Coba `!sn gacha [member]` atau `!sn gacha [group]` untuk gacha spesifik!",
+                color=0xff0000
+            )
+            usage = self._get_user_usage(user_id)
+            limit_embed.add_field(
+                name="📊 Your Usage Stats",
+                value=f"🎲 Random Packs: {usage['random']}/3\n👤 Member Gacha: {usage['member']}/16\n🎵 Group Gacha: {usage['group']}/16",
+                inline=False
+            )
+            await ctx.send(embed=limit_embed)
+            return
+        
         try:
             async with ctx.typing():
+                # Increment usage
+                current_count = self._increment_usage(user_id, 'random')
+                remaining = 3 - current_count
                 # Initial suspense message
                 suspense_embed = discord.Embed(
                     title="🎴 Opening Gacha Pack...",
@@ -399,6 +459,13 @@ class GachaCommandsHandler:
                         inline=True
                     )
                     
+                    # Add usage info
+                    final_embed.add_field(
+                        name="📊 Usage Info",
+                        value=f"🎲 Random Packs: {current_count}/3\n⏳ Remaining: {remaining}",
+                        inline=True
+                    )
+                    
                     final_embed.set_footer(
                         text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
                         icon_url=ctx.author.avatar.url if ctx.author.avatar else None
@@ -429,8 +496,32 @@ class GachaCommandsHandler:
             await ctx.send("❌ Nama grup tidak boleh kosong. Contoh: `!sn gacha group BLACKPINK`")
             return
         
+        user_id = ctx.author.id
+        
+        # Check usage limit
+        if self._check_usage_limit(user_id, 'group'):
+            limit_embed = discord.Embed(
+                title="❌ Usage Limit Reached",
+                description="🎵 **Group Gacha Limit:** 16 kali per user\n\n💡 **Breakdown:**\n• First 8 uses: Normal rarity rates\n• Next 8 uses: Harder rarity (reduced SAR rates)",
+                color=0xff0000
+            )
+            usage = self._get_user_usage(user_id)
+            limit_embed.add_field(
+                name="📊 Your Usage Stats",
+                value=f"🎲 Random Packs: {usage['random']}/3\n👤 Member Gacha: {usage['member']}/16\n🎵 Group Gacha: {usage['group']}/16",
+                inline=False
+            )
+            await ctx.send(embed=limit_embed)
+            return
+        
+        # Get rarity mode
+        rarity_mode = self._get_rarity_mode(user_id, 'group')
+        
         try:
             async with ctx.typing():
+                # Increment usage
+                current_count = self._increment_usage(user_id, 'group')
+                remaining = 16 - current_count
                 # Initial suspense for group gacha
                 suspense_embed = discord.Embed(
                     title=f"🎴 Searching {group_name} Members...",
@@ -453,8 +544,12 @@ class GachaCommandsHandler:
                 # Small delay for rendering anticipation
                 await asyncio.sleep(1)
                 
-                # Generate gacha by group
-                card_image, card_data = self.gacha_system.gacha_by_group(group_name)
+                # Generate gacha by group with rarity mode
+                if rarity_mode == 'hard':
+                    # Hard mode: reduced SAR rates (SAR: 2% -> 0.5%)
+                    card_image, card_data = self.gacha_system.gacha_by_group_reduced_sar(group_name)
+                else:
+                    card_image, card_data = self.gacha_system.gacha_by_group(group_name)
                 
                 if card_image:
                     # Parse card data untuk card flip animation
@@ -464,12 +559,13 @@ class GachaCommandsHandler:
                     actual_group = member_info[1] if len(member_info) > 1 else group_name
                     rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
                     
-                    # Create card object for animation
+                    # Create card object for animation with usage info
                     card = {
                         'member_name': member_name,
                         'group_name': actual_group,
                         'rarity': rarity,
-                        'image': card_image
+                        'image': card_image,
+                        'usage_info': f"🎵 Group Gacha: {current_count}/16 • Mode: {rarity_mode.title()} • Remaining: {remaining}"
                     }
                     
                     # Show card flip animation
@@ -498,8 +594,32 @@ class GachaCommandsHandler:
             await ctx.send("❌ Nama member tidak boleh kosong. Contoh: `!sn gacha member Jennie`")
             return
         
+        user_id = ctx.author.id
+        
+        # Check usage limit
+        if self._check_usage_limit(user_id, 'member'):
+            limit_embed = discord.Embed(
+                title="❌ Usage Limit Reached",
+                description="👤 **Member Gacha Limit:** 16 kali per user\n\n💡 **Breakdown:**\n• First 8 uses: Normal rarity rates\n• Next 8 uses: Harder rarity (reduced SAR rates)",
+                color=0xff0000
+            )
+            usage = self._get_user_usage(user_id)
+            limit_embed.add_field(
+                name="📊 Your Usage Stats",
+                value=f"🎲 Random Packs: {usage['random']}/3\n👤 Member Gacha: {usage['member']}/16\n🎵 Group Gacha: {usage['group']}/16",
+                inline=False
+            )
+            await ctx.send(embed=limit_embed)
+            return
+        
+        # Get rarity mode
+        rarity_mode = self._get_rarity_mode(user_id, 'member')
+        
         try:
             async with ctx.typing():
+                # Increment usage
+                current_count = self._increment_usage(user_id, 'member')
+                remaining = 16 - current_count
                 # Initial suspense for member gacha
                 suspense_embed = discord.Embed(
                     title=f"🎴 Searching for {member_name}...",
@@ -522,8 +642,12 @@ class GachaCommandsHandler:
                 # Small delay for rendering anticipation
                 await asyncio.sleep(1)
                 
-                # Generate gacha by member
-                card_image, card_data = self.gacha_system.gacha_by_member(member_name)
+                # Generate gacha by member with rarity mode
+                if rarity_mode == 'hard':
+                    # Hard mode: reduced SAR rates (SAR: 2% -> 0.5%)
+                    card_image, card_data = self.gacha_system.gacha_by_member_reduced_sar(member_name)
+                else:
+                    card_image, card_data = self.gacha_system.gacha_by_member(member_name)
                 
                 if card_image:
                     # Parse card data untuk card flip animation
@@ -533,12 +657,13 @@ class GachaCommandsHandler:
                     group_name = member_info[1] if len(member_info) > 1 else "Unknown"
                     rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
                     
-                    # Create card object for animation
+                    # Create card object for animation with usage info
                     card = {
                         'member_name': actual_member,
                         'group_name': group_name,
                         'rarity': rarity,
-                        'image': card_image
+                        'image': card_image,
+                        'usage_info': f"👤 Member Gacha: {current_count}/16 • Mode: {rarity_mode.title()} • Remaining: {remaining}"
                     }
                     
                     # Show card flip animation
