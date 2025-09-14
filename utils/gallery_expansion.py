@@ -263,25 +263,25 @@ class GalleryExpansionService:
         try:
             for i, photo in enumerate(photos):
                 try:
-                    # Skip invalid URLs
+                    # Lewati URL yang tidak valid
                     if not self._is_valid_image_url(photo['url']):
-                        logger.warning(f"⚠️ Skipping invalid URL: {photo['url'][:100]}...")
+                        logger.warning(f"⚠️ Melewati URL tidak valid: {photo['url'][:100]}...")
                         continue
                     
-                    # Log valid URL being processed
-                    logger.info(f"📥 Processing photo {i+1}: {photo['url'][:80]}...")
+                    # Log URL yang sedang diproses
+                    logger.info(f"📥 Memproses foto {i+1}: {photo['url'][:80]}...")
                     
-                    # Download photo with better error handling
+                    # Download foto dengan penanganan error yang lebih baik
                     headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                     }
                     response = requests.get(photo['url'], timeout=30, headers=headers)
                     response.raise_for_status()
                     
-                    # Check if response is actually an image
+                    # Cek apakah response benar-benar gambar
                     content_type = response.headers.get('content-type', '')
                     if not content_type.startswith('image/'):
-                        logger.warning(f"⚠️ Skipping non-image content: {content_type}")
+                        logger.warning(f"⚠️ Melewati konten bukan gambar: {content_type}")
                         continue
                     
                     # Generate filename
@@ -321,7 +321,8 @@ class GalleryExpansionService:
                     await asyncio.sleep(4)
                     
                 except Exception as e:
-                    logger.warning(f"⚠️ Skipped photo {i + 1}: {e}")
+                    logger.error(f"❌ Error memproses foto {i + 1}: {e}")
+                    logger.error(f"🔗 URL yang gagal: {photo.get('url', 'Unknown')}")
                     continue
             
         finally:
