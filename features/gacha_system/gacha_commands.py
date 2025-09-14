@@ -78,6 +78,96 @@ class GachaCommandsHandler:
             search_term = " ".join(args)
             await self._handle_smart_gacha(ctx, search_term)
     
+    def _get_card_back_path(self, rarity):
+        """Get appropriate card back based on rarity"""
+        if rarity == "SAR":
+            return "assets/templates/Back_SAR.png"
+        elif rarity in ["DR", "SR"]:
+            return "assets/templates/Back_DRSR.png"
+        else:  # Common, Rare
+            return "assets/templates/Back.png"
+    
+    async def _card_flip_animation(self, ctx, card):
+        """Card flip animation dengan custom card backs"""
+        try:
+            import os
+            
+            # Get appropriate card back
+            card_back_path = self._get_card_back_path(card['rarity'])
+            
+            # Check if card back exists
+            if not os.path.exists(card_back_path):
+                card_back_path = "assets/templates/Back.png"  # Fallback
+            
+            # Phase 1: Show card back
+            back_embed = discord.Embed(
+                title="🎴 Mystery Card",
+                description="🔮 **Detecting rarity...**",
+                color=0x808080
+            )
+            
+            if os.path.exists(card_back_path):
+                back_embed.set_image(url="attachment://card_back.png")
+                with open(card_back_path, 'rb') as f:
+                    back_file = discord.File(f, "card_back.png")
+                    msg = await ctx.send(embed=back_embed, file=back_file)
+            else:
+                # ASCII fallback if no card back file
+                back_embed.description = "🎴 ┌─────────┐\n│  ░░░░░  │\n│  ░SN░   │\n│  ░░░░░  │\n└─────────┘"
+                msg = await ctx.send(embed=back_embed)
+            
+            # Phase 2: Rarity hint
+            await asyncio.sleep(1.5)
+            rarity_color = self._get_rarity_color(card['rarity'])
+            
+            if card['rarity'] == "SAR":
+                hint_desc = "🌈 **RAINBOW GLOW DETECTED!**\n✨ Something legendary..."
+            elif card['rarity'] in ["SR", "DR"]:
+                hint_desc = "🥇 **RARE AURA!**\n⭐ High rarity incoming..."
+            else:
+                hint_desc = "💫 **Card is glowing...**\n🔍 Almost ready..."
+            
+            hint_embed = discord.Embed(
+                title="🔄 Flipping Card...",
+                description=hint_desc,
+                color=rarity_color
+            )
+            await msg.edit(embed=hint_embed, attachments=[])
+            
+            # Phase 3: Final reveal
+            await asyncio.sleep(2)
+            final_embed = discord.Embed(
+                title=f"✨ {card['rarity']} Card Revealed!",
+                description=f"**{card['member_name']}** dari **{card['group_name']}**",
+                color=rarity_color
+            )
+            
+            # Save and attach final card
+            temp_path = self.gacha_system.save_card_temp(card['image'], f"revealed_card")
+            if temp_path:
+                with open(temp_path, 'rb') as f:
+                    final_file = discord.File(f, "revealed_card.png")
+                    final_embed.set_image(url="attachment://revealed_card.png")
+                    await msg.edit(embed=final_embed, attachments=[final_file])
+                
+                # Cleanup
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+            else:
+                await msg.edit(embed=final_embed)
+                
+        except Exception as e:
+            logger.error(f"Card flip animation error: {e}")
+            # Fallback to simple reveal
+            simple_embed = discord.Embed(
+                title=f"🎴 {card['member_name']}",
+                description=f"✨ **{card['rarity']}** • {card['group_name']}",
+                color=self._get_rarity_color(card['rarity'])
+            )
+            await ctx.send(embed=simple_embed)
+    
     async def _handle_gacha_random(self, ctx):
         """Handle gacha pack 5 kartu dengan guaranteed rarity"""
         try:
@@ -171,45 +261,51 @@ class GachaCommandsHandler:
                         description="⏳ **Processing cards:** 0/5",
                         color=0xFFD700
                     )
-                    await loading_msg.edit(embed=progress_embed)
+                    progress_msg = await ctx.send(embed=progress_embed)
                     
                     # Kirim kartu satu per satu dengan progress updates
                     for i, card in enumerate(cards, 1):
                         try:
                             # Update progress
-                            progress_embed.description = f"⏳ **Processing cards:** {i}/5\n🎯 **Current:** {card['member_name']} ({card['rarity']})"
-                            await loading_msg.edit(embed=progress_embed)
+                            progress_embed.description = f"🎴 **Processing cards: {i}/5**\n✨ Generating card {i}..."
+                            await progress_msg.edit(embed=progress_embed)
+                            
+                            # Card flip animation
+                            await self._card_flip_animation(ctx, card)
+                            
+                            await asyncio.sleep(0.5)  # Brief pause between cards
+                            
+                            # Create enhanced embed untuk setiap kartu
+                            rarity_color = self._get_rarity_color(card['rarity'])
+                            card_embed = discord.Embed(
+                                title=f"Card {i}/5: {card['member_name']}",
+                                color=rarity_color
+                            )
+                            card_embed.add_field(
+                                name="👤 Member", 
+                                value=f"**{card['member_name']}**",
+                                inline=True
+                            )
+                            card_embed.add_field(
+                                name="🎵 Group",
+                                value=f"**{card['group_name']}**", 
+                                inline=True
+                            )
+                            card_embed.add_field(
+                                name="✨ Rarity",
+                                value=f"{self._get_rarity_emoji(card['rarity'])} **{card['rarity']}**",
+                                inline=True
+                            )
+                            
+                            card_embed.set_footer(
+                                text=f"Pack Progress: {i}/5 • {self._get_luck_message(card['rarity'])}"
+                            )
                             
                             temp_path = self.gacha_system.save_card_temp(card['image'], f"card_{i}")
                             if temp_path:
-                                # Create enhanced embed untuk setiap kartu
-                                rarity_color = self._get_rarity_color(card['rarity'])
-                                card_embed = discord.Embed(
-                                    title=f"Card {i}/5: {card['member_name']}",
-                                    color=rarity_color
-                                )
-                                card_embed.add_field(
-                                    name="👤 Member", 
-                                    value=f"**{card['member_name']}**",
-                                    inline=True
-                                )
-                                card_embed.add_field(
-                                    name="🎵 Group",
-                                    value=f"**{card['group_name']}**", 
-                                    inline=True
-                                )
-                                card_embed.add_field(
-                                    name="✨ Rarity",
-                                    value=f"{self._get_rarity_emoji(card['rarity'])} **{card['rarity']}**",
-                                    inline=True
-                                )
-                                
-                                card_embed.set_footer(
-                                    text=f"Pack Progress: {i}/5 • {self._get_luck_message(card['rarity'])}"
-                                )
-                                
                                 with open(temp_path, 'rb') as f:
                                     file = discord.File(f, filename=f"card_{i}.png")
+                                    card_embed.set_image(url=f"attachment://card_{i}.png")
                                     await ctx.send(embed=card_embed, file=file)
                                 
                                 # Enhanced cleanup
