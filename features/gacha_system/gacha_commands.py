@@ -5,6 +5,7 @@ Terintegrasi dengan sistem command yang sudah ada tanpa mengubah file lama
 
 import discord
 import asyncio
+import os
 from core.logger import logger
 from features.gacha_system.kpop_gacha import KpopGachaSystem
 
@@ -1231,3 +1232,4 @@ class GachaCommandsHandler:
             return "✨ GOOD LUCK!"
         else:
             return "🍀 NORMAL LUCK"
+
