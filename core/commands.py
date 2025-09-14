@@ -2,6 +2,7 @@
 Commands Module - Menangani semua Discord commands
 """
 import asyncio
+import os
 import redis
 from core.logger import logger
 import time
@@ -1267,3 +1268,4 @@ class CommandsHandler:
         except Exception as e:
             logger.error(f"Maintenance command error: {e}")
             await ctx.send(f"❌ Error handling maintenance command: {e}")
+
