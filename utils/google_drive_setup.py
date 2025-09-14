@@ -44,9 +44,9 @@ class GoogleDriveUploader:
                 creds = service_account.Credentials.from_service_account_info(
                     service_account_info, scopes=SCOPES
                 )
-                print("✅ Authenticated using service account from environment variable")
+                logger.info("✅ Authenticated using service account from environment variable")
             except Exception as e:
-                print(f"❌ Service account authentication failed: {e}")
+                logger.error(f"❌ Service account authentication failed: {e}")
                 creds = None
         
         # Priority 2: Try OAuth flow with files (for local development)
@@ -71,7 +71,7 @@ class GoogleDriveUploader:
                 token.write(creds.to_json())
         
         self.service = build('drive', 'v3', credentials=creds)
-        print("✅ Google Drive API authenticated successfully!")
+        logger.info("✅ Google Drive API authenticated successfully!")
     
     def create_folder(self, folder_name, parent_folder_id=None):
         """
@@ -161,11 +161,14 @@ class GoogleDriveUploader:
             if make_public:
                 self.make_public(file_id)
             
-            print(f"✅ Uploaded: {file_name} -> ID: {file_id}")
+            logger.info(f"✅ Uploaded: {file_name} -> ID: {file_id}")
             return file_id
             
         except HttpError as error:
-            print(f"❌ Error uploading {file_path}: {error}")
+            logger.error(f"❌ Error uploading {file_path}: {error}")
+            return None
+        except Exception as error:
+            logger.error(f"❌ Unexpected error uploading {file_path}: {error}")
             return None
     
     def upload_photos_batch(self, photos_directory, output_json='drive_photo_mapping.json'):
