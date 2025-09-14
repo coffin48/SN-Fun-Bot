@@ -7,6 +7,7 @@ import os
 import json
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -35,18 +36,35 @@ class GoogleDriveUploader:
         """Authenticate dengan Google Drive API"""
         creds = None
         
-        # Load existing token jika ada
-        if os.path.exists(self.token_file):
-            creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
+        # Priority 1: Try service account from environment variable (for Railway)
+        service_account_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+        if service_account_json:
+            try:
+                service_account_info = json.loads(service_account_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    service_account_info, scopes=SCOPES
+                )
+                print("✅ Authenticated using service account from environment variable")
+            except Exception as e:
+                print(f"❌ Service account authentication failed: {e}")
+                creds = None
         
-        # Jika tidak ada valid credentials, lakukan OAuth flow
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_file, SCOPES)
-                creds = flow.run_local_server(port=0)
+        # Priority 2: Try OAuth flow with files (for local development)
+        if not creds:
+            # Load existing token jika ada
+            if os.path.exists(self.token_file):
+                creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
+            
+            # Jika tidak ada valid credentials, lakukan OAuth flow
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                elif os.path.exists(self.credentials_file):
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        self.credentials_file, SCOPES)
+                    creds = flow.run_local_server(port=0)
+                else:
+                    raise Exception("No valid authentication method found. Set GOOGLE_SERVICE_ACCOUNT_JSON or provide credentials.json")
             
             # Save credentials untuk next run
             with open(self.token_file, 'w') as token:
