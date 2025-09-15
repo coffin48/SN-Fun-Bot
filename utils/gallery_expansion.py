@@ -867,8 +867,8 @@ class GalleryExpansionService:
                     
                     # Extract index dari filename format: member_group_section_XXX.ext
                     if clean_section in filename:
-                        # Cari pattern _XXX. di akhir filename
-                        match = re.search(r'_(\d{3})\.[^.]+$', filename)
+                        # Cari pattern _XXX. di akhir filename (support 1-3 digits)
+                        match = re.search(r'_(\d+)\.[^.]+$', filename)
                         if match:
                             index = int(match.group(1))
                             max_index = max(max_index, index)
