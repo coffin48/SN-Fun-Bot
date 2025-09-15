@@ -249,11 +249,23 @@ class BotCore:
     
     def run(self):
         """Start the Discord bot with connection recovery"""
-        try:
-            self.bot.run(self.DISCORD_TOKEN, reconnect=True)
-        except Exception as e:
-            logger.error(f"Bot run failed: {e}")
-            # Attempt restart after delay
-            import time
-            time.sleep(5)
-            self.run()
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                self.bot.run(self.DISCORD_TOKEN, reconnect=True)
+                break  # If successful, exit the loop
+            except Exception as e:
+                retry_count += 1
+                logger.error(f"Bot run failed (attempt {retry_count}/{max_retries}): {e}")
+                
+                if retry_count >= max_retries:
+                    logger.error("Max retries reached. Exiting.")
+                    raise e
+                
+                # Wait before retry
+                import time
+                time.sleep(5)
+        
+        logger.info("Bot stopped normally.")
