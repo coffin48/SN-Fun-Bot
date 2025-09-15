@@ -917,8 +917,10 @@ class GalleryExpansionService:
             if 'photo_metadata' in data['members'][member_key]:
                 for photo_info in data['members'][member_key]['photo_metadata']:
                     filename = photo_info.get('filename', '')
-                    if filename.startswith(pattern) and filename.endswith('.jpg'):
+                    # Check if filename contains the section and matches pattern
+                    if pattern in filename and clean_section in filename:
                         count += 1
+                        logger.info(f"🔍 Counted file: {filename}")
             
             logger.info(f"🔍 Found {count} existing files in JSON metadata matching pattern {pattern}")
             return count
