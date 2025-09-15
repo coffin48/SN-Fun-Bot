@@ -44,15 +44,14 @@ class GalleryExpansionService:
         # Initialize existing components - tidak modify
         self.data_fetcher = DataFetcher()
         
-        # Setup paths - otomatis berdasarkan environment variables
-        self.json_path = os.getenv('GALLERY_JSON_PATH', 'data/member_data/Path_Foto_DriveIDs_Real.json')
-        
-        # Pilih folder berdasarkan mode
+        # Setup paths - berbeda untuk test mode dan production mode
         if test_mode:
+            self.json_path = 'data/member_data/test_Path_Foto_DriveIDs.json'
             self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', '1Rh-XYIdDW0XYlZ8ardZZctukOk1WY_-n')
             self.backup_prefix = 'test_backup'
         else:
-            # Production mode - gunakan production folder
+            # Production mode - gunakan production JSON dan folder
+            self.json_path = os.getenv('GALLERY_JSON_PATH', 'data/member_data/Path_Foto_DriveIDs_Real.json')
             self.gdrive_folder = os.getenv('PRODUCTION_GDRIVE_FOLDER_ID', '1QFqeP5zdY4UcDGRz329wOCP9evIuhgvt')
             self.backup_prefix = 'backup'
         
@@ -224,7 +223,7 @@ class GalleryExpansionService:
             result = await self.expand_member_safely(member_name, group_name, max_photos)
             return result
         finally:
-            # Restore original test mode
+            # Restore original test mode - TIDAK reset test data
             if test_mode:
                 self.test_mode = original_test_mode
                 if original_test_mode:
@@ -235,6 +234,8 @@ class GalleryExpansionService:
                     self.json_path = 'data/member_data/Path_Foto_DriveIDs_Real.json'
                     self.gdrive_folder = "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI"
                     self.backup_prefix = 'backup'
+            
+            # NOTE: Test data TIDAK di-clear untuk mempertahankan incremental filename
 
     async def expand_member_safely(self, member_name: str, group_name: str, max_photos: int = 5) -> Dict:
         """
@@ -755,7 +756,7 @@ class GalleryExpansionService:
         return True
 
     def _generate_filename(self, member_name: str, group_name: str, section: str, next_index: int, url: str) -> str:
-        """Generate incremental filename yang melanjutkan dari counter terakhir"""
+        """Generate incremental filename yang melanjutkan dari counter terakhir dengan uniqueness check"""
         # Clean names
         clean_member = re.sub(r'[^\w\-_]', '', member_name.lower())
         clean_group = re.sub(r'[^\w\-_]', '', group_name.lower().replace(' ', ''))
@@ -768,15 +769,32 @@ class GalleryExpansionService:
             if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
                 ext = 'jpg'
         
-        # Format: MEMBER_GROUP_SECTION_INDEX.ext (simple incremental)
-        filename = f"{clean_member}_{clean_group}_{clean_section}_{next_index:03d}.{ext}"
-        return filename
+        # Generate base filename
+        base_filename = f"{clean_member}_{clean_group}_{clean_section}_{next_index:03d}.{ext}"
+        
+        # Check for uniqueness dalam existing filenames
+        if self._is_filename_unique(base_filename, member_name, group_name):
+            return base_filename
+        
+        # Jika tidak unique, cari index yang available
+        for attempt in range(next_index, next_index + 100):  # Try up to 100 indices
+            candidate_filename = f"{clean_member}_{clean_group}_{clean_section}_{attempt:03d}.{ext}"
+            if self._is_filename_unique(candidate_filename, member_name, group_name):
+                logger.info(f"🔄 Filename conflict resolved: {base_filename} -> {candidate_filename}")
+                return candidate_filename
+        
+        # Fallback dengan timestamp jika masih conflict
+        import time
+        timestamp = int(time.time() * 1000) % 10000  # Last 4 digits of timestamp
+        fallback_filename = f"{clean_member}_{clean_group}_{clean_section}_{next_index:03d}_{timestamp}.{ext}"
+        logger.warning(f"⚠️ Using timestamp fallback: {fallback_filename}")
+        return fallback_filename
     
-    def _get_next_file_index(self, member_name: str, group_name: str, section: str) -> int:
-        """Get next incremental index untuk section tertentu"""
+    def _is_filename_unique(self, filename: str, member_name: str, group_name: str) -> bool:
+        """Check if filename is unique dalam existing photo metadata"""
         try:
             if not os.path.exists(self.json_path):
-                return 1
+                return True
             
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -784,15 +802,66 @@ class GalleryExpansionService:
             member_key = self._generate_member_key(member_name, group_name)
             
             if member_key not in data.get('members', {}):
+                return True
+            
+            # Check existing filenames dalam photo_metadata
+            if 'photo_metadata' in data['members'][member_key]:
+                existing_filenames = [
+                    photo_info.get('filename', '') 
+                    for photo_info in data['members'][member_key]['photo_metadata']
+                ]
+                return filename not in existing_filenames
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"WARNING: Error checking filename uniqueness: {e}")
+            return True  # Assume unique jika error
+    
+    def _get_next_file_index(self, member_name: str, group_name: str, section: str) -> int:
+        """Get next incremental index dengan smart logic: folder kosong = reset ke 1, folder ada isi = melanjutkan existing"""
+        try:
+            # Debug logging untuk troubleshooting
+            logger.info(f"🔍 Getting next index for {member_name} {group_name} {section}")
+            logger.info(f"🔍 JSON path: {self.json_path}")
+            logger.info(f"🔍 Test mode: {self.test_mode}")
+            
+            if not os.path.exists(self.json_path):
+                logger.info(f"🔍 JSON file tidak ada, return index 1")
+                return 1
+            
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            member_key = self._generate_member_key(member_name, group_name)
+            logger.info(f"🔍 Member key: {member_key}")
+            
+            if member_key not in data.get('members', {}):
+                logger.info(f"🔍 Member key tidak ada di JSON, return index 1")
                 return 1
             
             # Clean section name untuk matching
             import re
             clean_section = re.sub(r'[^\w\-_]', '', section.lower())
+            logger.info(f"🔍 Clean section: {clean_section}")
             
-            # Cari index tertinggi untuk section ini dari photo_metadata
+            # SMART LOGIC: Check existing files via JSON metadata (untuk GitHub/Railway deployment)
+            existing_files_count = self._count_existing_physical_files(member_name, group_name, clean_section)
+            logger.info(f"🔍 Existing files found in metadata: {existing_files_count}")
+            
+            # Jika tidak ada existing files di JSON metadata, reset ke 1
+            if existing_files_count == 0:
+                logger.info(f"🔄 No existing files in metadata, resetting index to 1")
+                return 1
+            
+            # Jika ada file fisik, melanjutkan dari JSON metadata
             max_index = 0
+            photo_count = 0
+            
             if 'photo_metadata' in data['members'][member_key]:
+                photo_count = len(data['members'][member_key]['photo_metadata'])
+                logger.info(f"🔍 Found {photo_count} existing photos in metadata")
+                
                 for photo_info in data['members'][member_key]['photo_metadata']:
                     filename = photo_info.get('filename', '')
                     
@@ -803,12 +872,60 @@ class GalleryExpansionService:
                         if match:
                             index = int(match.group(1))
                             max_index = max(max_index, index)
+                            logger.info(f"🔍 Found existing index {index} in {filename}")
+            else:
+                logger.info(f"🔍 No photo_metadata found, return index 1")
+                return 1
             
-            return max_index + 1
+            next_index = max_index + 1
+            logger.info(f"🔍 Max index: {max_index}, Next index: {next_index}")
+            
+            return next_index
             
         except Exception as e:
             logger.warning(f"WARNING: Error getting next index: {e}")
             return 1
+    
+    def _count_existing_physical_files(self, member_name: str, group_name: str, section: str) -> int:
+        """Count existing files - untuk GitHub/Railway deployment, check via Google Drive API"""
+        try:
+            # Generate pattern untuk matching files
+            import re
+            clean_member = re.sub(r'[^\w\-_]', '', member_name.lower())
+            clean_group = re.sub(r'[^\w\-_]', '', group_name.lower())
+            clean_section = re.sub(r'[^\w\-_]', '', section.lower())
+            
+            pattern = f"{clean_member}_{clean_group}_{clean_section}_"
+            
+            # Untuk GitHub/Railway deployment, check existing files via JSON metadata
+            # Karena file tersimpan di Google Drive, bukan local filesystem
+            if not os.path.exists(self.json_path):
+                logger.info(f"🔍 No JSON file, assuming no existing files")
+                return 0
+            
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            member_key = self._generate_member_key(member_name, group_name)
+            
+            if member_key not in data.get('members', {}):
+                logger.info(f"🔍 No member data, assuming no existing files")
+                return 0
+            
+            # Count files yang match pattern dari JSON metadata
+            count = 0
+            if 'photo_metadata' in data['members'][member_key]:
+                for photo_info in data['members'][member_key]['photo_metadata']:
+                    filename = photo_info.get('filename', '')
+                    if filename.startswith(pattern) and filename.endswith('.jpg'):
+                        count += 1
+            
+            logger.info(f"🔍 Found {count} existing files in JSON metadata matching pattern {pattern}")
+            return count
+                
+        except Exception as e:
+            logger.warning(f"WARNING: Error counting existing files: {e}")
+            return 0  # Default ke 0 untuk safety (akan reset ke index 1)
     
     async def _update_json_safely(self, member_name: str, group_name: str, uploaded_files: List[Dict]) -> Dict:
         """Update JSON database dengan backup dan rollback"""
