@@ -1,0 +1,12 @@
+{
+  "is_maintenance": false,
+  "maintenance_message": "Bot sedang dalam maintenance. Mohon tunggu sebentar ya!",
+  "start_time": null,
+  "estimated_end": null,
+  "reason": null,
+  "allowed_commands": [
+    "maintenance",
+    "status"
+  ],
+  "last_updated": "2025-09-15T12:25:07.723571+00:00"
+}
