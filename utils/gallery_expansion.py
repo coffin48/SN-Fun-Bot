@@ -402,6 +402,9 @@ class GalleryExpansionService:
         existing_urls = await self._get_existing_urls(member_name, group_name)
         processed_urls = set()  # Track URLs dalam batch ini
         
+        # Track next index per section untuk incremental naming
+        section_counters = {}
+        
         try:
             logger.info(f"🔄 Memulai proses {len(photos)} foto...")
             logger.info(f"📊 Found {len(existing_urls)} existing URLs untuk duplicate check")
@@ -445,9 +448,17 @@ class GalleryExpansionService:
                         logger.warning(f"⚠️ Melewati konten bukan gambar: {content_type}")
                         continue
                     
-                    # Generate nama file dengan counter unik
+                    # Get next incremental index untuk section ini
+                    section = photo['section']
+                    if section not in section_counters:
+                        section_counters[section] = self._get_next_file_index(member_name, group_name, section)
+                    
+                    next_index = section_counters[section]
+                    section_counters[section] += 1  # Increment untuk foto berikutnya
+                    
+                    # Generate nama file dengan incremental counter
                     filename = self._generate_filename(
-                        member_name, group_name, photo['section'], len(uploaded_files) + 1, photo['url']
+                        member_name, group_name, section, next_index, photo['url']
                     )
                     
                     temp_path = temp_dir / filename
@@ -677,12 +688,12 @@ class GalleryExpansionService:
         # Now allow the converted URL
         return True
 
-    def _generate_filename(self, member_name: str, group_name: str, section: str, index: int, url: str) -> str:
-        """Generate consistent filename"""
+    def _generate_filename(self, member_name: str, group_name: str, section: str, next_index: int, url: str) -> str:
+        """Generate incremental filename yang melanjutkan dari counter terakhir"""
         # Clean names
-        clean_member = re.sub(r'[^\w\-_]', '', member_name)
-        clean_group = re.sub(r'[^\w\-_]', '', group_name.replace(' ', ''))
-        clean_section = re.sub(r'[^\w\-_]', '', section)
+        clean_member = re.sub(r'[^\w\-_]', '', member_name.lower())
+        clean_group = re.sub(r'[^\w\-_]', '', group_name.lower().replace(' ', ''))
+        clean_section = re.sub(r'[^\w\-_]', '', section.lower())
         
         # Extract extension
         ext = 'jpg'
@@ -691,9 +702,47 @@ class GalleryExpansionService:
             if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
                 ext = 'jpg'
         
-        # Format: MEMBER_GROUP_SECTION_INDEX.ext
-        filename = f"{clean_member}_{clean_group}_{clean_section}_{index:03d}.{ext}"
+        # Format: MEMBER_GROUP_SECTION_INDEX.ext (simple incremental)
+        filename = f"{clean_member}_{clean_group}_{clean_section}_{next_index:03d}.{ext}"
         return filename
+    
+    def _get_next_file_index(self, member_name: str, group_name: str, section: str) -> int:
+        """Get next incremental index untuk section tertentu"""
+        try:
+            if not os.path.exists(self.json_path):
+                return 1
+            
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            member_key = self._generate_member_key(member_name, group_name)
+            
+            if member_key not in data.get('members', {}):
+                return 1
+            
+            # Clean section name untuk matching
+            clean_section = re.sub(r'[^\w\-_]', '', section.lower())
+            
+            # Cari index tertinggi untuk section ini dari photo_metadata
+            max_index = 0
+            if 'photo_metadata' in data['members'][member_key]:
+                for photo_info in data['members'][member_key]['photo_metadata']:
+                    filename = photo_info.get('filename', '')
+                    
+                    # Extract index dari filename format: member_group_section_XXX.ext
+                    if clean_section in filename:
+                        # Cari pattern _XXX. di akhir filename
+                        import re
+                        match = re.search(r'_(\d{3})\.[^.]+$', filename)
+                        if match:
+                            index = int(match.group(1))
+                            max_index = max(max_index, index)
+            
+            return max_index + 1
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error getting next index: {e}")
+            return 1
     
     async def _update_json_safely(self, member_name: str, group_name: str, uploaded_files: List[Dict]) -> Dict:
         """Update JSON database dengan backup dan rollback"""
