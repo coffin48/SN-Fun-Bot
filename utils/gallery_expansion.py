@@ -928,13 +928,15 @@ class GalleryExpansionService:
                 for photo_info in data['members'][member_key]['photo_metadata']:
                     filename = photo_info.get('filename', '')
                     
-                    # Extract index dari filename format database lama: Group_Member_XXX.ext
-                    # Cari pattern _XXX. di akhir filename (support any digits)
+                    # Extract index dari filename format database lama: karina_aespa_existing_001.jpg
+                    # Cari pattern _XXX. di akhir filename sebelum extension
                     match = re.search(r'_(\d+)\.[^.]+$', filename)
                     if match:
                         index = int(match.group(1))
                         max_index = max(max_index, index)
                         logger.info(f"🔍 Found existing index {index} in {filename}")
+                    else:
+                        logger.info(f"🔍 No index pattern found in filename: {filename}")
             else:
                 logger.info(f"🔍 No photo_metadata found, return index 1")
                 return 1
