@@ -961,9 +961,16 @@ class GalleryExpansionService:
                 photo_count = len(photos)
                 logger.info(f"🔍 Found {photo_count} existing photos in photos array (legacy format)")
                 
-                # Untuk database lama, asumsikan sequential numbering dari 1
-                max_index = photo_count
-                logger.info(f"🔍 Legacy format: assuming sequential numbering, max_index = {max_index}")
+                # Check if there are any new photos added (dengan photo_metadata format)
+                total_photos = photo_count
+                if 'photo_metadata' in data['members'][member_key]:
+                    metadata_count = len(data['members'][member_key]['photo_metadata'])
+                    total_photos = max(photo_count, metadata_count)
+                    logger.info(f"🔍 Found additional {metadata_count} photos in photo_metadata")
+                
+                # Untuk database lama + new photos, gunakan total count
+                max_index = total_photos
+                logger.info(f"🔍 Legacy + new format: total photos = {total_photos}, max_index = {max_index}")
             else:
                 logger.info(f"🔍 No photo_metadata or photos found, return index 1")
                 return 1
