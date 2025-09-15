@@ -622,9 +622,20 @@ class GalleryExpansionService:
             return None
     
     def _upload_with_drive_api(self, file_path: str, filename: str) -> Optional[str]:
-        """Upload file menggunakan Google Drive API langsung"""
+        """Upload file menggunakan Google Drive API langsung dengan folder structure Group > Member"""
         try:
-            # Validate folder exists first
+            # Extract group dan member dari filename untuk folder structure
+            # Format filename: group_member_index.ext
+            parts = filename.split('_')
+            if len(parts) >= 2:
+                group_name = parts[0].upper()  # Convert ke uppercase untuk consistency
+                member_name = parts[1].capitalize()  # Capitalize first letter
+            else:
+                # Fallback jika format tidak sesuai
+                group_name = "UNKNOWN"
+                member_name = "UNKNOWN"
+            
+            # Validate root folder exists first
             try:
                 self.drive_service.files().get(fileId=self.gdrive_folder).execute()
             except HttpError as folder_error:
@@ -632,9 +643,24 @@ class GalleryExpansionService:
                 logger.error(f"❌ Folder error: {folder_error}")
                 return None
             
+            # Create/find Group folder
+            group_folder_id = self._create_or_find_folder(group_name, self.gdrive_folder)
+            if not group_folder_id:
+                logger.error(f"❌ Failed to create/find group folder: {group_name}")
+                return None
+            
+            # Create/find Member folder inside Group folder
+            member_folder_id = self._create_or_find_folder(member_name, group_folder_id)
+            if not member_folder_id:
+                logger.error(f"❌ Failed to create/find member folder: {member_name}")
+                return None
+            
+            logger.info(f"📁 Upload structure: {group_name}/{member_name}/{filename}")
+            
+            # Upload file to Member folder
             file_metadata = {
                 'name': filename,
-                'parents': [self.gdrive_folder]
+                'parents': [member_folder_id]
             }
             
             media = MediaFileUpload(file_path, resumable=True)
@@ -655,6 +681,48 @@ class GalleryExpansionService:
             return None
         except Exception as e:
             logger.error(f"❌ Upload error: {e}")
+            return None
+    
+    def _create_or_find_folder(self, folder_name: str, parent_folder_id: str) -> Optional[str]:
+        """Create folder jika belum ada, atau return existing folder ID"""
+        try:
+            # Search for existing folder
+            query = f"name='{folder_name}' and '{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            
+            results = self.drive_service.files().list(
+                q=query,
+                fields='files(id, name)'
+            ).execute()
+            
+            folders = results.get('files', [])
+            
+            if folders:
+                # Folder sudah ada, return ID
+                folder_id = folders[0]['id']
+                logger.info(f"📁 Found existing folder: {folder_name} (ID: {folder_id})")
+                return folder_id
+            else:
+                # Create new folder
+                folder_metadata = {
+                    'name': folder_name,
+                    'parents': [parent_folder_id],
+                    'mimeType': 'application/vnd.google-apps.folder'
+                }
+                
+                folder = self.drive_service.files().create(
+                    body=folder_metadata,
+                    fields='id'
+                ).execute()
+                
+                folder_id = folder.get('id')
+                logger.info(f"📁 Created new folder: {folder_name} (ID: {folder_id})")
+                return folder_id
+                
+        except HttpError as e:
+            logger.error(f"❌ Error creating/finding folder {folder_name}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Unexpected error with folder {folder_name}: {e}")
             return None
     
     async def _upload_json_backup(self, json_data: dict, filename: str) -> Optional[str]:
