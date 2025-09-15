@@ -102,9 +102,40 @@ class GalleryExpansionService:
             self.enabled = False
     
     def _setup_oauth_auth(self, scopes) -> bool:
-        """Setup OAuth authentication"""
+        """Setup OAuth authentication dengan environment variables support"""
         try:
             creds = None
+            
+            # Method 1: Try environment variables first (untuk Railway deployment)
+            client_id = os.getenv('GOOGLE_OAUTH_CLIENT_ID')
+            client_secret = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
+            refresh_token = os.getenv('GOOGLE_OAUTH_REFRESH_TOKEN')
+            
+            if client_id and client_secret and refresh_token:
+                logger.info("🔑 Using OAuth credentials from environment variables")
+                
+                # Create credentials dari environment variables
+                token_data = {
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'refresh_token': refresh_token,
+                    'token_uri': 'https://oauth2.googleapis.com/token'
+                }
+                
+                creds = Credentials.from_authorized_user_info(token_data, scopes)
+                
+                # Refresh token jika expired
+                if creds.expired:
+                    creds.refresh(Request())
+                    logger.info("🔄 OAuth token refreshed successfully")
+                
+                # Build service
+                self.drive_service = build('drive', 'v3', credentials=creds)
+                logger.info("✅ OAuth authentication berhasil dengan environment variables")
+                return True
+            
+            # Method 2: Fallback ke file lokal (untuk development)
+            logger.info("🔍 Fallback ke OAuth file lokal...")
             
             # Load existing token
             if os.path.exists('token.json'):
@@ -116,6 +147,7 @@ class GalleryExpansionService:
                     creds.refresh(Request())
                 else:
                     if not os.path.exists('credentials.json'):
+                        logger.warning("⚠️ credentials.json tidak ditemukan")
                         return False
                     
                     flow = InstalledAppFlow.from_client_secrets_file(
@@ -128,6 +160,7 @@ class GalleryExpansionService:
             
             # Build service
             self.drive_service = build('drive', 'v3', credentials=creds)
+            logger.info("✅ OAuth authentication berhasil dengan file lokal")
             return True
             
         except Exception as e:
