@@ -419,9 +419,18 @@ class GalleryExpansionService:
                     # Convert thumbnail URL to full image URL
                     full_url = self._convert_to_full_image_url(photo['url'])
                     
+                    # Debug logging untuk URL comparison
+                    logger.info(f"DEBUG: Original URL: {photo['url'][:80]}...")
+                    logger.info(f"DEBUG: Full URL: {full_url[:80]}...")
+                    
                     # Check duplicate dengan existing URLs
                     if full_url in existing_urls:
                         logger.info(f"SKIP: URL sudah ada di database: {full_url[:80]}...")
+                        continue
+                    
+                    # Check duplicate dengan original URL juga
+                    if photo['url'] in existing_urls:
+                        logger.info(f"SKIP: Original URL sudah ada di database: {photo['url'][:80]}...")
                         continue
                     
                     # Check duplicate dalam batch ini
@@ -429,8 +438,9 @@ class GalleryExpansionService:
                         logger.info(f"SKIP: URL duplikat dalam batch ini: {full_url[:80]}...")
                         continue
                     
-                    # Add ke processed URLs
+                    # Add ke processed URLs (both original and full)
                     processed_urls.add(full_url)
+                    processed_urls.add(photo['url'])
                     
                     # Log URL yang sedang diproses
                     logger.info(f"PROCESSING: Memproses foto {i+1}: {full_url[:80]}...")
@@ -507,33 +517,61 @@ class GalleryExpansionService:
     
     async def _get_existing_urls(self, member_name: str, group_name: str) -> set:
         """Get existing URLs untuk duplicate detection"""
+        existing_urls = set()
+        
         try:
             if not os.path.exists(self.json_path):
-                return set()
+                logger.info(f"DEBUG: JSON file tidak ditemukan: {self.json_path}")
+                return existing_urls
             
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             member_key = self._generate_member_key(member_name, group_name)
+            logger.info(f"DEBUG: Checking member_key: {member_key}")
             
-            # Get existing URLs dari member data
-            existing_urls = set()
             if member_key in data.get('members', {}):
                 member_data = data['members'][member_key]
+                logger.info(f"DEBUG: Member data found: {member_key}")
                 
-                # Collect URLs dari photo metadata jika ada
+                # Method 1: Check photo_metadata untuk URL yang sudah ada (new format)
                 if 'photo_metadata' in member_data:
-                    for photo_info in member_data['photo_metadata']:
+                    photo_metadata = member_data['photo_metadata']
+                    logger.info(f"DEBUG: Found {len(photo_metadata)} photo metadata entries")
+                    
+                    for photo_info in photo_metadata:
+                        # Add both original URL dan converted URL
                         if 'url' in photo_info:
                             existing_urls.add(photo_info['url'])
                         if 'original_url' in photo_info:
                             existing_urls.add(photo_info['original_url'])
+                    
+                    logger.info(f"DEBUG: Loaded {len(existing_urls)} existing URLs from photo_metadata")
+                
+                # Method 2: Check photos array untuk Google Drive IDs (old format)
+                elif 'photos' in member_data and isinstance(member_data['photos'], list):
+                    photos = member_data['photos']
+                    logger.info(f"DEBUG: Found {len(photos)} Google Drive file IDs (old format)")
+                    
+                    # Convert Google Drive IDs ke URLs untuk comparison
+                    base_url = data.get('base_url', 'https://drive.google.com/uc?export=view&id=')
+                    for file_id in photos:
+                        if isinstance(file_id, str):
+                            drive_url = f"{base_url}{file_id}"
+                            existing_urls.add(drive_url)
+                    
+                    logger.info(f"DEBUG: Converted {len(existing_urls)} Google Drive URLs from file IDs")
+                else:
+                    logger.info(f"DEBUG: No photo data found for {member_key}")
+            else:
+                logger.info(f"DEBUG: Member not found: {member_key}")
             
+            logger.info(f"DEBUG: Total existing URLs found: {len(existing_urls)}")
             return existing_urls
             
         except Exception as e:
-            logger.warning(f"⚠️ Error loading existing URLs: {e}")
-            return set()
+            logger.error(f"Error loading existing URLs: {e}")
+            return existing_urls
     
     async def _upload_file_hybrid(self, file_path: str, filename: str) -> Optional[str]:
         """Upload file menggunakan hybrid authentication"""
