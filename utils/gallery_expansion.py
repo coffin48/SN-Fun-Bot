@@ -646,8 +646,17 @@ class GalleryExpansionService:
     async def _update_json_safely(self, member_name: str, group_name: str, uploaded_files: List[Dict]) -> Dict:
         """Update JSON database dengan backup dan rollback"""
         try:
-            # Create backup first
-            backup_path = self._create_backup()
+            # Pastikan folder JSON ada
+            json_dir = Path(self.json_path).parent
+            json_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create backup first (hanya jika file sudah ada)
+            backup_path = ""
+            if os.path.exists(self.json_path):
+                backup_path = self._create_backup()
+                logger.info(f"📄 Backup created: {backup_path}")
+            else:
+                logger.info(f"📝 Creating new JSON file: {self.json_path}")
             
             # Load existing JSON atau create new jika tidak ada
             if os.path.exists(self.json_path):
@@ -724,13 +733,29 @@ class GalleryExpansionService:
             }
     
     def _create_backup(self) -> str:
-        """Create backup of JSON file"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_filename = f"{self.backup_prefix}_Path_Foto_DriveIDs_{timestamp}.json"
-        backup_path = f"data/member_data/{backup_filename}"
-        
-        shutil.copy2(self.json_path, backup_path)
-        return backup_path
+        """Create backup of JSON file dengan error handling"""
+        try:
+            # Pastikan folder backup ada
+            backup_dir = Path("data/member_data")
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Pastikan source file ada
+            if not os.path.exists(self.json_path):
+                logger.warning(f"⚠️ Source JSON file tidak ditemukan: {self.json_path}")
+                return ""
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_filename = f"{self.backup_prefix}_Path_Foto_DriveIDs_{timestamp}.json"
+            backup_path = backup_dir / backup_filename
+            
+            # Copy file dengan error handling
+            shutil.copy2(self.json_path, str(backup_path))
+            logger.info(f"📄 Backup created: {backup_path}")
+            return str(backup_path)
+            
+        except Exception as e:
+            logger.error(f"❌ Backup creation failed: {e}")
+            return ""
     
     def _generate_member_key(self, member_name: str, group_name: str) -> str:
         """Generate consistent member key"""
