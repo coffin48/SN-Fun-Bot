@@ -904,9 +904,26 @@ class GalleryExpansionService:
             member_key = self._generate_member_key(member_name, group_name)
             logger.info(f"🔍 Member key: {member_key}")
             
+            # Debug: List all available member keys
+            available_keys = list(data.get('members', {}).keys())
+            logger.info(f"🔍 Available member keys in JSON: {available_keys[:10]}...")  # Show first 10
+            
             if member_key not in data.get('members', {}):
-                logger.info(f"🔍 Member key tidak ada di JSON, return index 1")
-                return 1
+                logger.info(f"🔍 Member key '{member_key}' tidak ada di JSON")
+                # Try alternative key formats
+                alt_key1 = f"{member_name.lower()}_{group_name.lower()}"
+                alt_key2 = f"{group_name.lower()}_{member_name.lower()}"
+                logger.info(f"🔍 Trying alternative keys: {alt_key1}, {alt_key2}")
+                
+                if alt_key1 in data.get('members', {}):
+                    member_key = alt_key1
+                    logger.info(f"🔍 Found alternative key: {alt_key1}")
+                elif alt_key2 in data.get('members', {}):
+                    member_key = alt_key2
+                    logger.info(f"🔍 Found alternative key: {alt_key2}")
+                else:
+                    logger.info(f"🔍 No matching member key found, return index 1")
+                    return 1
             
             # Clean section name untuk matching
             import re
@@ -921,9 +938,10 @@ class GalleryExpansionService:
             max_index = 0
             photo_count = 0
             
+            # Check both photo_metadata and photos array untuk backward compatibility
             if 'photo_metadata' in data['members'][member_key]:
                 photo_count = len(data['members'][member_key]['photo_metadata'])
-                logger.info(f"🔍 Found {photo_count} existing photos in metadata")
+                logger.info(f"🔍 Found {photo_count} existing photos in photo_metadata")
                 
                 for photo_info in data['members'][member_key]['photo_metadata']:
                     filename = photo_info.get('filename', '')
@@ -937,8 +955,17 @@ class GalleryExpansionService:
                         logger.info(f"🔍 Found existing index {index} in {filename}")
                     else:
                         logger.info(f"🔍 No index pattern found in filename: {filename}")
+            elif 'photos' in data['members'][member_key]:
+                # Fallback: scan photos array untuk database lama tanpa photo_metadata
+                photos = data['members'][member_key]['photos']
+                photo_count = len(photos)
+                logger.info(f"🔍 Found {photo_count} existing photos in photos array (legacy format)")
+                
+                # Untuk database lama, asumsikan sequential numbering dari 1
+                max_index = photo_count
+                logger.info(f"🔍 Legacy format: assuming sequential numbering, max_index = {max_index}")
             else:
-                logger.info(f"🔍 No photo_metadata found, return index 1")
+                logger.info(f"🔍 No photo_metadata or photos found, return index 1")
                 return 1
             
             next_index = max_index + 1
