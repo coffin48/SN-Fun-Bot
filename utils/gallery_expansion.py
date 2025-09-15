@@ -938,42 +938,42 @@ class GalleryExpansionService:
             max_index = 0
             photo_count = 0
             
-            # Check both photo_metadata and photos array untuk backward compatibility
+            # Hybrid approach: scan both legacy photos array dan photo_metadata
+            legacy_count = 0
+            metadata_max_index = 0
+            
+            # Count legacy photos array
+            if 'photos' in data['members'][member_key]:
+                legacy_count = len(data['members'][member_key]['photos'])
+                logger.info(f"🔍 Found {legacy_count} legacy photos in photos array")
+            
+            # Scan photo_metadata untuk actual max index
             if 'photo_metadata' in data['members'][member_key]:
-                photo_count = len(data['members'][member_key]['photo_metadata'])
-                logger.info(f"🔍 Found {photo_count} existing photos in photo_metadata")
+                photo_metadata = data['members'][member_key]['photo_metadata']
+                logger.info(f"🔍 Found {len(photo_metadata)} photos in photo_metadata")
                 
-                for photo_info in data['members'][member_key]['photo_metadata']:
+                for photo_info in photo_metadata:
                     filename = photo_info.get('filename', '')
                     
-                    # Extract index dari filename format database lama: karina_aespa_existing_001.jpg
-                    # Cari pattern _XXX. di akhir filename sebelum extension
+                    # Extract index dari filename
                     match = re.search(r'_(\d+)\.[^.]+$', filename)
                     if match:
                         index = int(match.group(1))
-                        max_index = max(max_index, index)
+                        metadata_max_index = max(metadata_max_index, index)
                         logger.info(f"🔍 Found existing index {index} in {filename}")
                     else:
                         logger.info(f"🔍 No index pattern found in filename: {filename}")
-            elif 'photos' in data['members'][member_key]:
-                # Fallback: scan photos array untuk database lama tanpa photo_metadata
-                photos = data['members'][member_key]['photos']
-                photo_count = len(photos)
-                logger.info(f"🔍 Found {photo_count} existing photos in photos array (legacy format)")
-                
-                # Check if there are any new photos added (dengan photo_metadata format)
-                total_photos = photo_count
-                if 'photo_metadata' in data['members'][member_key]:
-                    metadata_count = len(data['members'][member_key]['photo_metadata'])
-                    total_photos = max(photo_count, metadata_count)
-                    logger.info(f"🔍 Found additional {metadata_count} photos in photo_metadata")
-                
-                # Untuk database lama + new photos, gunakan total count
-                max_index = total_photos
-                logger.info(f"🔍 Legacy + new format: total photos = {total_photos}, max_index = {max_index}")
+            
+            # Determine max_index: prioritize actual metadata scan over legacy count
+            if metadata_max_index > 0:
+                max_index = metadata_max_index
+                logger.info(f"🔍 Using metadata max_index: {max_index}")
+            elif legacy_count > 0:
+                max_index = legacy_count
+                logger.info(f"🔍 Using legacy count as max_index: {max_index}")
             else:
-                logger.info(f"🔍 No photo_metadata or photos found, return index 1")
-                return 1
+                logger.info(f"🔍 No existing photos found, starting from index 1")
+                max_index = 0
             
             next_index = max_index + 1
             logger.info(f"🔍 Max index: {max_index}, Next index: {next_index}")
