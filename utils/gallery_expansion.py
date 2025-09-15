@@ -769,8 +769,8 @@ class GalleryExpansionService:
             if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
                 ext = 'jpg'
         
-        # Generate base filename
-        base_filename = f"{clean_member}_{clean_group}_{clean_section}_{next_index:03d}.{ext}"
+        # Generate base filename sesuai format database lama: Group_Member_Index.jpg
+        base_filename = f"{clean_group}_{clean_member}_{next_index}.{ext}"
         
         # Check for uniqueness dalam existing filenames
         if self._is_filename_unique(base_filename, member_name, group_name):
@@ -778,7 +778,7 @@ class GalleryExpansionService:
         
         # Jika tidak unique, cari index yang available
         for attempt in range(next_index, next_index + 100):  # Try up to 100 indices
-            candidate_filename = f"{clean_member}_{clean_group}_{clean_section}_{attempt:03d}.{ext}"
+            candidate_filename = f"{clean_group}_{clean_member}_{attempt}.{ext}"
             if self._is_filename_unique(candidate_filename, member_name, group_name):
                 logger.info(f"🔄 Filename conflict resolved: {base_filename} -> {candidate_filename}")
                 return candidate_filename
@@ -786,7 +786,7 @@ class GalleryExpansionService:
         # Fallback dengan timestamp jika masih conflict
         import time
         timestamp = int(time.time() * 1000) % 10000  # Last 4 digits of timestamp
-        fallback_filename = f"{clean_member}_{clean_group}_{clean_section}_{next_index:03d}_{timestamp}.{ext}"
+        fallback_filename = f"{clean_group}_{clean_member}_{next_index}_{timestamp}.{ext}"
         logger.warning(f"⚠️ Using timestamp fallback: {fallback_filename}")
         return fallback_filename
     
