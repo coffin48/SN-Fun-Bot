@@ -317,9 +317,30 @@ class GalleryExpansionService:
             }
     
     async def _scrape_gallery_safely(self, member_name: str, group_name: str) -> Dict:
-        """Safe gallery scraping dengan error isolation"""
+        """Safe gallery scraping dengan error isolation dan enhanced section support"""
         try:
-            # Use existing scrape_member_gallery - tidak modify
+            # Enhanced scraping untuk test mode - scrape dari multiple sections
+            if self.test_mode:
+                from utils.enhanced_gallery_scraper import EnhancedGalleryScraper
+                
+                enhanced_scraper = EnhancedGalleryScraper()
+                try:
+                    gallery_data = await enhanced_scraper.scrape_gallery_with_sections(
+                        member_name, group_name, max_photos=50
+                    )
+                    await enhanced_scraper.cleanup()
+                    
+                    if gallery_data.get('success'):
+                        logger.info(f"🎯 Enhanced scraping: {gallery_data['total_found']} total, {gallery_data['sections_scraped']} sections")
+                        return gallery_data
+                    else:
+                        logger.warning(f"Enhanced scraping failed: {gallery_data.get('error')}")
+                        # Fallback to regular scraping
+                except Exception as e:
+                    logger.warning(f"Enhanced scraping error: {e}, falling back to regular scraping")
+                    await enhanced_scraper.cleanup()
+            
+            # Regular scraping (production mode atau fallback)
             gallery_data = await self.data_fetcher.scrape_member_gallery(
                 member_name, group_name
             )
@@ -404,6 +425,13 @@ class GalleryExpansionService:
         
         # Track next index per section untuk incremental naming
         section_counters = {}
+        
+        # Randomize photo order untuk test mode agar tidak selalu foto yang sama
+        if self.test_mode:
+            import random
+            photos = photos.copy()  # Don't modify original list
+            random.shuffle(photos)
+            logger.info(f"🎲 Test mode: Randomized photo order untuk variasi")
         
         try:
             logger.info(f"🔄 Memulai proses {len(photos)} foto...")
