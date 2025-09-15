@@ -148,20 +148,37 @@ class BotCore:
     
     def _create_bot(self):
         """Create and configure Discord bot"""
+        # Setup bot dengan intents yang diperlukan
         intents = discord.Intents.default()
         intents.message_content = True
-        bot = commands.Bot(
-            command_prefix="!", 
-            intents=intents, 
-            description="SN Fun Bot K-pop Hybrid"
+        intents.guilds = True
+        
+        self.bot = commands.Bot(
+            command_prefix='!', 
+            intents=intents,
+            heartbeat_timeout=60.0,  # Increase from default 30s
+            guild_ready_timeout=10.0,
+            max_messages=1000
         )
         
-        # Add on_ready event
-        @bot.event
+        # Add connection event handlers
+        @self.bot.event
         async def on_ready():
             await self._on_bot_ready()
         
-        return bot
+        @self.bot.event
+        async def on_disconnect():
+            logger.warning("🔴 Bot disconnected from Discord")
+        
+        @self.bot.event
+        async def on_resumed():
+            logger.info("🟢 Bot connection resumed")
+        
+        @self.bot.event
+        async def on_connect():
+            logger.info("🔗 Bot connected to Discord gateway")
+        
+        return self.bot
     
     async def _on_bot_ready(self):
         """Handle bot ready event with Discord status message"""
@@ -231,5 +248,12 @@ class BotCore:
             break
     
     def run(self):
-        """Start the Discord bot"""
-        self.bot.run(self.DISCORD_TOKEN)
+        """Start the Discord bot with connection recovery"""
+        try:
+            self.bot.run(self.DISCORD_TOKEN, reconnect=True)
+        except Exception as e:
+            logger.error(f"Bot run failed: {e}")
+            # Attempt restart after delay
+            import time
+            time.sleep(5)
+            self.run()
