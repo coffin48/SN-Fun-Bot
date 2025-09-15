@@ -196,9 +196,14 @@ class BotAnalytics:
         print(f"Analytics logged error: {error_type} - {error_message}")
     
     def log_analytics_to_railway(self):
-        """Log analytics summary to Railway logs"""
-        summary = self.get_analytics_summary()
-        print(f"📊 DAILY ANALYTICS REPORT:\n{summary}")
+        """Log analytics summary to Railway logs - only if there's meaningful data"""
+        # Only log if there are actual queries to report
+        if self.data["query_stats"]["total_queries"] > 0:
+            summary = self.get_analytics_summary()
+            print(f"📊 DAILY ANALYTICS REPORT:\n{summary}")
+        else:
+            # Silent - no spam logs for empty analytics
+            pass
 
 # Global analytics instance
 analytics = BotAnalytics()
