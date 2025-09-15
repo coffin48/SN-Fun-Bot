@@ -612,9 +612,18 @@ class GalleryExpansionService:
             # Create backup first
             backup_path = self._create_backup()
             
-            # Load existing JSON
-            with open(self.json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            # Load existing JSON atau create new jika tidak ada
+            if os.path.exists(self.json_path):
+                with open(self.json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            else:
+                # Create new JSON structure
+                data = {
+                    "total_members": 0,
+                    "total_files": 0,
+                    "last_updated": "",
+                    "members": {}
+                }
             
             # Generate member key
             member_key = self._generate_member_key(member_name, group_name)
