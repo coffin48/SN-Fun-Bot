@@ -393,13 +393,18 @@ class GalleryExpansionService:
         return quality_photos[:max_photos]
     
     async def _process_photos_safely(self, photos: List[Dict], member_name: str, group_name: str) -> List[Dict]:
-        """Process dan upload photos dengan error handling"""
+        """Process dan upload photos dengan error handling dan duplicate detection"""
         uploaded_files = []
         temp_dir = Path("temp_expansion")
         temp_dir.mkdir(exist_ok=True)
         
+        # Load existing URLs untuk duplicate detection
+        existing_urls = await self._get_existing_urls(member_name, group_name)
+        processed_urls = set()  # Track URLs dalam batch ini
+        
         try:
             logger.info(f"🔄 Memulai proses {len(photos)} foto...")
+            logger.info(f"📊 Found {len(existing_urls)} existing URLs untuk duplicate check")
             
             for i, photo in enumerate(photos):
                 try:
@@ -410,6 +415,19 @@ class GalleryExpansionService:
                     
                     # Convert thumbnail URL to full image URL
                     full_url = self._convert_to_full_image_url(photo['url'])
+                    
+                    # Check duplicate dengan existing URLs
+                    if full_url in existing_urls:
+                        logger.info(f"SKIP: URL sudah ada di database: {full_url[:80]}...")
+                        continue
+                    
+                    # Check duplicate dalam batch ini
+                    if full_url in processed_urls:
+                        logger.info(f"SKIP: URL duplikat dalam batch ini: {full_url[:80]}...")
+                        continue
+                    
+                    # Add ke processed URLs
+                    processed_urls.add(full_url)
                     
                     # Log URL yang sedang diproses
                     logger.info(f"PROCESSING: Memproses foto {i+1}: {full_url[:80]}...")
@@ -427,9 +445,9 @@ class GalleryExpansionService:
                         logger.warning(f"⚠️ Melewati konten bukan gambar: {content_type}")
                         continue
                     
-                    # Generate nama file
+                    # Generate nama file dengan counter unik
                     filename = self._generate_filename(
-                        member_name, group_name, photo['section'], i + 1, photo['url']
+                        member_name, group_name, photo['section'], len(uploaded_files) + 1, photo['url']
                     )
                     
                     temp_path = temp_dir / filename
@@ -447,30 +465,64 @@ class GalleryExpansionService:
                                 'file_id': file_id,
                                 'filename': filename,
                                 'section': photo['section'],
-                                'original_url': photo['url']
+                                'url': full_url,  # Store full URL untuk tracking
+                                'original_url': photo['url']  # Store original URL juga
                             })
-                            logger.info(f"✅ Uploaded: {filename} -> {file_id}")
+                            logger.info(f"SUCCESS: Upload berhasil - {filename} ({file_id})")
                         else:
-                            logger.error(f"❌ Upload failed: No file ID returned for {filename}")
+                            logger.error(f"FAILED: Upload gagal - {filename}")
+                    
                     except Exception as upload_error:
-                        logger.error(f"❌ Upload error for {filename}: {upload_error}")
+                        logger.error(f"UPLOAD ERROR: {filename} - {upload_error}")
                     
-                    # Cleanup temp file
-                    temp_path.unlink(missing_ok=True)
-                    
-                    # Rate limiting (increased for safety)
-                    await asyncio.sleep(4)
-                    
-                except Exception as e:
-                    logger.error(f"❌ Error memproses foto {i + 1}: {e}")
-                    logger.error(f"🔗 URL yang gagal: {photo.get('url', 'Unknown')}")
+                    finally:
+                        # Cleanup temporary file
+                        if temp_path.exists():
+                            temp_path.unlink()
+                
+                except Exception as photo_error:
+                    logger.error(f"PHOTO ERROR {i+1}: {photo_error}")
                     continue
-            
+        
+        except Exception as e:
+            logger.error(f"❌ Process photos error: {e}")
+        
         finally:
             # Cleanup temp directory
             shutil.rmtree(temp_dir, ignore_errors=True)
         
+        logger.info(f"📊 SUMMARY: {len(uploaded_files)} foto berhasil diupload dari {len(photos)} foto")
         return uploaded_files
+    
+    async def _get_existing_urls(self, member_name: str, group_name: str) -> set:
+        """Get existing URLs untuk duplicate detection"""
+        try:
+            if not os.path.exists(self.json_path):
+                return set()
+            
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            member_key = self._generate_member_key(member_name, group_name)
+            
+            # Get existing URLs dari member data
+            existing_urls = set()
+            if member_key in data.get('members', {}):
+                member_data = data['members'][member_key]
+                
+                # Collect URLs dari photo metadata jika ada
+                if 'photo_metadata' in member_data:
+                    for photo_info in member_data['photo_metadata']:
+                        if 'url' in photo_info:
+                            existing_urls.add(photo_info['url'])
+                        if 'original_url' in photo_info:
+                            existing_urls.add(photo_info['original_url'])
+            
+            return existing_urls
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error loading existing URLs: {e}")
+            return set()
     
     async def _upload_file_hybrid(self, file_path: str, filename: str) -> Optional[str]:
         """Upload file menggunakan hybrid authentication"""
@@ -686,12 +738,29 @@ class GalleryExpansionService:
                 }
                 data['total_members'] = data.get('total_members', 0) + 1
             
-            # Add new Google Drive IDs
+            # Add new Google Drive IDs dan URL metadata
             existing_photos = data['members'][member_key]['photos']
             new_drive_ids = [f['file_id'] for f in uploaded_files]
             unique_new_ids = [id for id in new_drive_ids if id not in existing_photos]
             
             data['members'][member_key]['photos'].extend(unique_new_ids)
+            
+            # Add photo metadata untuk duplicate detection
+            if 'photo_metadata' not in data['members'][member_key]:
+                data['members'][member_key]['photo_metadata'] = []
+            
+            # Add metadata untuk uploaded files
+            for file_info in uploaded_files:
+                if file_info['file_id'] in unique_new_ids:
+                    metadata = {
+                        'file_id': file_info['file_id'],
+                        'filename': file_info['filename'],
+                        'section': file_info['section'],
+                        'url': file_info['url'],
+                        'original_url': file_info['original_url'],
+                        'upload_date': datetime.now().isoformat()
+                    }
+                    data['members'][member_key]['photo_metadata'].append(metadata)
             
             # Update metadata
             data['total_files'] = data.get('total_files', 0) + len(unique_new_ids)
