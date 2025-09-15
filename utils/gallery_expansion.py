@@ -44,16 +44,20 @@ class GalleryExpansionService:
         # Initialize existing components - tidak modify
         self.data_fetcher = DataFetcher()
         
-        # Setup paths
+        # Setup paths - otomatis berdasarkan environment variables
         self.json_path = os.getenv('GALLERY_JSON_PATH', 'data/member_data/Path_Foto_DriveIDs_Real.json')
-        self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', '1Oveb-cdjKRpanoSFaMFoi6z3X4I0F4mX')
-        self.json_gdrive_folder = os.getenv('JSON_GDRIVE_FOLDER_ID', '1Rqi7XKPTEe8Et_1nzHPh14fwYQlkVqpf')
-        self.backup_prefix = 'test_backup'
         
-        if not test_mode:
-            self.json_path = 'data/member_data/Path_Foto_DriveIDs_Real.json'
-            self.gdrive_folder = "1l5WQcYQu93oN3LQoLdj6hchWELy9hdfI"
+        # Pilih folder berdasarkan mode
+        if test_mode:
+            self.gdrive_folder = os.getenv('TEST_GDRIVE_FOLDER_ID', '1Rh-XYIdDW0XYlZ8ardZZctukOk1WY_-n')
+            self.backup_prefix = 'test_backup'
+        else:
+            # Production mode - gunakan production folder
+            self.gdrive_folder = os.getenv('PRODUCTION_GDRIVE_FOLDER_ID', '1QFqeP5zdY4UcDGRz329wOCP9evIuhgvt')
             self.backup_prefix = 'backup'
+        
+        # JSON backup folder sama untuk semua mode
+        self.json_gdrive_folder = os.getenv('JSON_GDRIVE_FOLDER_ID', '1bmsKpmToFSQiW8Hg03-4kmK6QiwPvgPm')
         
         # Hybrid authentication setup
         self.auth_method = os.getenv('GALLERY_EXPANSION_AUTH_METHOD', 'hybrid').lower()
