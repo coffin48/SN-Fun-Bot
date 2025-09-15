@@ -894,9 +894,9 @@ class GalleryExpansionService:
             logger.info(f"🔍 JSON path: {self.json_path}")
             logger.info(f"🔍 Test mode: {self.test_mode}")
             
-            # NEW FLOW: Cek backup JSON di Google Drive untuk metadata anti-duplikasi
-            logger.info(f"🔍 Checking Google Drive backup untuk metadata...")
-            backup_metadata = await self._get_backup_metadata_from_drive(member_name, group_name)
+            # CRITICAL: Harus selalu baca metadata dari Google Drive backup untuk anti-duplikasi
+            logger.info(f"🔍 Reading metadata from Google Drive backup (required for anti-duplicate)...")
+            backup_metadata = await self._download_backup_metadata_only(member_name, group_name)
             
             if not os.path.exists(self.json_path):
                 logger.info(f"🔍 JSON file tidak ada, return index 1")
@@ -979,14 +979,32 @@ class GalleryExpansionService:
                 combined_max_index = max(combined_max_index, legacy_count)
                 logger.info(f"🔍 Local legacy count: {legacy_count}")
             
-            # Priority 2: Scan backup metadata dari Google Drive (jika ada)
-            if backup_metadata and 'max_index' in backup_metadata:
-                backup_max = backup_metadata['max_index']
-                combined_max_index = max(combined_max_index, backup_max)
-                logger.info(f"🔍 Backup metadata max_index: {backup_max}")
+            # Priority 2: WAJIB baca backup metadata dari Google Drive untuk anti-duplikasi
+            if backup_metadata:
+                if 'max_index' in backup_metadata:
+                    backup_max = backup_metadata['max_index']
+                    combined_max_index = max(combined_max_index, backup_max)
+                    logger.info(f"🔍 Backup metadata max_index: {backup_max}")
+                
+                # CRITICAL: Merge photo_metadata dari backup untuk anti-duplikasi
+                if 'photo_metadata' in backup_metadata:
+                    backup_photos = backup_metadata['photo_metadata']
+                    logger.info(f"🔍 Found {len(backup_photos)} photos in backup metadata")
+                    
+                    # Update data dengan backup metadata untuk complete picture
+                    if member_key in data.get('members', {}):
+                        existing_metadata = data['members'][member_key].get('photo_metadata', [])
+                        # Merge dengan backup metadata
+                        all_filenames = {photo.get('filename') for photo in existing_metadata}
+                        
+                        for backup_photo in backup_photos:
+                            if backup_photo.get('filename') not in all_filenames:
+                                existing_metadata.append(backup_photo)
+                        
+                        data['members'][member_key]['photo_metadata'] = existing_metadata
+                        logger.info(f"🔄 Merged backup metadata: {len(existing_metadata)} total photos")
             else:
-                # TIDAK ada backup → tetap gunakan GitHub JSON metadata, bukan mulai dari 1
-                logger.info(f"🔍 No backup found, using GitHub JSON metadata: {combined_max_index}")
+                logger.warning(f"⚠️ No backup metadata found - scraping kedua mungkin gagal karena duplikasi!")
             
             # Final max_index
             max_index = combined_max_index
@@ -1317,15 +1335,15 @@ class GalleryExpansionService:
             logger.error(f"❌ Error merging data: {e}")
             return backup_data  # Fallback ke backup data
 
-    async def _get_backup_metadata_from_drive(self, member_name: str, group_name: str) -> Optional[dict]:
-        """Cek folder backup JSON di Google Drive untuk metadata anti-duplikasi"""
+    async def _download_backup_metadata_only(self, member_name: str, group_name: str) -> Optional[dict]:
+        """Download metadata dari backup JSON di Google Drive untuk anti-duplikasi"""
         try:
             if not self.drive_service or not self.json_gdrive_folder:
                 logger.warning("⚠️ Google Drive service tidak tersedia")
                 return None
             
             member_key = self._generate_member_key(member_name, group_name)
-            logger.info(f"🔍 Searching backup for member: {member_key}")
+            logger.info(f"🔍 Downloading backup metadata for: {member_key}")
             
             # Search backup files untuk member ini
             query = f"'{self.json_gdrive_folder}' in parents and name contains 'gallery_backup_{member_key}_' and trashed=false"
@@ -1338,28 +1356,53 @@ class GalleryExpansionService:
             
             files = results.get('files', [])
             if not files:
-                logger.info(f"📄 Tidak ada backup ditemukan untuk {member_key}")
+                logger.warning(f"⚠️ Tidak ada backup ditemukan untuk {member_key} - scraping kedua akan gagal!")
                 return None
             
-            # Ambil backup terbaru
+            # Download backup terbaru
             latest_backup = files[0]
+            backup_id = latest_backup['id']
             backup_name = latest_backup['name']
-            logger.info(f"📥 Found backup: {backup_name}")
             
-            # Hanya ambil metadata, tidak download full file
-            # Extract info dari backup untuk anti-duplikasi
-            backup_info = {
-                'backup_name': backup_name,
-                'backup_id': latest_backup['id'],
-                'modified_time': latest_backup['modifiedTime'],
-                'max_index': self._extract_max_index_from_backup_name(backup_name)
-            }
+            logger.info(f"📥 Downloading backup: {backup_name}")
             
-            logger.info(f"🔍 Backup metadata: {backup_info}")
-            return backup_info
+            # Download backup content
+            request = self.drive_service.files().get_media(fileId=backup_id)
+            backup_content = request.execute()
+            backup_data = json.loads(backup_content.decode('utf-8'))
+            
+            # Extract metadata untuk member ini
+            if 'members' in backup_data and member_key in backup_data['members']:
+                member_backup = backup_data['members'][member_key]
+                
+                # Extract max_index dari photo_metadata
+                max_index = 0
+                photo_metadata = member_backup.get('photo_metadata', [])
+                
+                for photo in photo_metadata:
+                    filename = photo.get('filename', '')
+                    match = re.search(r'_(\d+)\.[^.]+$', filename)
+                    if match:
+                        index = int(match.group(1))
+                        max_index = max(max_index, index)
+                
+                backup_metadata = {
+                    'backup_name': backup_name,
+                    'backup_id': backup_id,
+                    'modified_time': latest_backup['modifiedTime'],
+                    'max_index': max_index,
+                    'photo_metadata': photo_metadata,
+                    'total_photos': len(photo_metadata)
+                }
+                
+                logger.info(f"✅ Downloaded backup metadata: {len(photo_metadata)} photos, max_index: {max_index}")
+                return backup_metadata
+            else:
+                logger.warning(f"⚠️ Member {member_key} tidak ditemukan di backup")
+                return None
             
         except Exception as e:
-            logger.error(f"❌ Error checking backup metadata: {e}")
+            logger.error(f"❌ Error downloading backup metadata: {e}")
             return None
     
     def _extract_max_index_from_backup_name(self, backup_name: str) -> int:
