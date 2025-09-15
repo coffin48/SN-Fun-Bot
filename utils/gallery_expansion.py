@@ -270,9 +270,18 @@ class GalleryExpansionService:
             logger.info(f"📊 Filtered {len(quality_photos)} quality photos from {len(gallery_data['images'])} total")
             
             if not quality_photos:
+                # Debug: Log raw images untuk troubleshooting
+                logger.warning(f"⚠️ No quality photos found for {member_name} ({group_name})")
+                logger.info(f"🔍 Raw images found: {len(gallery_data.get('images', []))}")
+                
+                # Log first few URLs untuk debugging
+                raw_images = gallery_data.get('images', [])[:3]
+                for i, img in enumerate(raw_images, 1):
+                    logger.info(f"🔍 Raw image {i}: {img.get('url', 'No URL')[:100]}...")
+                
                 return {
                     "success": False,
-                    "error": "No quality photos found for expansion"
+                    "error": f"No quality photos found for expansion. Found {len(gallery_data.get('images', []))} raw images but none passed quality filter."
                 }
             
             # Step 3: Download and upload photos
@@ -387,10 +396,10 @@ class GalleryExpansionService:
         }
         
         for img in images:
-            # Skip thumbnails dan low quality
+            # Skip thumbnails dan low quality - lebih permissive untuk member dengan sedikit foto
             if ('thumb' in img['url'] or 
                 'revision' in img['url'] or
-                len(img['url']) < 50):
+                len(img['url']) < 30):  # Reduced from 50 to 30
                 continue
             
             # Categorize by alt text atau URL
