@@ -914,13 +914,8 @@ class GalleryExpansionService:
             logger.info(f"🔍 Clean section: {clean_section}")
             
             # SMART LOGIC: Check existing files via JSON metadata (untuk GitHub/Railway deployment)
-            existing_files_count = self._count_existing_physical_files(member_name, group_name, clean_section)
-            logger.info(f"🔍 Existing files found in metadata: {existing_files_count}")
-            
-            # Jika tidak ada existing files di JSON metadata, reset ke 1
-            if existing_files_count == 0:
-                logger.info(f"🔄 No existing files in metadata, resetting index to 1")
-                return 1
+            # Skip physical file check - langsung scan dari photo_metadata untuk melanjutkan index
+            logger.info(f"🔍 Scanning photo_metadata untuk melanjutkan index dari database lama")
             
             # Jika ada file fisik, melanjutkan dari JSON metadata
             max_index = 0
