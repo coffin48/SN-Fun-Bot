@@ -80,11 +80,7 @@ def main():
         
         # Log bot startup
         print("Bot ready, starting...")
-        try:
-            analytics = BotAnalytics()
-            analytics.log_analytics_to_railway()
-        except Exception as e:
-            print(f"Analytics logging failed: {e}")
+        # Note: Analytics logging disabled to reduce Railway log spam
         
         # Start bot
         bot_core.run()
