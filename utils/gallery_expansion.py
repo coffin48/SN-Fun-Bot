@@ -759,6 +759,7 @@ class GalleryExpansionService:
                 return 1
             
             # Clean section name untuk matching
+            import re
             clean_section = re.sub(r'[^\w\-_]', '', section.lower())
             
             # Cari index tertinggi untuk section ini dari photo_metadata
@@ -770,7 +771,6 @@ class GalleryExpansionService:
                     # Extract index dari filename format: member_group_section_XXX.ext
                     if clean_section in filename:
                         # Cari pattern _XXX. di akhir filename
-                        import re
                         match = re.search(r'_(\d{3})\.[^.]+$', filename)
                         if match:
                             index = int(match.group(1))
@@ -779,7 +779,7 @@ class GalleryExpansionService:
             return max_index + 1
             
         except Exception as e:
-            logger.warning(f"⚠️ Error getting next index: {e}")
+            logger.warning(f"WARNING: Error getting next index: {e}")
             return 1
     
     async def _update_json_safely(self, member_name: str, group_name: str, uploaded_files: List[Dict]) -> Dict:
