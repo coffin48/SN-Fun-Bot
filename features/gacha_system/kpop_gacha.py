@@ -394,7 +394,9 @@ class KpopGachaSystem:
     
     def generate_card(self, member_name, group_name, rarity=None, photo_num=None):
         """
-        Generate kartu trading untuk member
+        Generate kartu trading untuk member dengan flow yang jelas:
+        1. Cek New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Old JSON -> old database folder -> design -> return
         
         Args:
             member_name: Nama member
@@ -410,17 +412,65 @@ class KpopGachaSystem:
             if rarity is None:
                 rarity = self._get_random_rarity()
             
-            # Cari member key
+            # Step 1: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> return
+                logger.info(f"🎯 Using NEW database flow for card generation: {member_name}")
+                
+                # Cari member key dari new database
+                member_key = f"{member_name.lower().replace(' ', '_')}_{group_name.lower().replace(' ', '_')}"
+                
+                # Load foto member dari NEW database
+                photo_url, photo_filename = self._get_member_photo_url(member_key, photo_num)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
+                
+                # Download foto dari NEW database (GDrive)
+                if 'drive.google.com' in photo_url:
+                    idol_photo_original = self._download_image_from_url(photo_url)
+                else:
+                    # Local file fallback
+                    if os.path.exists(photo_url):
+                        idol_photo_original = Image.open(photo_url).convert("RGBA")
+                    else:
+                        idol_photo_original = None
+                
+                if idol_photo_original is None:
+                    logger.warning(f"⚠️ Failed to load photo from NEW database for {member_name}, trying fallback")
+                    return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
+                
+                # Generate card using NEW database
+                template = self._generate_card_template(idol_photo_original, rarity, member_name, group_name)
+                logger.info(f"✅ Card generated successfully using NEW database for {member_name}")
+                return template
+            
+            else:
+                # FLOW 2: Old JSON -> old database folder -> design -> return
+                logger.info(f"📁 Using OLD database flow for card generation: {member_name}")
+                return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
+            
+        except Exception as e:
+            logger.error(f"Error generating card: {e}")
+            return None
+    
+    def _generate_card_fallback_flow(self, member_name, group_name, rarity, photo_num=None):
+        """Fallback flow untuk card generation: Old JSON -> old database folder -> design -> return"""
+        try:
+            logger.info(f"📂 Fallback card generation flow for {member_name}")
+            
+            # Try old database structure
             member_key = f"{member_name.lower().replace(' ', '_')}_{group_name.lower().replace(' ', '_')}"
             
-            # Load foto member dari URL
-            photo_url, photo_filename = self._get_member_photo_url(member_key, photo_num)
+            # Get photo from old database/fallback method
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
             
             if not photo_url:
-                logger.error(f"Photo not found for member: {member_key}")
+                logger.error(f"❌ Photo not found in any database for {member_name}")
                 return None
             
-            # Download foto
+            # Download foto dari old database
             if 'drive.google.com' in photo_url:
                 idol_photo_original = self._download_image_from_url(photo_url)
             else:
@@ -431,9 +481,21 @@ class KpopGachaSystem:
                     idol_photo_original = None
             
             if idol_photo_original is None:
-                logger.error(f"Failed to load photo: {photo_url}")
+                logger.error(f"❌ Failed to load photo from fallback for {member_name}")
                 return None
             
+            # Generate card using old database
+            template = self._generate_card_template(idol_photo_original, rarity, member_name, group_name)
+            logger.info(f"✅ Card generated successfully using fallback for {member_name}")
+            return template
+            
+        except Exception as e:
+            logger.error(f"Error in fallback card generation: {e}")
+            return None
+    
+    def _generate_card_template(self, idol_photo_original, rarity, member_name, group_name):
+        """Generate card template using design_kartu module"""
+        try:
             # Import design functions
             from features.gacha_system.design_kartu import generate_card_template
             
@@ -447,47 +509,101 @@ class KpopGachaSystem:
             return template
             
         except Exception as e:
-            logger.error(f"Error generating card: {e}")
+            logger.error(f"Error generating card template: {e}")
             return None
     
     def gacha_random(self):
-        """Gacha random member dari semua grup"""
+        """
+        Gacha random member dengan flow yang jelas:
+        1. Cek New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Old JSON -> old database folder -> design -> return
+        """
         if not self.members_data:
             return None, "❌ Data member tidak tersedia"
         
         try:
-            # Pilih member random dari JSON
+            # Step 1: Pilih member random dari database yang tersedia
             member_key = random.choice(self._get_all_member_keys())
             member_info = self.members_data[member_key]
             
             member_name = member_info.get('name', 'Unknown')
             group_name = member_info.get('group', 'Unknown')
             
-            # Get photo URL
-            photo_url, _ = self._get_member_photo_url(member_key)
+            # Step 2: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW database flow for {member_name}")
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._gacha_fallback_flow(member_name, group_name)
+                
+                # Generate card using NEW database photos
+                rarity = self._get_random_rarity()
+                card_image = self.generate_card(member_name, group_name, rarity)
+                
+                if card_image:
+                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                    success_msg += f"✨ **Rarity:** {rarity}\n"
+                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"🎯 **Random Gacha**"
+                    return card_image, success_msg
+                else:
+                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    return self._gacha_fallback_flow(member_name, group_name)
+            
+            else:
+                # FLOW 2: Old JSON -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD database flow for {member_name}")
+                return self._gacha_fallback_flow(member_name, group_name)
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_random: {e}")
+            return None, f"❌ Error saat random gacha: {str(e)}"
+    
+    def _gacha_fallback_flow(self, member_name, group_name):
+        """Fallback flow: Old JSON -> old database folder -> design -> Discord"""
+        try:
+            logger.info(f"📂 Fallback flow for {member_name} from {group_name}")
+            
+            # Get photo from old database
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
             
             if not photo_url:
-                return None, f"❌ Foto untuk {member_name} tidak dapat diakses!"
+                return None, f"❌ Foto untuk {member_name} tidak dapat diakses di database manapun!"
             
-            # Get rarity
+            # Generate card using old database
             rarity = self._get_random_rarity()
-            
-            # Generate card using design_kartu
             card_image = self.generate_card(member_name, group_name, rarity)
             
             if card_image:
                 success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
                 success_msg += f"✨ **Rarity:** {rarity}\n"
-                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
                 success_msg += f"🎯 **Random Gacha**"
-                
                 return card_image, success_msg
             else:
                 return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
                 
         except Exception as e:
-            logger.error(f"Error in gacha_random: {e}")
-            return None, f"❌ Error saat random gacha: {str(e)}"
+            logger.error(f"Error in fallback flow: {e}")
+            return None, f"❌ Error saat fallback gacha: {str(e)}"
+    
+    def _get_member_photo_url_fallback(self, member_name, group_name):
+        """Get photo URL from old database/folder structure"""
+        try:
+            # Try to construct old-style photo path
+            # This would need to be implemented based on your old database structure
+            logger.info(f"🔍 Searching old database for {member_name} from {group_name}")
+            
+            # Placeholder for old database photo retrieval logic
+            # You would implement the actual old database lookup here
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"Error getting fallback photo URL: {e}")
+            return None, None
     
     def gacha_pack_5(self):
         """
@@ -566,73 +682,180 @@ class KpopGachaSystem:
             return [], f"❌ Error saat generate pack: {str(e)}"
     
     def gacha_by_group(self, group_name):
-        """Gacha member dari grup tertentu"""
+        """
+        Gacha member dari grup tertentu dengan flow yang jelas:
+        1. Cek grup di New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Cek di Old JSON -> old database folder -> design -> return
+        """
         if not self.members_data:
             return None, "❌ Data member tidak tersedia"
         
         try:
-            # Cari member dari grup
+            # Step 1: Cari member dari grup di database yang tersedia
             group_member_keys = self._get_member_keys_by_group(group_name)
             
             if not group_member_keys:
-                return None, f"❌ Grup **{group_name}** tidak ditemukan di database"
+                # Jika tidak ditemukan di database aktif, coba fallback
+                logger.warning(f"⚠️ Group {group_name} not found in active database, trying fallback")
+                return self._gacha_group_fallback_flow(group_name)
             
             # Pilih member random dari grup
             member_key = random.choice(group_member_keys)
             member_info = self.members_data[member_key]
-            
             member_name = member_info.get('name', 'Unknown')
             
-            # Get photo URL
-            photo_url, _ = self._get_member_photo_url(member_key)
-            
-            if not photo_url:
-                return None, f"❌ Foto untuk {member_name} tidak dapat diakses!"
-            
-            # Get rarity
-            rarity = self._get_random_rarity()
-            
-            # Generate card using design_kartu
-            card_image = self.generate_card(member_name, group_name, rarity)
-            
-            if card_image:
-                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
-                success_msg += f"✨ **Rarity:** {rarity}\n"
-                success_msg += f"📸 **Photo:** Google Drive\n"
-                success_msg += f"🎯 **Group Gacha:** {group_name}"
+            # Step 2: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW database flow for group {group_name}, member {member_name}")
+                photo_url, _ = self._get_member_photo_url(member_key)
                 
-                return card_image, success_msg
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._gacha_group_fallback_flow(group_name)
+                
+                # Generate card using NEW database photos
+                rarity = self._get_random_rarity()
+                card_image = self.generate_card(member_name, group_name, rarity)
+                
+                if card_image:
+                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                    success_msg += f"✨ **Rarity:** {rarity}\n"
+                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"🎯 **Group Gacha:** {group_name}"
+                    return card_image, success_msg
+                else:
+                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    return self._gacha_group_fallback_flow(group_name)
+            
             else:
-                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                # FLOW 2: Old JSON -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD database flow for group {group_name}")
+                return self._gacha_group_fallback_flow(group_name)
                 
         except Exception as e:
             logger.error(f"Error in gacha_by_group: {e}")
             return None, f"❌ Error saat group gacha: {str(e)}"
     
+    def _gacha_group_fallback_flow(self, group_name):
+        """Fallback flow untuk group gacha: Old JSON -> old database folder -> design -> Discord"""
+        try:
+            logger.info(f"📂 Group fallback flow for {group_name}")
+            
+            # Try to find group members in old database structure
+            # This would need to be implemented based on your old database
+            member_name = "Unknown"  # Would be determined from old database
+            
+            # Get photo from old database
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if not photo_url:
+                return None, f"❌ Grup **{group_name}** tidak ditemukan di database manapun!"
+            
+            # Generate card using old database
+            rarity = self._get_random_rarity()
+            card_image = self.generate_card(member_name, group_name, rarity)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                success_msg += f"🎯 **Group Gacha:** {group_name}"
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in group fallback flow: {e}")
+            return None, f"❌ Error saat fallback group gacha: {str(e)}"
+    
     def gacha_by_member(self, member_name):
-        """Gacha kartu member tertentu"""
+        """
+        Gacha kartu member tertentu dengan flow yang jelas:
+        1. Cek member di New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Cek di Old JSON -> old database folder -> design -> return
+        """
         if not self.members_data:
-            return None, "Data member tidak tersedia"
+            return None, "❌ Data member tidak tersedia"
         
-        # Cari member
-        member_keys = self._find_member_key(member_name)
-        
-        if not member_keys:
-            return None, f"❌ Member **{member_name}** tidak ditemukan di database"
-        
-        # Jika ada multiple member dengan nama sama, pilih random
-        member_key = random.choice(member_keys)
-        member_info = self.members_data[member_key]
-        
-        group_name = member_info.get('group', 'Unknown')
-        
-        # Generate kartu
-        card = self.generate_card(member_name, group_name)
-        
-        if card:
-            return card, f"🎴 Kamu mendapat kartu **{member_name}** dari **{group_name}**!"
-        else:
-            return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+        try:
+            # Step 1: Cari member di database yang tersedia
+            member_keys = self._find_member_key(member_name)
+            
+            if not member_keys:
+                # Jika tidak ditemukan di database aktif, coba fallback
+                logger.warning(f"⚠️ Member {member_name} not found in active database, trying fallback")
+                return self._gacha_member_fallback_flow(member_name)
+            
+            # Jika ada multiple member dengan nama sama, pilih random
+            member_key = random.choice(member_keys)
+            member_info = self.members_data[member_key]
+            group_name = member_info.get('group', 'Unknown')
+            
+            # Step 2: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW database flow for member {member_name}")
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._gacha_member_fallback_flow(member_name)
+                
+                # Generate card using NEW database photos
+                rarity = self._get_random_rarity()
+                card_image = self.generate_card(member_name, group_name, rarity)
+                
+                if card_image:
+                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                    success_msg += f"✨ **Rarity:** {rarity}\n"
+                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"🎯 **Member Gacha**"
+                    return card_image, success_msg
+                else:
+                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    return self._gacha_member_fallback_flow(member_name)
+            
+            else:
+                # FLOW 2: Old JSON -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD database flow for member {member_name}")
+                return self._gacha_member_fallback_flow(member_name)
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_by_member: {e}")
+            return None, f"❌ Error saat member gacha: {str(e)}"
+    
+    def _gacha_member_fallback_flow(self, member_name):
+        """Fallback flow untuk specific member: Old JSON -> old database folder -> design -> Discord"""
+        try:
+            logger.info(f"📂 Member fallback flow for {member_name}")
+            
+            # Try to find member in old database structure
+            # This would need to be implemented based on your old database
+            group_name = "Unknown"  # Would be determined from old database
+            
+            # Get photo from old database
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if not photo_url:
+                return None, f"❌ Member **{member_name}** tidak ditemukan di database manapun!"
+            
+            # Generate card using old database
+            rarity = self._get_random_rarity()
+            card_image = self.generate_card(member_name, group_name, rarity)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                success_msg += f"🎯 **Member Gacha**"
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in member fallback flow: {e}")
+            return None, f"❌ Error saat fallback member gacha: {str(e)}"
     
     def save_card_temp(self, card_image, prefix="gacha_card"):
         """
