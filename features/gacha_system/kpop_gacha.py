@@ -118,15 +118,31 @@ class KpopGachaSystem:
     def _load_json_from_new_database(self):
         """Load JSON dari database baru (PRIMARY) - GDrive folder baru"""
         try:
+            # Try local file first (for development/testing)
+            local_path = "data/member_data/Path_Foto_DriveIDs_Real.json"
+            if os.path.exists(local_path):
+                logger.info(f"📁 Trying local NEW database file: {local_path}")
+                try:
+                    with open(local_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    self.members_data = data.get('members', {})
+                    self.base_url = f"https://drive.google.com/uc?export=view&id="
+                    self.using_new_database = True
+                    logger.info(f"✅ NEW database loaded from local file: {len(self.members_data)} members")
+                    logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
+                    return True
+                except Exception as e:
+                    logger.debug(f"Local NEW database failed: {e}")
+            
             # Try multiple possible URLs for new database
             possible_urls = [
-                # Direct GDrive download attempts
-                f"https://drive.google.com/uc?id={self.new_json_folder_id}&export=download",
-                f"https://docs.google.com/uc?id={self.new_json_folder_id}&export=download",
-                # GitHub raw URLs (if JSON is also stored there)
+                # GitHub raw URLs (most reliable)
                 "https://raw.githubusercontent.com/SN-Fun-Bot/SN-Fun-Bot-Data/main/Path_Foto_DriveIDs_Real.json",
                 "https://raw.githubusercontent.com/SN-Fun-Bot/Database/main/Path_Foto_DriveIDs_Real.json",
-                "https://raw.githubusercontent.com/SN-Fun-Bot/Photos-Database/main/Path_Foto_DriveIDs_Real.json"
+                "https://raw.githubusercontent.com/SN-Fun-Bot/Photos-Database/main/Path_Foto_DriveIDs_Real.json",
+                # Direct GDrive download attempts
+                f"https://drive.google.com/uc?id={self.new_json_folder_id}&export=download",
+                f"https://docs.google.com/uc?id={self.new_json_folder_id}&export=download"
             ]
             
             for url in possible_urls:
@@ -158,18 +174,26 @@ class KpopGachaSystem:
                 data = json.load(f)
             
             self.members_data = data.get('members', {})
-            # Use old database base URL from local JSON or environment variable
-            if self.old_gdrive_folder_id:
-                self.base_url = self.old_base_url  # From env variable
-                logger.info(f"📁 OLD database using env GDrive folder: {self.old_gdrive_folder_id}")
+            
+            # Check if this is actually NEW database data (has environment variables set)
+            if self.new_json_folder_id and self.new_photo_folder_id and len(self.members_data) > 1000:
+                # This is NEW database loaded from local file
+                self.base_url = f"https://drive.google.com/uc?export=view&id="
+                self.using_new_database = True
+                logger.info(f"✅ NEW database loaded from local fallback: {len(self.members_data)} members")
+                logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
             else:
-                self.base_url = data.get('base_url', '')  # From local JSON
-                logger.info(f"📁 OLD database using local JSON base_url")
-            
-            self.using_new_database = False  # Mark as using old database
-            
-            logger.info(f"📁 OLD JSON data loaded: {len(self.members_data)} members")
-            logger.info(f"📁 OLD base URL: {self.base_url}")
+                # This is OLD database
+                if self.old_gdrive_folder_id:
+                    self.base_url = self.old_base_url  # From env variable
+                    logger.info(f"📁 OLD database using env GDrive folder: {self.old_gdrive_folder_id}")
+                else:
+                    self.base_url = data.get('base_url', '')  # From local JSON
+                    logger.info(f"📁 OLD database using local JSON base_url")
+                
+                self.using_new_database = False  # Mark as using old database
+                logger.info(f"📁 OLD JSON data loaded: {len(self.members_data)} members")
+                logger.info(f"📁 OLD base URL: {self.base_url}")
             
         except Exception as e:
             logger.error(f"Failed to load OLD JSON data: {e}")
