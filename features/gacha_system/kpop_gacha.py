@@ -875,47 +875,63 @@ class KpopGachaSystem:
                 return card_image, success_msg
             else:
                 return None, f"❌ Gagal generate kartu SAR {member_name} dari {group_name}"
-                
+            
         except Exception as e:
             logger.error(f"Error in gacha_guaranteed_sar: {e}")
             return None, f"❌ Error saat generate SAR: {str(e)}"
     
-    def gacha_guaranteed_sr(self):
-        """Admin command: Generate guaranteed SR rarity card"""
+    def gacha_by_member_guaranteed_sar(self, member_name):
+        """Admin command: Generate guaranteed SAR card for specific member"""
         if not self.members_data:
             return None, "❌ Data member tidak tersedia"
         
         try:
-            # Pilih member random dari JSON
-            member_key = random.choice(self._get_all_member_keys())
-            member_info = self.members_data[member_key]
+            # Search for member
+            search_results = self._search_member_in_json(member_name)
             
-            member_name = member_info.get('name', 'Unknown')
-            group_name = member_info.get('group', 'Unknown')
+            if not search_results:
+                return None, f"❌ Member '{member_name}' tidak ditemukan dalam database!"
+            
+            # Use first result
+            member_data = search_results[0]
+            member_key = member_data['member_key']
+            
+            if member_key not in self.members_data:
+                return None, f"❌ Data foto untuk '{member_name}' tidak tersedia!"
+            
+            member_info = self.members_data[member_key]
             
             # Get photo URL
             photo_url, _ = self._get_member_photo_url(member_key)
             
             if not photo_url:
-                return None, f"❌ Foto untuk {member_name} tidak dapat diakses!"
+                return None, f"❌ Foto untuk '{member_name}' tidak dapat diakses!"
             
-            # Force SR rarity
-            rarity = "SR"
+            # Force SAR rarity
+            rarity = "SAR"
             
             # Generate card using design_kartu
-            card_image = self.generate_card(member_name, group_name, rarity)
+            card_image = self.generate_card(
+                member_data.get('name', member_info.get('name', 'Unknown')),
+                member_data.get('group', member_info.get('group', 'Unknown')),
+                rarity
+            )
             
             if card_image:
-                success_msg = f"⭐ **ADMIN GUARANTEED SR** ⭐\n"
-                success_msg += f"🎴 **{member_name}** dari **{group_name}**\n"
+                member_display_name = member_data.get('name', member_info.get('name', 'Unknown'))
+                group_display_name = member_data.get('group', member_info.get('group', 'Unknown'))
+                
+                success_msg = f"🌟 **ADMIN GUARANTEED SAR** 🌟\n"
+                success_msg += f"🎴 **{member_display_name}** dari **{group_display_name}**\n"
                 success_msg += f"✨ **Rarity:** {rarity} (Guaranteed)\n"
                 success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🎯 **Generated for:** {member_name}\n"
                 success_msg += f"🔑 **Admin Command**"
                 
                 return card_image, success_msg
             else:
-                return None, f"❌ Gagal generate kartu SR {member_name} dari {group_name}"
-                
+                return None, f"❌ Gagal generate kartu SAR untuk '{member_name}'"
+            
         except Exception as e:
-            logger.error(f"Error in gacha_guaranteed_sr: {e}")
-            return None, f"❌ Error saat generate SR: {str(e)}"
+            logger.error(f"Error generating guaranteed SAR for '{member_name}': {e}")
+            return None, f"❌ Error saat generate SAR: {str(e)}"
