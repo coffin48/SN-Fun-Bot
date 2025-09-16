@@ -671,8 +671,8 @@ class GachaCommandsHandler:
                 # DIRECT FLOW: Generate member card with NEW/OLD source detection
                 card_image, card_data = self.gacha_system.gacha_by_member(member_name)
                 suspense_embed = discord.Embed(
-                    title=f"🎴 Searching for {member_name}...",
-                    description="🔍 **Locating member in database...**\n✨ Preparing something special...",
+                    title=f"🎴 Mencari {member_name}...",
+                    description="🔍 **Mencari member di database...**\n✨ Menyiapkan sesuatu yang spesial...",
                     color=0x9932cc
                 )
                 loading_msg = await ctx.send(embed=suspense_embed)
@@ -682,8 +682,8 @@ class GachaCommandsHandler:
                 
                 # Update to card generation
                 generation_embed = discord.Embed(
-                    title=f"🎴 Creating {member_name}'s Card...",
-                    description="🎨 **Rendering trading card...**\n⏳ Adding final touches...",
+                    title=f"🎴 Membuat Kartu {member_name}...",
+                    description="🎨 **Merender kartu trading...**\n⏳ Menambahkan sentuhan akhir...",
                     color=0x00ff00
                 )
                 await loading_msg.edit(embed=generation_embed)
@@ -1105,7 +1105,7 @@ class GachaCommandsHandler:
                 logger.info(f"🔍 Direct search result for '{search_term}': {len(member_result) if member_result else 0} found")
                 
                 if member_result:
-                    # Found member, generate member card
+                    # Found member, generate member card using direct flow
                     card_image, card_data = self.gacha_system.gacha_by_member(search_term)
                     
                     if card_image:
