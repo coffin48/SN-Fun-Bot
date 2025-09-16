@@ -666,9 +666,10 @@ class GachaCommandsHandler:
         try:
             async with ctx.typing():
                 # Increment usage
-                current_count = self._increment_usage(user_id, 'member')
-                remaining = 16 - current_count
-                # Initial suspense for member gacha
+                usage_count = self._increment_usage(user_id, 'member')
+                
+                # DIRECT FLOW: Generate member card with NEW/OLD source detection
+                card_image, card_data = self.gacha_system.gacha_by_member(member_name)
                 suspense_embed = discord.Embed(
                     title=f"🎴 Searching for {member_name}...",
                     description="🔍 **Locating member in database...**\n✨ Preparing something special...",
@@ -1099,9 +1100,9 @@ class GachaCommandsHandler:
                 if self.gacha_system:
                     logger.info(f"🔍 Members data loaded: {len(self.gacha_system.members_data) if hasattr(self.gacha_system, 'members_data') else 'No members_data'}")
                 
-                # First try as member name
+                # DIRECT FLOW: Search member in both NEW and OLD JSON
                 member_result = self.gacha_system.search_member(search_term)
-                logger.info(f"🔍 Member search result for '{search_term}': {member_result}")
+                logger.info(f"🔍 Direct search result for '{search_term}': {len(member_result) if member_result else 0} found")
                 
                 if member_result:
                     # Found member, generate member card
