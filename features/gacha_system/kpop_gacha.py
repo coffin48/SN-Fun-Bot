@@ -402,9 +402,12 @@ class KpopGachaSystem:
         return matching_keys
     
     def _find_member_key(self, member_name):
-        """Find member key berdasarkan nama dengan multiple strategies"""
+        """Find member key berdasarkan nama dengan NEW JSON format"""
         member_lower = member_name.lower()
         matching_keys = []
+        
+        # NEW JSON Format: Direct key-value pairs (no "members" wrapper)
+        # Structure: {"karina_aespa": {"name": "Karina", "group": "aespa"}}
         
         # Strategy 1: Exact name match
         for member_key, member_info in self.members_data.items():
@@ -421,6 +424,49 @@ class KpopGachaSystem:
                         matching_keys.append(member_key)
         
         return matching_keys
+    
+    def _find_member_key_old_format(self, member_name, old_data):
+        """Find member key berdasarkan nama dengan OLD JSON format"""
+        member_lower = member_name.lower()
+        found_member = None
+        
+        # OLD JSON Format: Has "members" wrapper or direct structure
+        # Structure: {"members": {"karina_aespa": {"name": "Karina", "group": "AESPA"}}}
+        members_data = old_data.get('members', old_data)
+        
+        # Strategy 1: Exact name match
+        logger.info(f"🔍 OLD FORMAT STRATEGY 1: Searching for exact name '{member_lower}'")
+        for key, member_info in members_data.items():
+            if isinstance(member_info, dict) and 'name' in member_info:
+                name_in_db = member_info.get('name', '').lower()
+                if name_in_db == member_lower:
+                    logger.info(f"✅ OLD FORMAT EXACT MATCH: {key} -> {member_info.get('name')}")
+                    found_member = (key, member_info)
+                    break
+        
+        # Strategy 2: Partial name match (if exact match fails)
+        if not found_member:
+            logger.info(f"🔍 OLD FORMAT STRATEGY 2: Searching for partial name match")
+            for key, member_info in members_data.items():
+                if isinstance(member_info, dict) and 'name' in member_info:
+                    name_in_db = member_info.get('name', '').lower()
+                    if member_lower in name_in_db or name_in_db in member_lower:
+                        logger.info(f"✅ OLD FORMAT PARTIAL MATCH: {key} -> {member_info.get('name')}")
+                        found_member = (key, member_info)
+                        break
+        
+        # Strategy 3: Key-based search (for cases like soodam -> soodam_secret_number)
+        if not found_member:
+            logger.info(f"🔍 OLD FORMAT STRATEGY 3: Searching in member keys")
+            for key, member_info in members_data.items():
+                if isinstance(member_info, dict) and 'name' in member_info:
+                    key_lower = key.lower()
+                    if member_lower in key_lower or key_lower.startswith(member_lower):
+                        logger.info(f"✅ OLD FORMAT KEY MATCH: {key} -> {member_info.get('name')}")
+                        found_member = (key, member_info)
+                        break
+        
+        return found_member
     
     def _get_all_member_keys(self):
         """Get all available member keys from JSON data"""
@@ -818,20 +864,20 @@ class KpopGachaSystem:
     
     def gacha_by_member(self, member_name):
         """
-        Gacha kartu member tertentu dengan flow yang jelas:
-        1. Cek member di New JSON Update -> GDrive photos -> design -> return
-        2. Fallback: Cek di Old JSON -> old database folder -> design -> return
+        Gacha kartu member tertentu dengan format-specific JSON handling:
+        1. NEW JSON: Cek dengan NEW JSON format -> GDrive photos -> design -> return
+        2. OLD JSON Fallback: Cek dengan OLD JSON format -> old database folder -> design -> return
         """
         if not self.members_data:
             return None, "❌ Data member tidak tersedia"
         
         try:
-            # Step 1: Cari member di database yang tersedia
+            # Step 1: Cari member di NEW database dengan NEW JSON format
             member_keys = self._find_member_key(member_name)
             
             if not member_keys:
-                # Jika tidak ditemukan di database aktif, coba fallback
-                logger.warning(f"⚠️ Member {member_name} not found in active database, trying fallback")
+                # Jika tidak ditemukan di NEW database, coba OLD database fallback
+                logger.warning(f"⚠️ Member {member_name} not found in NEW database, trying OLD database fallback")
                 return self._gacha_member_fallback_flow(member_name)
             
             # Jika ada multiple member dengan nama sama, pilih random
@@ -839,33 +885,36 @@ class KpopGachaSystem:
             member_info = self.members_data[member_key]
             group_name = member_info.get('group', 'Unknown')
             
-            # Step 2: Flow berdasarkan database yang digunakan
+            # Step 2: NEW JSON Database Flow
             if self.using_new_database:
-                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
-                logger.info(f"🎯 Using NEW database flow for member {member_name}")
+                # FLOW 1: NEW JSON format -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW JSON format for member {member_name}")
+                logger.info(f"📊 NEW JSON member key: {member_key}")
+                logger.info(f"👤 NEW JSON member data: {member_info.get('name')} from {member_info.get('group')}")
+                
                 photo_url, _ = self._get_member_photo_url(member_key)
                 
                 if not photo_url:
-                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    logger.warning(f"⚠️ Photo not found in NEW JSON for {member_name}, trying OLD JSON fallback")
                     return self._gacha_member_fallback_flow(member_name)
                 
-                # Generate card using NEW database photos
+                # Generate card using NEW JSON photos
                 rarity = self._get_random_rarity()
                 card_image = self.generate_card(member_name, group_name, rarity)
                 
                 if card_image:
                     success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
                     success_msg += f"✨ **Rarity:** {rarity}\n"
-                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"📸 **Photo:** NEW JSON Database\n"
                     success_msg += f"🎯 **Member Gacha**"
                     return card_image, success_msg
                 else:
-                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    logger.warning(f"⚠️ Card generation failed in NEW JSON flow for {member_name}, trying OLD JSON fallback")
                     return self._gacha_member_fallback_flow(member_name)
             
             else:
-                # FLOW 2: Old JSON -> old database folder -> design -> Discord
-                logger.info(f"📁 Using OLD database flow for member {member_name}")
+                # FLOW 2: OLD JSON format -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD JSON format for member {member_name}")
                 return self._gacha_member_fallback_flow(member_name)
                 
         except Exception as e:
@@ -904,49 +953,16 @@ class KpopGachaSystem:
                     logger.error("❌ TIDAK ADA DATABASE FALLBACK YANG TERSEDIA")
                     return None, f"❌ Member **{member_name}** tidak ditemukan - database fallback tidak tersedia"
             
-            # Search for member in old database with multiple strategies
-            member_lower = member_name.lower()
-            found_member = None
-            
-            # Strategy 1: Exact name match
-            logger.info(f"🔍 STRATEGY 1: Searching for exact name '{member_lower}'")
-            for key, member_info in old_data.get('members', old_data).items():
-                if isinstance(member_info, dict) and 'name' in member_info:
-                    name_in_db = member_info.get('name', '').lower()
-                    if name_in_db == member_lower:
-                        logger.info(f"✅ EXACT MATCH: {key} -> {member_info.get('name')}")
-                        found_member = (key, member_info)
-                        break
-            
-            # Strategy 2: Partial name match (if exact match fails)
-            if not found_member:
-                logger.info(f"🔍 STRATEGY 2: Searching for partial name match")
-                for key, member_info in old_data.get('members', old_data).items():
-                    if isinstance(member_info, dict) and 'name' in member_info:
-                        name_in_db = member_info.get('name', '').lower()
-                        # Check if member_name is contained in the database name or vice versa
-                        if member_lower in name_in_db or name_in_db in member_lower:
-                            logger.info(f"✅ PARTIAL MATCH: {key} -> {member_info.get('name')}")
-                            found_member = (key, member_info)
-                            break
-                
-            # Strategy 3: Key-based search (for cases like soodam -> soodam_secret_number)
-            if not found_member:
-                logger.info(f"🔍 STRATEGY 3: Searching in member keys")
-                for key, member_info in old_data.get('members', old_data).items():
-                    if isinstance(member_info, dict) and 'name' in member_info:
-                        key_lower = key.lower()
-                        if member_lower in key_lower or key_lower.startswith(member_lower):
-                            logger.info(f"✅ KEY MATCH: {key} -> {member_info.get('name')}")
-                            found_member = (key, member_info)
-                            break
+            # Use OLD JSON format-specific search
+            found_member = self._find_member_key_old_format(member_name, old_data)
             
             # Debug: Show some sample entries if no match found
             if not found_member:
-                logger.warning(f"❌ NO MATCH FOUND for '{member_name}'")
-                logger.info("📋 Sample database entries:")
+                logger.warning(f"❌ NO MATCH FOUND for '{member_name}' in OLD JSON")
+                logger.info("📋 Sample OLD JSON entries:")
                 count = 0
-                for key, member_info in old_data.get('members', old_data).items():
+                members_data = old_data.get('members', old_data)
+                for key, member_info in members_data.items():
                     if isinstance(member_info, dict) and 'name' in member_info:
                         logger.info(f"  {key}: {member_info.get('name', 'Unknown')}")
                         count += 1
