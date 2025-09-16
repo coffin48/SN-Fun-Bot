@@ -849,6 +849,124 @@ class KpopGachaSystem:
             logger.error(f"Error in gacha_by_member: {e}")
             return None, f"❌ Error saat member gacha: {str(e)}"
     
+    def gacha_by_group(self, group_name):
+        """
+        DIRECT FLOW: Efficient group gacha with proper source handling
+        1. Search group members in NEW JSON -> Generate with NEW GDrive IDs
+        2. Search group members in OLD JSON -> Generate with OLD GDrive IDs
+        """
+        try:
+            logger.info(f"🚀 DIRECT FLOW: Group gacha for '{group_name}'")
+            
+            # Step 1: Try to find group members in NEW JSON (currently loaded)
+            group_members_new = self._find_group_members_in_new_json(group_name)
+            
+            if group_members_new:
+                # Found members in NEW JSON, pick random member
+                member_key = random.choice(group_members_new)
+                member_info = self.members_data[member_key]
+                actual_name = member_info.get('name', 'Unknown')
+                
+                logger.info(f"✅ Found group '{group_name}' in NEW JSON: {actual_name}")
+                
+                # Generate card using NEW database
+                rarity = self._get_random_rarity()
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if photo_url:
+                    card_image = self.generate_card(actual_name, group_name, rarity)
+                    
+                    if card_image:
+                        success_msg = f"🎴 **{actual_name}** dari **{group_name}**\n"
+                        success_msg += f"✨ **Rarity:** {rarity}\n"
+                        success_msg += f"📸 **Photo:** New Database (GDrive)\n"
+                        success_msg += f"🎯 **Group Gacha**"
+                        return card_image, success_msg
+            
+            # Step 2: Try to find group members in OLD JSON
+            group_members_old = self._find_group_members_in_old_json(group_name)
+            
+            if group_members_old:
+                # Found members in OLD JSON, pick random member
+                member_info = random.choice(group_members_old)
+                actual_name = member_info['name']
+                
+                logger.info(f"✅ Found group '{group_name}' in OLD JSON: {actual_name}")
+                
+                # Generate card using OLD database
+                rarity = self._get_random_rarity()
+                photo_url, _ = self._get_member_photo_url_fallback(actual_name, group_name)
+                
+                if photo_url:
+                    card_image = self.generate_card(actual_name, group_name, rarity)
+                    
+                    if card_image:
+                        success_msg = f"🎴 **{actual_name}** dari **{group_name}**\n"
+                        success_msg += f"✨ **Rarity:** {rarity}\n"
+                        success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                        success_msg += f"🎯 **Group Gacha**"
+                        return card_image, success_msg
+            
+            # Group not found in either database
+            return None, f"❌ Grup **{group_name}** tidak ditemukan di database manapun!"
+                    
+        except Exception as e:
+            logger.error(f"Error in gacha_by_group: {e}")
+            return None, f"❌ Error saat group gacha: {str(e)}"
+    
+    def _find_group_members_in_new_json(self, group_name):
+        """Find group members in NEW JSON (currently loaded)"""
+        group_lower = group_name.lower()
+        matching_keys = []
+        
+        for member_key, member_info in self.members_data.items():
+            if isinstance(member_info, dict) and 'group' in member_info:
+                member_group = member_info.get('group', '')
+                if member_group and str(member_group).lower() == group_lower:
+                    matching_keys.append(member_key)
+        
+        logger.info(f"🔍 NEW JSON group search for '{group_name}': {len(matching_keys)} members found")
+        return matching_keys
+    
+    def _find_group_members_in_old_json(self, group_name):
+        """Find group members in OLD JSON (GitHub source)"""
+        logger.info(f"🔍 Searching group '{group_name}' in OLD JSON from GitHub...")
+        
+        try:
+            # Load OLD JSON from GitHub
+            import requests
+            old_json_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/member_data/Path_Foto_DriveIDs_Real.json"
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(old_json_url, headers=headers)
+            response.raise_for_status()
+            old_data = response.json()
+            
+            group_lower = group_name.lower()
+            matching_members = []
+            
+            # Search for group members in OLD JSON
+            for member_key, member_info in old_data.items():
+                if isinstance(member_info, dict):
+                    member_group = member_info.get('group', '').lower()
+                    if member_group == group_lower:
+                        matching_members.append({
+                            'member_key': member_key,
+                            'name': member_info.get('name', 'Unknown'),
+                            'group': member_info.get('group', group_name),
+                            'photos': member_info.get('photos', [])
+                        })
+            
+            logger.info(f"🔍 OLD JSON group search for '{group_name}': {len(matching_members)} members found")
+            return matching_members
+            
+        except Exception as e:
+            logger.error(f"❌ Error loading OLD JSON for group search: {e}")
+            return []
+    
     def _gacha_member_fallback_flow(self, member_name):
         """Universal fallback flow untuk ALL members: Old JSON -> old database folder -> design -> Discord"""
         try:
