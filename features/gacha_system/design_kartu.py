@@ -80,8 +80,8 @@ def detect_and_crop_padding(image, padding_threshold=10):
     
     return image.crop((left, top, right, bottom))
 
-def fit_photo(foto_path, target_w, target_h):
-    """Enhanced resize dan crop foto untuk fit ke dalam box dengan padding detection"""
+def fit_photo(foto_path, target_w, target_h, using_new_database=False):
+    """Optimized photo processing based on database source"""
     if not os.path.exists(foto_path):
         # Create placeholder jika foto tidak ada
         img = Image.new("RGB", (target_w, target_h), (200, 200, 200))
@@ -91,7 +91,14 @@ def fit_photo(foto_path, target_w, target_h):
     
     foto = Image.open(foto_path).convert("RGBA")
     
-    # Step 1: Detect dan crop padding/whitespace
+    # NEW DATABASE: Direct use, no processing needed
+    if using_new_database:
+        # Photos from new database are already processed (350x540px with face detection)
+        # Return as-is without any resize or processing
+        return foto
+    
+    # OLD DATABASE: Full processing with face detection and padding removal
+    # Step 1: Detect dan crop padding/whitespace (only for old photos)
     try:
         foto = detect_and_crop_padding(foto)
     except Exception as e:
@@ -586,8 +593,19 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     # Process foto input dengan box validation
     photo_box = boxes["photo"]
     if isinstance(idol_photo, str):
-        # Jika input adalah path
-        foto_img = fit_photo(idol_photo, photo_box[2], photo_box[3])
+        # Jika input adalah path - pass database flag
+        # Get database flag from global gacha system if available
+        using_new_db = False
+        try:
+            import sys
+            if 'features.gacha_system.kpop_gacha' in sys.modules:
+                gacha_module = sys.modules['features.gacha_system.kpop_gacha']
+                if hasattr(gacha_module, 'current_gacha_instance'):
+                    using_new_db = gacha_module.current_gacha_instance.using_new_database
+        except:
+            pass
+        
+        foto_img = fit_photo(idol_photo, photo_box[2], photo_box[3], using_new_database=using_new_db)
     else:
         # Jika input adalah PIL Image
         foto_img = fit_photo_from_image(idol_photo, photo_box[2], photo_box[3])
@@ -596,8 +614,14 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     if foto_img.mode != 'RGBA':
         foto_img = foto_img.convert('RGBA')
     
-    # Paste foto ke canvas (foto di belakang) dengan validated coordinates
-    canvas.paste(foto_img, (photo_box[0], photo_box[1]), foto_img)
+    # NEW DATABASE: Direct paste without resizing
+    if using_new_db:
+        # For new database photos (350x540px), paste directly to canvas
+        # Adjust photo_box to fit the 350x540 photo perfectly
+        canvas.paste(foto_img, (0, 0), foto_img)  # Paste at origin since photo is already perfect size
+    else:
+        # OLD DATABASE: Use original photo_box coordinates
+        canvas.paste(foto_img, (photo_box[0], photo_box[1]), foto_img)
     
     # Canvas sudah RGBA, tidak perlu convert lagi
     
