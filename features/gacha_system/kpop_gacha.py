@@ -1,1341 +1,1183 @@
 """
-Gacha Commands Handler - Menangani semua command gacha trading card
-Terintegrasi dengan sistem command yang sudah ada tanpa mengubah file lama
+K-pop Gacha Trading Card System
+Sistem gacha untuk generate kartu trading K-pop dengan berbagai rarity
 """
 
-import discord
-import asyncio
 import os
-from core.logger import logger
-from features.gacha_system.kpop_gacha import KpopGachaSystem
+import json
+import random
+import requests
+from io import BytesIO
+import pandas as pd
+import math
+import tempfile
+import logging
+import hashlib
+import time
+from functools import wraps
 
-class GachaCommandsHandler:
-    def __init__(self):
-        """Initialize Gacha Commands Handler"""
-        self.gacha_system = None
-        self.user_usage = {}  # Track usage per user: {user_id: {'random': count, 'member': count, 'group': count}}
-        self._initialize_gacha_system()
-    
-    def _get_user_usage(self, user_id):
-        """Get user usage stats"""
-        if user_id not in self.user_usage:
-            self.user_usage[user_id] = {'random': 0, 'member': 0, 'group': 0}
-        return self.user_usage[user_id]
-    
-    def _increment_usage(self, user_id, command_type):
-        """Increment usage count for user"""
-        # Admin bypass - don't increment usage for admins
-        if self._is_admin(user_id):
-            return 0
-            
-        usage = self._get_user_usage(user_id)
-        usage[command_type] += 1
-        return usage[command_type]
-    
-    def _is_admin(self, user_id):
-        """Check if user is admin/mod with unlimited access"""
-        # Get admin IDs from environment variable
-        admin_ids_str = os.getenv('ADMIN_DISCORD_IDS', '')
-        if not admin_ids_str:
-            return False
-        
-        try:
-            admin_ids = [int(id_str.strip()) for id_str in admin_ids_str.split(',') if id_str.strip()]
-            return user_id in admin_ids
-        except ValueError:
-            logger.error("Invalid ADMIN_DISCORD_IDS format in environment variables")
-            return False
-    
-    def _check_usage_limit(self, user_id, command_type):
-        """Check if user has exceeded usage limits"""
-        # Admin bypass
-        if self._is_admin(user_id):
-            return False
-            
-        usage = self._get_user_usage(user_id)
-        
-        if command_type == 'random':
-            return usage['random'] >= 3
-        elif command_type in ['member', 'group']:
-            return usage[command_type] >= 16  # 8 normal + 8 hard mode
-        
-        return False
-    
-    def _get_rarity_mode(self, user_id, command_type):
-        """Get rarity mode based on usage count"""
-        if command_type == 'random':
-            return 'normal'  # Random always normal
-        
-        usage = self._get_user_usage(user_id)
-        count = usage.get(command_type, 0)
-        
-        if count < 8:
-            return 'normal'  # First 8 uses: normal rarity
-        elif count < 16:
-            return 'hard'    # Next 8 uses: harder rarity (reduced SAR rates)
-        else:
-            return 'blocked' # After 16 uses: blocked
-    
-    def _initialize_gacha_system(self):
-        """Initialize gacha system dengan error handling"""
-        try:
-            self.gacha_system = KpopGachaSystem()
-            logger.info("✅ Gacha system initialized successfully")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize gacha system: {e}")
-            self.gacha_system = None
-    
-    async def handle_gacha_command(self, ctx, user_input):
+# Try to import PIL with error handling
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("Warning: Pillow (PIL) not installed. Gacha system will not work.")
+
+# Note: design_kartu import moved to method level to avoid circular imports
+DESIGN_KARTU_AVAILABLE = True
+
+# Setup logger
+logger = logging.getLogger(__name__)
+
+class KpopGachaSystem:
+    def __init__(self, json_path="data/member_data/Path_Foto_DriveIDs_Real.json", database_path="data/DATABASE_KPOP.csv"):
         """
-        Handle semua gacha commands
+        Initialize Kpop Gacha System
         
         Args:
-            ctx: Discord context
-            user_input: Input dari user setelah !sn
+            json_path: Path ke JSON mapping foto yang sudah diperbaiki
+            database_path: Path ke database K-pop CSV (backup)
         """
-        if not self.gacha_system:
-            await ctx.send("❌ **Sistem gacha tidak tersedia!**\n"
-                          "🔧 **Penyebab:** Missing dependency `Pillow`\n"
-                          "💡 **Solusi:** Install dengan `pip install Pillow`\n"
-                          "📋 **Atau:** `pip install -r requirements.txt`")
-            return
+        # Check dependencies first
+        if not PIL_AVAILABLE:
+            raise ImportError("Pillow (PIL) is required for gacha system. Install with: pip install Pillow")
+        
+        if not DESIGN_KARTU_AVAILABLE:
+            raise ImportError("design_kartu module is required for gacha system.")
+        
+        # NEW DATABASE CONFIGURATION (PRIMARY) - from environment variables
+        self.new_json_folder_id = os.getenv('NEW_GDRIVE_JSON_FOLDER_ID')
+        self.new_photo_folder_id = os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID')
+        self.new_json_url = f"https://drive.google.com/drive/folders/{self.new_json_folder_id}/Path_Foto_DriveIDs_Real.json" if self.new_json_folder_id else None
+        
+        # OLD DATABASE FALLBACK (from environment variables and local files)
+        self.json_path = json_path
+        self.database_path = database_path
+        # Get old GDrive folder from environment variable
+        self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID', os.getenv('GDRIVE_FOLDER_ID', ''))
+        self.old_base_url = f"https://drive.google.com/uc?export=view&id=" if self.old_gdrive_folder_id else ""
+        # Font path untuk backward compatibility (tidak digunakan di new system)
+        self.font_path = "assets/fonts/Gill Sans Bold Italic.otf"
+        
+        # Initialize data containers
+        self.members_data = {}
+        self.base_url = ""
+        self.using_new_database = False  # Track which database is being used
+        
+        # Sistem probabilitas rarity (GENEROUS RATES untuk engagement)
+        self.RARITY_RATES = {
+            "Common": 35,      # 35% (reduced dari 50%)
+            "Rare": 35,        # 35% (increased dari 30%)
+            "DR": 20,          # 20% (increased dari 15%)
+            "SR": 8,           # 8% (increased dari 4%)
+            "SAR": 2           # 2% (doubled dari 1%)
+        }
+        
+        # NEW: Image caching system
+        self.image_cache = {}
+        self.cache_dir = "cache/images"
+        self._setup_cache_dir()
+        
+        # NEW: Retry configuration
+        self.max_retries = 3
+        self.retry_delay = 1.0
+        
+        # Load all data once with new database priority
+        self._load_new_json_data()
+        self._load_database()
+        self._integrate_csv_data()
+        
+        # Set global instance for design_kartu module
+        import sys
+        if 'features.gacha_system.kpop_gacha' in sys.modules:
+            sys.modules['features.gacha_system.kpop_gacha'].current_gacha_instance = self
+        
+    def _load_new_json_data(self):
+        # Load database - try new database first, fallback to old
+        if self.new_json_folder_id and self.new_photo_folder_id:
+            if not self._load_json_from_new_database():
+                logger.warning("⚠️ NEW database failed, falling back to OLD database")
+                self._load_json_data_fallback()
+            else:
+                logger.info("🎯 Using NEW database successfully")
+        else:
+            logger.info("📁 NEW database env variables not set, using OLD database")
+            self._load_json_data_fallback()
+        
+        # If both failed, try fallback
+        if not self.members_data:
+            logger.warning("⚠️ All databases failed, using fallback")
+            self._load_json_data_fallback()
+    
+    def _load_json_from_new_database(self):
+        """Load JSON dari database baru (PRIMARY) - GDrive folder baru"""
+        try:
+            # Try local file first (for development/testing)
+            local_path = "data/member_data/New Json Update.json"
+            if os.path.exists(local_path):
+                logger.info(f"📁 Using local NEW database file: {local_path}")
+                try:
+                    with open(local_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    # Extract members data from the JSON structure
+                    members_data = {}
+                    for key, value in data.items():
+                        if isinstance(value, dict) and 'name' in value and 'photos' in value:
+                            members_data[key] = value
+                    
+                    self.members_data = members_data
+                    self.base_url = data.get('base_url', "https://drive.google.com/uc?export=view&id=")
+                    self.using_new_database = True
+                    logger.info(f"✅ NEW database loaded from local file: {len(self.members_data)} members")
+                    logger.info(f"📁 Base URL: {self.base_url}")
+                    return True
+                except Exception as e:
+                    logger.error(f"Local NEW database failed: {e}")
+            
+            # Fallback: Try multiple possible URLs for new database
+            possible_urls = [
+                # Priority 1: NEW Database JSON file (single source of truth)
+                f"https://drive.google.com/uc?id=1h62KxYAHHs_ytO8dmW1MTxXNnvb2MI9k&export=download",
+                # Priority 3: Fallback GDrive attempts
+                f"https://drive.google.com/uc?id={self.new_json_folder_id}&export=download",
+                f"https://docs.google.com/uc?id={self.new_json_folder_id}&export=download"
+            ]
+            
+            for url in possible_urls:
+                try:
+                    response = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+                    if response.status_code == 200:
+                        data = response.json()
+                        self.members_data = data.get('members', {})
+                        # Use new database base URL format
+                        self.base_url = f"https://drive.google.com/uc?export=view&id="
+                        self.using_new_database = True  # Mark as using new database
+                        logger.info(f"✅ NEW database loaded from {url}: {len(self.members_data)} members")
+                        logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
+                        return True
+                except Exception as e:
+                    logger.debug(f"Failed NEW database URL {url}: {e}")
+                    continue
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Failed to load NEW database: {e}")
+            return False
+    
+    def _load_json_data_fallback(self):
+        """Load JSON mapping foto dari database lama (fallback)"""
+        try:
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            self.members_data = data.get('members', {})
+            
+            # Check if this is actually NEW database data (has environment variables set)
+            if self.new_json_folder_id and self.new_photo_folder_id and len(self.members_data) > 1000:
+                # This is NEW database loaded from local file
+                self.base_url = f"https://drive.google.com/uc?export=view&id="
+                self.using_new_database = True
+                logger.info(f"✅ NEW database loaded from local fallback: {len(self.members_data)} members")
+                logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
+            else:
+                # This is OLD database
+                if self.old_gdrive_folder_id:
+                    self.base_url = self.old_base_url  # From env variable
+                    logger.info(f"📁 OLD database using env GDrive folder: {self.old_gdrive_folder_id}")
+                else:
+                    self.base_url = data.get('base_url', '')  # From local JSON
+                    logger.info(f"📁 OLD database using local JSON base_url")
+                
+                self.using_new_database = False  # Mark as using old database
+                logger.info(f"📁 OLD JSON data loaded: {len(self.members_data)} members")
+                logger.info(f"📁 OLD base URL: {self.base_url}")
+            
+        except Exception as e:
+            logger.error(f"Failed to load OLD JSON data: {e}")
+            self.members_data = {}
+            self.base_url = ""
+    
+    def _load_database(self):
+        """Load database K-pop sebagai backup"""
+        try:
+            self.database = pd.read_csv(self.database_path)
+            self.df = self.database  # Keep backward compatibility
+            logger.info(f"Backup database loaded: {len(self.database)} members")
+        except Exception as e:
+            logger.error(f"Failed to load backup database: {e}")
+            self.database = pd.DataFrame()
+            self.df = pd.DataFrame()
+    
+    def _setup_cache_dir(self):
+        """Setup cache directory untuk image caching"""
+        try:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            logger.info(f"Cache directory setup: {self.cache_dir}")
+        except Exception as e:
+            logger.error(f"Failed to setup cache directory: {e}")
+    
+    def _get_cache_key(self, url):
+        """Generate cache key dari URL"""
+        return hashlib.md5(url.encode()).hexdigest()
+    
+    def _get_cached_image_path(self, cache_key):
+        """Get path untuk cached image"""
+        return os.path.join(self.cache_dir, f"{cache_key}.png")
+    
+    def _is_image_cached(self, url):
+        """Check apakah image sudah di-cache"""
+        cache_key = self._get_cache_key(url)
+        cache_path = self._get_cached_image_path(cache_key)
+        return os.path.exists(cache_path)
+    
+    def _load_cached_image(self, url):
+        """Load image dari cache"""
+        try:
+            cache_key = self._get_cache_key(url)
+            cache_path = self._get_cached_image_path(cache_key)
+            
+            if os.path.exists(cache_path):
+                image = Image.open(cache_path).convert("RGBA")
+                logger.debug(f"Image loaded from cache: {cache_key}")
+                return image
+            return None
+        except Exception as e:
+            logger.error(f"Error loading cached image: {e}")
+            return None
+    
+    def _save_image_to_cache(self, url, image):
+        """Save image ke cache"""
+        try:
+            cache_key = self._get_cache_key(url)
+            cache_path = self._get_cached_image_path(cache_key)
+            
+            # Save sebagai PNG untuk quality
+            image.save(cache_path, 'PNG')
+            logger.debug(f"Image saved to cache: {cache_key}")
+        except Exception as e:
+            logger.error(f"Error saving image to cache: {e}")
+    
+    def _download_with_retry(self, url, max_retries=None):
+        """Download image dengan retry logic"""
+        if max_retries is None:
+            max_retries = self.max_retries
+        
+        last_error = None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                logger.debug(f"Download attempt {attempt + 1}/{max_retries + 1}: {url}")
+                
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                image = Image.open(BytesIO(response.content)).convert("RGBA")
+                logger.debug(f"Successfully downloaded image on attempt {attempt + 1}")
+                return image
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Download attempt {attempt + 1} failed: {e}")
+                
+                if attempt < max_retries:
+                    time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+                    
+        logger.error(f"All download attempts failed for {url}: {last_error}")
+        return None
+    
+    def _get_random_rarity(self):
+        """Generate random rarity berdasarkan probabilitas"""
+        rand = random.randint(1, 100)
+        cumulative = 0
+        
+        for rarity, rate in self.RARITY_RATES.items():
+            cumulative += rate
+            if rand <= cumulative:
+                return rarity
+        return "Common"  # fallback
+    
+    def _get_member_photo_url(self, member_key, photo_index=None):
+        """
+        Get URL foto member dari JSON data
+        
+        Args:
+            member_key: Key member dalam JSON (format: name_group)
+            photo_index: Index foto (jika None akan random)
+            
+        Returns:
+            tuple: (photo_url, photo_filename)
+        """
+        if member_key not in self.members_data:
+            return None, None
+        
+        member_info = self.members_data[member_key]
+        photos = member_info.get('photos', [])
+        
+        if not photos:
+            return None, None
+        
+        # Pilih foto
+        if photo_index is None:
+            photo_filename = random.choice(photos)
+        else:
+            photo_index = min(photo_index, len(photos) - 1)
+            photo_filename = photos[photo_index]
+        
+        # Construct full URL
+        if self.base_url and 'drive.google.com' in self.base_url:
+            # Extract file ID from filename for Google Drive
+            # Assuming filename format: GROUP_MEMBER_NUM.jpg
+            photo_url = f"{self.base_url}{photo_filename}"
+        else:
+            photo_url = photo_filename
+        
+        return photo_url, photo_filename
+    
+    def _download_image_from_url(self, url):
+        """Download image dari Google Drive URL dengan caching dan retry"""
+        try:
+            # NEW: Check cache first
+            if self._is_image_cached(url):
+                cached_image = self._load_cached_image(url)
+                if cached_image:
+                    return cached_image
+            
+            # NEW: Download dengan retry logic
+            image = self._download_with_retry(url)
+            
+            if image:
+                # NEW: Save to cache
+                self._save_image_to_cache(url, image)
+                return image
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error in enhanced image download from {url}: {e}")
+            return None
+    
+    def _get_member_keys_by_group(self, group_name):
+        """Get member keys dari grup tertentu"""
+        group_lower = group_name.lower()
+        matching_keys = []
+        
+        for member_key, member_info in self.members_data.items():
+            if member_info.get('group', '').lower() == group_lower:
+                matching_keys.append(member_key)
+        
+        return matching_keys
+    
+    def _find_member_key(self, member_name):
+        """Find member key berdasarkan nama"""
+        member_lower = member_name.lower()
+        matching_keys = []
+        
+        for member_key, member_info in self.members_data.items():
+            if member_info.get('name', '').lower() == member_lower:
+                matching_keys.append(member_key)
+        
+        return matching_keys
+    
+    def _get_all_member_keys(self):
+        """Get all available member keys from JSON data"""
+        if not self.members_data:
+            return []
+        return list(self.members_data.keys())
+    
+    def generate_card(self, member_name, group_name, rarity=None, photo_num=None):
+        """
+        Generate kartu trading untuk member dengan flow yang jelas:
+        1. Cek New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Old JSON -> old database folder -> design -> return
+        
+        Args:
+            member_name: Nama member
+            group_name: Nama grup
+            rarity: Rarity kartu (jika None akan random)
+            photo_num: Nomor foto (1-5, jika None akan random)
+            
+        Returns:
+            PIL Image object kartu yang sudah di-generate
+        """
+        try:
+            # Tentukan rarity
+            if rarity is None:
+                rarity = self._get_random_rarity()
+            
+            # Step 1: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> return
+                logger.info(f"🎯 Using NEW database flow for card generation: {member_name}")
+                
+                # Cari member key dari new database
+                member_key = f"{member_name.lower().replace(' ', '_')}_{group_name.lower().replace(' ', '_')}"
+                
+                # Load foto member dari NEW database
+                photo_url, photo_filename = self._get_member_photo_url(member_key, photo_num)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
+                
+                # Download foto dari NEW database (GDrive)
+                if 'drive.google.com' in photo_url:
+                    idol_photo_original = self._download_image_from_url(photo_url)
+                else:
+                    # Local file fallback
+                    if os.path.exists(photo_url):
+                        idol_photo_original = Image.open(photo_url).convert("RGBA")
+                    else:
+                        idol_photo_original = None
+                
+                if idol_photo_original is None:
+                    logger.warning(f"⚠️ Failed to load photo from NEW database for {member_name}, trying fallback")
+                    return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
+                
+                # Generate card using NEW database
+                template = self._generate_card_template(idol_photo_original, rarity, member_name, group_name)
+                logger.info(f"✅ Card generated successfully using NEW database for {member_name}")
+                return template
+            
+            else:
+                # FLOW 2: Old JSON -> old database folder -> design -> return
+                logger.info(f"📁 Using OLD database flow for card generation: {member_name}")
+                return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
+            
+        except Exception as e:
+            logger.error(f"Error generating card: {e}")
+            return None
+    
+    def _generate_card_fallback_flow(self, member_name, group_name, rarity, photo_num=None):
+        """Fallback flow untuk card generation: Old JSON -> old database folder -> design -> return"""
+        try:
+            logger.info(f"📂 Fallback card generation flow for {member_name}")
+            
+            # Try old database structure
+            member_key = f"{member_name.lower().replace(' ', '_')}_{group_name.lower().replace(' ', '_')}"
+            
+            # Get photo from old database/fallback method
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if not photo_url:
+                logger.error(f"❌ Photo not found in any database for {member_name}")
+                return None
+            
+            # Download foto dari old database
+            if 'drive.google.com' in photo_url:
+                idol_photo_original = self._download_image_from_url(photo_url)
+            else:
+                # Local file fallback
+                if os.path.exists(photo_url):
+                    idol_photo_original = Image.open(photo_url).convert("RGBA")
+                else:
+                    idol_photo_original = None
+            
+            if idol_photo_original is None:
+                logger.error(f"❌ Failed to load photo from fallback for {member_name}")
+                return None
+            
+            # Generate card using old database
+            template = self._generate_card_template(idol_photo_original, rarity, member_name, group_name)
+            logger.info(f"✅ Card generated successfully using fallback for {member_name}")
+            return template
+            
+        except Exception as e:
+            logger.error(f"Error in fallback card generation: {e}")
+            return None
+    
+    def _generate_card_template(self, idol_photo_original, rarity, member_name, group_name):
+        """Generate card template using design_kartu module"""
+        try:
+            # Import design functions at method level to avoid circular imports
+            from features.gacha_system.design_kartu import generate_card_template, map_old_rarity
+            
+            # Map old rarity to new system if needed
+            mapped_rarity = map_old_rarity(rarity)
+            
+            # Generate template kartu menggunakan fungsi dari design_kartu dengan info member
+            template = generate_card_template(idol_photo_original, mapped_rarity, member_name, group_name)
+            
+            return template
+            
+        except Exception as e:
+            logger.error(f"Error generating card template: {e}")
+            return None
+    
+    def gacha_random(self):
+        """
+        Gacha random member dengan flow yang jelas:
+        1. Cek New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Old JSON -> old database folder -> design -> return
+        """
+        if not self.members_data:
+            return None, "❌ Data member tidak tersedia"
         
         try:
-            # Parse command gacha
-            parts = user_input.lower().split()
-            command = parts[0] if parts else ""
+            # Step 1: Pilih member random dari database yang tersedia
+            member_key = random.choice(self._get_all_member_keys())
+            member_info = self.members_data[member_key]
             
-            if command == "gacha":
-                await self._handle_gacha_subcommand(ctx, parts[1:] if len(parts) > 1 else [])
+            member_name = member_info.get('name', 'Unknown')
+            group_name = member_info.get('group', 'Unknown')
+            
+            # Step 2: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW database flow for {member_name}")
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._gacha_fallback_flow(member_name, group_name)
+                
+                # Generate card using NEW database photos
+                rarity = self._get_random_rarity()
+                card_image = self.generate_card(member_name, group_name, rarity)
+                
+                if card_image:
+                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                    success_msg += f"✨ **Rarity:** {rarity}\n"
+                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"🎯 **Random Gacha**"
+                    return card_image, success_msg
+                else:
+                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    return self._gacha_fallback_flow(member_name, group_name)
+            
             else:
-                await ctx.send("❌ Command gacha tidak dikenali. Gunakan `!sn gacha help` untuk bantuan.")
+                # FLOW 2: Old JSON -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD database flow for {member_name}")
+                return self._gacha_fallback_flow(member_name, group_name)
                 
         except Exception as e:
-            logger.error(f"Error in gacha command: {e}")
-            await ctx.send("❌ Terjadi error saat memproses command gacha.")
+            logger.error(f"Error in gacha_random: {e}")
+            return None, f"❌ Error saat random gacha: {str(e)}"
     
-    async def _handle_gacha_subcommand(self, ctx, args):
-        """Handle subcommand gacha"""
-        if not args:
-            # Default gacha random
-            await self._handle_gacha_random(ctx)
-            return
-        
-        subcommand = args[0].lower()
-        
-        if subcommand == "help":
-            await self._handle_gacha_info(ctx)
-        elif subcommand == "info":
-            await self._handle_gacha_info(ctx)
-        elif subcommand == "group":
-            group_name = " ".join(args[1:]) if len(args) > 1 else None
-            await self._handle_gacha_by_group(ctx, group_name)
-        elif subcommand == "member":
-            member_name = " ".join(args[1:]) if len(args) > 1 else None
-            await self._handle_gacha_by_member(ctx, member_name)
-        elif subcommand == "sar":
-            # Admin command untuk demo SAR card
-            if len(args) > 1:
-                # !sn gacha sar [member_name] - Generate SAR for specific member
-                member_name = " ".join(args[1:])
-                await self._handle_gacha_sar_member(ctx, member_name)
-            else:
-                # !sn gacha sar - Random SAR demo
-                await self._handle_gacha_sar_demo(ctx)
-        elif subcommand == "stats":
-            await self._handle_gacha_stats(ctx)
-        elif subcommand == "test":
-            await self._handle_gacha_test(ctx)
-        else:
-            # Check if last word is "sar" for SAR command parsing
-            if len(args) >= 2 and args[-1].lower() == "sar":
-                # !sn gacha [member_name] sar - Generate SAR for specific member
-                member_name = " ".join(args[:-1])  # Exclude "sar" from member name
-                await self._handle_gacha_sar_member(ctx, member_name)
-            else:
-                # Try to interpret as direct member name or group name
-                search_term = " ".join(args)
-                await self._handle_smart_gacha(ctx, search_term)
-    
-    def _get_card_back_path(self, rarity):
-        """Get appropriate card back based on rarity"""
-        if rarity == "SAR":
-            return "assets/templates/Back_SAR.png"
-        elif rarity in ["DR", "SR"]:
-            return "assets/templates/Back_DRSR.png"
-        else:  # Common, Rare
-            return "assets/templates/Back.png"
-    
-    async def _card_flip_animation(self, ctx, card):
-        """Card flip animation dengan custom card backs"""
+    def _gacha_fallback_flow(self, member_name, group_name):
+        """Fallback flow: Old JSON -> old database folder -> design -> Discord"""
         try:
+            logger.info(f"📂 Fallback flow for {member_name} from {group_name}")
+            
+            # Get photo from old database
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if not photo_url:
+                return None, f"❌ Foto untuk {member_name} tidak dapat diakses di database manapun!"
+            
+            # Generate card using old database
+            rarity = self._get_random_rarity()
+            card_image = self.generate_card(member_name, group_name, rarity)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                success_msg += f"🎯 **Random Gacha**"
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in fallback flow: {e}")
+            return None, f"❌ Error saat fallback gacha: {str(e)}"
+    
+    def _get_member_photo_url_fallback(self, member_name, group_name):
+        """Get photo URL from old database/folder structure"""
+        try:
+            # Try to construct old-style photo path
+            # This would need to be implemented based on your old database structure
+            logger.info(f"🔍 Searching old database for {member_name} from {group_name}")
+            
+            # Placeholder for old database photo retrieval logic
+            # You would implement the actual old database lookup here
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"Error getting fallback photo URL: {e}")
+            return None, None
+    
+    def gacha_pack_5(self):
+        """
+        Gacha pack 5 kartu dengan guaranteed rarity:
+        - 2 Common
+        - 2 Rare/Epic  
+        - 1 Legendary/FullArt
+        """
+        if not self.members_data:
+            return [], "❌ Data member tidak tersedia"
+        
+        try:
+            cards = []
+            all_member_keys = self._get_all_member_keys()
+            
+            if len(all_member_keys) < 5:
+                return [], "❌ Tidak cukup member untuk pack 5 kartu"
+            
+            # Guaranteed rarity distribution (NEW SYSTEM)
+            guaranteed_rarities = [
+                "Common", "Common",           # 2 Common
+                "Rare", "DR",                # 2 Rare/DR
+                "SR"                         # 1 SR/SAR
+            ]
+            
+            # Shuffle untuk random order
+            random.shuffle(guaranteed_rarities)
+            
+            # Generate 5 unique members
+            selected_members = random.sample(all_member_keys, 5)
+            
+            for i, member_key in enumerate(selected_members):
+                member_info = self.members_data[member_key]
+                member_name = member_info.get('name', 'Unknown')
+                group_name = member_info.get('group', 'Unknown')
+                rarity = guaranteed_rarities[i]
+                
+                # Get photo URL
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if photo_url:
+                    # Generate card
+                    card_image = self.generate_card(member_name, group_name, rarity)
+                    
+                    if card_image:
+                        card_data = {
+                            'image': card_image,
+                            'member_name': member_name,
+                            'group_name': group_name,
+                            'rarity': rarity,
+                            'member_key': member_key
+                        }
+                        cards.append(card_data)
+            
+            if len(cards) == 5:
+                # Create pack summary message
+                rarity_counts = {}
+                for card in cards:
+                    rarity = card['rarity']
+                    rarity_counts[rarity] = rarity_counts.get(rarity, 0) + 1
+                
+                summary = "🎴 **5-Card Gacha Pack Results:**\n"
+                for rarity, count in rarity_counts.items():
+                    summary += f"✨ **{rarity}:** {count}x\n"
+                
+                summary += f"\n📦 **Pack Contents:**\n"
+                for i, card in enumerate(cards, 1):
+                    summary += f"{i}. **{card['member_name']}** ({card['group_name']}) - {card['rarity']}\n"
+                
+                return cards, summary
+            else:
+                return [], f"❌ Gagal generate pack lengkap (hanya {len(cards)}/5 kartu)"
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_pack_5: {e}")
+            return [], f"❌ Error saat generate pack: {str(e)}"
+    
+    def gacha_by_group(self, group_name):
+        """
+        Gacha member dari grup tertentu dengan flow yang jelas:
+        1. Cek grup di New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Cek di Old JSON -> old database folder -> design -> return
+        """
+        if not self.members_data:
+            return None, "❌ Data member tidak tersedia"
+        
+        try:
+            # Step 1: Cari member dari grup di database yang tersedia
+            group_member_keys = self._get_member_keys_by_group(group_name)
+            
+            if not group_member_keys:
+                # Jika tidak ditemukan di database aktif, coba fallback
+                logger.warning(f"⚠️ Group {group_name} not found in active database, trying fallback")
+                return self._gacha_group_fallback_flow(group_name)
+            
+            # Pilih member random dari grup
+            member_key = random.choice(group_member_keys)
+            member_info = self.members_data[member_key]
+            member_name = member_info.get('name', 'Unknown')
+            
+            # Step 2: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW database flow for group {group_name}, member {member_name}")
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._gacha_group_fallback_flow(group_name)
+                
+                # Generate card using NEW database photos
+                rarity = self._get_random_rarity()
+                card_image = self.generate_card(member_name, group_name, rarity)
+                
+                if card_image:
+                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                    success_msg += f"✨ **Rarity:** {rarity}\n"
+                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"🎯 **Group Gacha:** {group_name}"
+                    return card_image, success_msg
+                else:
+                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    return self._gacha_group_fallback_flow(group_name)
+            
+            else:
+                # FLOW 2: Old JSON -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD database flow for group {group_name}")
+                return self._gacha_group_fallback_flow(group_name)
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_by_group: {e}")
+            return None, f"❌ Error saat group gacha: {str(e)}"
+    
+    def _gacha_group_fallback_flow(self, group_name):
+        """Fallback flow untuk group gacha: Old JSON -> old database folder -> design -> Discord"""
+        try:
+            logger.info(f"📂 Group fallback flow for {group_name}")
+            
+            # Try to find group members in old database structure
+            # This would need to be implemented based on your old database
+            member_name = "Unknown"  # Would be determined from old database
+            
+            # Get photo from old database
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if not photo_url:
+                return None, f"❌ Grup **{group_name}** tidak ditemukan di database manapun!"
+            
+            # Generate card using old database
+            rarity = self._get_random_rarity()
+            card_image = self.generate_card(member_name, group_name, rarity)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                success_msg += f"🎯 **Group Gacha:** {group_name}"
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in group fallback flow: {e}")
+            return None, f"❌ Error saat fallback group gacha: {str(e)}"
+    
+    def gacha_by_member(self, member_name):
+        """
+        Gacha kartu member tertentu dengan flow yang jelas:
+        1. Cek member di New JSON Update -> GDrive photos -> design -> return
+        2. Fallback: Cek di Old JSON -> old database folder -> design -> return
+        """
+        if not self.members_data:
+            return None, "❌ Data member tidak tersedia"
+        
+        try:
+            # Step 1: Cari member di database yang tersedia
+            member_keys = self._find_member_key(member_name)
+            
+            if not member_keys:
+                # Jika tidak ditemukan di database aktif, coba fallback
+                logger.warning(f"⚠️ Member {member_name} not found in active database, trying fallback")
+                return self._gacha_member_fallback_flow(member_name)
+            
+            # Jika ada multiple member dengan nama sama, pilih random
+            member_key = random.choice(member_keys)
+            member_info = self.members_data[member_key]
+            group_name = member_info.get('group', 'Unknown')
+            
+            # Step 2: Flow berdasarkan database yang digunakan
+            if self.using_new_database:
+                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
+                logger.info(f"🎯 Using NEW database flow for member {member_name}")
+                photo_url, _ = self._get_member_photo_url(member_key)
+                
+                if not photo_url:
+                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    return self._gacha_member_fallback_flow(member_name)
+                
+                # Generate card using NEW database photos
+                rarity = self._get_random_rarity()
+                card_image = self.generate_card(member_name, group_name, rarity)
+                
+                if card_image:
+                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                    success_msg += f"✨ **Rarity:** {rarity}\n"
+                    success_msg += f"📸 **Photo:** New GDrive Database\n"
+                    success_msg += f"🎯 **Member Gacha**"
+                    return card_image, success_msg
+                else:
+                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
+                    return self._gacha_member_fallback_flow(member_name)
+            
+            else:
+                # FLOW 2: Old JSON -> old database folder -> design -> Discord
+                logger.info(f"📁 Using OLD database flow for member {member_name}")
+                return self._gacha_member_fallback_flow(member_name)
+                
+        except Exception as e:
+            logger.error(f"Error in gacha_by_member: {e}")
+            return None, f"❌ Error saat member gacha: {str(e)}"
+    
+    def _gacha_member_fallback_flow(self, member_name):
+        """Fallback flow untuk specific member: Old JSON -> old database folder -> design -> Discord"""
+        try:
+            logger.info(f"📂 Member fallback flow for {member_name}")
+            
+            # Try to find member in old database structure
+            # This would need to be implemented based on your old database
+            group_name = "Unknown"  # Would be determined from old database
+            
+            # Get photo from old database
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if not photo_url:
+                return None, f"❌ Member **{member_name}** tidak ditemukan di database manapun!"
+            
+            # Generate card using old database
+            rarity = self._get_random_rarity()
+            card_image = self.generate_card(member_name, group_name, rarity)
+            
+            if card_image:
+                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                success_msg += f"🎯 **Member Gacha**"
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+                
+        except Exception as e:
+            logger.error(f"Error in member fallback flow: {e}")
+            return None, f"❌ Error saat fallback member gacha: {str(e)}"
+    
+    def save_card_temp(self, card_image, prefix="gacha_card"):
+        """
+        Save kartu ke temporary file untuk Discord dengan transparency support
+        
+        Args:
+            card_image: PIL Image object (RGBA with transparency)
+            prefix: Prefix untuk filename
+            
+        Returns:
+            str: Path ke temporary file atau None jika gagal
+        """
+        try:
+            import tempfile
             import os
             
-            # Get appropriate card back
-            card_back_path = self._get_card_back_path(card['rarity'])
+            # Create temporary file - PNG untuk preserve transparency
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png', prefix=f"{prefix}_")
+            temp_path = temp_file.name
+            temp_file.close()
             
-            # Check if card back exists
-            if not os.path.exists(card_back_path):
-                card_back_path = "assets/templates/Back.png"  # Fallback
-            
-            # Phase 1: Show card back
-            back_embed = discord.Embed(
-                title="🎴 Mystery Card",
-                description="🔮 **Detecting rarity...**",
-                color=0x808080
-            )
-            
-            if os.path.exists(card_back_path):
-                back_embed.set_image(url="attachment://card_back.png")
-                with open(card_back_path, 'rb') as f:
-                    back_file = discord.File(f, "card_back.png")
-                    msg = await ctx.send(embed=back_embed, file=back_file)
+            # Save image dengan transparency preserved
+            # Keep RGBA mode untuk preserve transparency
+            if card_image.mode == 'RGBA':
+                # Save langsung dengan transparency
+                card_image.save(temp_path, 'PNG', optimize=True)
             else:
-                # ASCII fallback if no card back file
-                back_embed.description = "🎴 ┌─────────┐\n│  ░░░░░  │\n│  ░SN░   │\n│  ░░░░░  │\n└─────────┘"
-                msg = await ctx.send(embed=back_embed)
+                # Convert ke RGBA jika belum
+                rgba_image = card_image.convert('RGBA')
+                rgba_image.save(temp_path, 'PNG', optimize=True)
             
-            # Phase 2: Rarity hint
-            await asyncio.sleep(1.5)
-            rarity_color = self._get_rarity_color(card['rarity'])
+            # Memory cleanup - close image if it's safe
+            try:
+                if hasattr(card_image, 'close') and card_image.filename != temp_path:
+                    card_image.close()
+            except:
+                pass  # Safe to ignore cleanup errors
             
-            if card['rarity'] == "SAR":
-                hint_desc = "🌈 **RAINBOW GLOW DETECTED!**\n✨ Something legendary..."
-            elif card['rarity'] in ["SR", "DR"]:
-                hint_desc = "🥇 **RARE AURA!**\n⭐ High rarity incoming..."
-            else:
-                hint_desc = "💫 **Card is glowing...**\n🔍 Almost ready..."
-            
-            hint_embed = discord.Embed(
-                title="🔄 Flipping Card...",
-                description=hint_desc,
-                color=rarity_color
-            )
-            await msg.edit(embed=hint_embed, attachments=[])
-            
-            # Phase 3: Final reveal
-            await asyncio.sleep(2)
-            final_embed = discord.Embed(
-                title=f"✨ {card['rarity']} Card Revealed!",
-                description=f"**{card['member_name']}** dari **{card['group_name']}**",
-                color=rarity_color
-            )
-            
-            # Save and attach final card
-            temp_path = self.gacha_system.save_card_temp(card['image'], f"revealed_card")
-            if temp_path:
-                with open(temp_path, 'rb') as f:
-                    final_file = discord.File(f, "revealed_card.png")
-                    final_embed.set_image(url="attachment://revealed_card.png")
-                    await msg.edit(embed=final_embed, attachments=[final_file])
-                
-                # Cleanup
-                try:
-                    os.unlink(temp_path)
-                except:
-                    pass
-            else:
-                await msg.edit(embed=final_embed)
-                
-        except Exception as e:
-            logger.error(f"Card flip animation error: {e}")
-            # Fallback to simple reveal
-            simple_embed = discord.Embed(
-                title=f"🎴 {card['member_name']}",
-                description=f"✨ **{card['rarity']}** • {card['group_name']}",
-                color=self._get_rarity_color(card['rarity'])
-            )
-            await ctx.send(embed=simple_embed)
-    
-    async def _handle_gacha_random(self, ctx):
-        """Handle gacha pack 5 kartu dengan guaranteed rarity"""
-        user_id = ctx.author.id
-        
-        # Check usage limit
-        if self._check_usage_limit(user_id, 'random'):
-            limit_embed = discord.Embed(
-                title="❌ Usage Limit Reached",
-                description="🎴 **Random Gacha Pack Limit:** 3 kali per user\n\n💡 **Tip:** Coba `!sn gacha [member]` atau `!sn gacha [group]` untuk gacha spesifik!",
-                color=0xff0000
-            )
-            usage = self._get_user_usage(user_id)
-            limit_embed.add_field(
-                name="📊 Your Usage Stats",
-                value=f"🎲 Random Packs: {usage['random']}/3\n👤 Member Gacha: {usage['member']}/16\n🎵 Group Gacha: {usage['group']}/16",
-                inline=False
-            )
-            await ctx.send(embed=limit_embed)
-            return
-        
-        try:
-            async with ctx.typing():
-                # Increment usage
-                current_count = self._increment_usage(user_id, 'random')
-                remaining = 3 - current_count
-                # Initial suspense message
-                suspense_embed = discord.Embed(
-                    title="🎴 Opening Gacha Pack...",
-                    description="🌟 **Something magical is happening...**\n✨ Shuffling the cards...",
-                    color=0x9932cc
-                )
-                loading_msg = await ctx.send(embed=suspense_embed)
-                
-                # Add suspense delay
-                await asyncio.sleep(2)
-                
-                # Update to rarity reveal
-                rarity_embed = discord.Embed(
-                    title="🎴 Revealing Pack Contents...",
-                    description="🎯 **Generous Rates Active!** Higher chance for rare cards\n⏳ Generating your cards...",
-                    color=0xffd700
-                )
-                await loading_msg.edit(embed=rarity_embed)
-                
-                # Another small delay for anticipation
-                await asyncio.sleep(1.5)
-                
-                # Generate 5-card pack
-                cards, pack_summary = self.gacha_system.gacha_pack_5()
-                
-                if cards and len(cards) == 5:
-                    # Sort cards by rarity (lowest to highest)
-                    rarity_order = {"Common": 1, "Rare": 2, "DR": 3, "SR": 4, "SAR": 5}
-                    sorted_cards = sorted(cards, key=lambda x: rarity_order.get(x['rarity'], 0))
-                    
-                    # Group cards: first 4 in pairs, last (highest rarity) separate
-                    card_pairs = []
-                    for i in range(0, 4, 2):
-                        if i + 1 < len(sorted_cards):
-                            card_pairs.append([sorted_cards[i], sorted_cards[i + 1]])
-                        else:
-                            card_pairs.append([sorted_cards[i]])
-                    
-                    # Last card (highest rarity) separate
-                    highest_rarity_card = sorted_cards[4] if len(sorted_cards) == 5 else None
-                    
-                    # Send pairs of cards with back card reveal flow
-                    for pair_num, pair in enumerate(card_pairs, 1):
-                        # Phase 1: Show back cards
-                        back_embed = discord.Embed(
-                            title=f"🎴 Mystery Cards {pair_num*2-1}-{min(pair_num*2, 4)}",
-                            description=f"🔮 **Detecting rarities...**\n✨ What will you get?",
-                            color=0x808080
-                        )
-                        
-                        back_files = []
-                        for i, card in enumerate(pair):
-                            # Get appropriate card back
-                            card_back_path = self._get_card_back_path(card['rarity'])
-                            
-                            # Check if card back exists
-                            import os
-                            if not os.path.exists(card_back_path):
-                                card_back_path = "assets/templates/Back.png"  # Fallback
-                            
-                            if os.path.exists(card_back_path):
-                                back_files.append(discord.File(card_back_path, f"back_{pair_num}_{i+1}.png"))
-                                back_embed.add_field(
-                                    name=f"Card {(pair_num-1)*2 + i + 1}",
-                                    value="🔮 **Mystery Card**\n❓ Rarity Unknown",
-                                    inline=True
-                                )
-                        
-                        # Send back cards first
-                        if back_files:
-                            pair_msg = await ctx.send(embed=back_embed, files=back_files)
-                        else:
-                            pair_msg = await ctx.send(embed=back_embed)
-                        
-                        # Suspense delay
-                        await asyncio.sleep(2.0)
-                        
-                        # Phase 2: Reveal actual cards
-                        reveal_embed = discord.Embed(
-                            title=f"🎴 Cards {pair_num*2-1}-{min(pair_num*2, 4)} Revealed!",
-                            description=f"✨ **Here are your cards!**",
-                            color=0x00FF00
-                        )
-                        
-                        reveal_files = []
-                        for i, card in enumerate(pair):
-                            # Add revealed card info to embed
-                            rarity_emoji = self._get_rarity_emoji(card['rarity'])
-                            reveal_embed.add_field(
-                                name=f"Card {(pair_num-1)*2 + i + 1}: {rarity_emoji} {card['rarity']}",
-                                value=f"**{card['member_name']}**\n{card['group_name']}",
-                                inline=True
-                            )
-                            
-                            # Save card image
-                            temp_path = self.gacha_system.save_card_temp(card['image'], f"pair_{pair_num}_card_{i+1}")
-                            if temp_path:
-                                reveal_files.append(discord.File(temp_path, f"card_{(pair_num-1)*2 + i + 1}.png"))
-                        
-                        # Edit message to show revealed cards
-                        if reveal_files:
-                            await pair_msg.edit(embed=reveal_embed, attachments=reveal_files)
-                        else:
-                            await pair_msg.edit(embed=reveal_embed)
-                        
-                        # Cleanup temp files
-                        import os
-                        for i in range(len(pair)):
-                            try:
-                                temp_path = f"temp_pair_{pair_num}_card_{i+1}.png"
-                                if os.path.exists(temp_path):
-                                    os.unlink(temp_path)
-                            except:
-                                pass
-                        
-                        await asyncio.sleep(1.5)  # Delay antar pair
-                    
-                    # Show highest rarity card last with special back card reveal
-                    if highest_rarity_card:
-                        await asyncio.sleep(0.5)
-                        
-                        # Phase 1: Show special back card
-                        special_back_embed = discord.Embed(
-                            title="🌟 FINAL MYSTERY CARD",
-                            description="🔮 **The crown jewel awaits...**\n✨ Your highest rarity card!",
-                            color=0x800080
-                        )
-                        
-                        # Get special card back
-                        special_back_path = self._get_card_back_path(highest_rarity_card['rarity'])
-                        
-                        import os
-                        if not os.path.exists(special_back_path):
-                            special_back_path = "assets/templates/Back.png"  # Fallback
-                        
-                        special_back_embed.add_field(
-                            name="🎯 Final Card",
-                            value="🔮 **Ultimate Mystery**\n❓ Highest Rarity Detected",
-                            inline=False
-                        )
-                        
-                        # Send back card first
-                        if os.path.exists(special_back_path):
-                            special_back_file = discord.File(special_back_path, "special_back.png")
-                            special_msg = await ctx.send(embed=special_back_embed, file=special_back_file)
-                        else:
-                            special_msg = await ctx.send(embed=special_back_embed)
-                        
-                        # Extra suspense for final card
-                        await asyncio.sleep(3.0)
-                        
-                        # Phase 2: Reveal special card
-                        special_reveal_embed = discord.Embed(
-                            title="🌟 SPECIAL REVEAL - Highest Rarity!",
-                            description="✨ **The crown jewel of your pack!**",
-                            color=self._get_rarity_color(highest_rarity_card['rarity'])
-                        )
-                        
-                        rarity_emoji = self._get_rarity_emoji(highest_rarity_card['rarity'])
-                        special_reveal_embed.add_field(
-                            name=f"🎯 {rarity_emoji} {highest_rarity_card['rarity']} CARD",
-                            value=f"**{highest_rarity_card['member_name']}**\n{highest_rarity_card['group_name']}\n\n{self._get_luck_message(highest_rarity_card['rarity'])}",
-                            inline=False
-                        )
-                        
-                        # Save special card for reveal
-                        temp_path = self.gacha_system.save_card_temp(highest_rarity_card['image'], "special_card")
-                        if temp_path:
-                            special_reveal_file = discord.File(temp_path, "special_card.png")
-                            await special_msg.edit(embed=special_reveal_embed, attachments=[special_reveal_file])
-                            
-                            # Cleanup
-                            import os
-                            try:
-                                os.unlink(temp_path)
-                            except:
-                                pass
-                        else:
-                            await special_msg.edit(embed=special_reveal_embed)
-                        
-                        await asyncio.sleep(1.5)  # Pause before final summary
-                    
-                    # Final summary embed with all cards
-                    final_embed = discord.Embed(
-                        title="🎉 Pack Complete - Final Summary",
-                        description="✨ **Your complete 5-card gacha pack!**",
-                        color=0x00FF00
-                    )
-                    
-                    # Count rarities for display
-                    rarity_counts = {}
-                    for card in cards:
-                        rarity = card['rarity']
-                        rarity_counts[rarity] = rarity_counts.get(rarity, 0) + 1
-                    
-                    # Add rarity summary
-                    rarity_summary = ""
-                    for rarity, count in rarity_counts.items():
-                        emoji = self._get_rarity_emoji(rarity)
-                        rarity_summary += f"{emoji} **{rarity}:** {count}x\n"
-                    
-                    final_embed.add_field(
-                        name="📊 Rarity Distribution",
-                        value=rarity_summary,
-                        inline=True
-                    )
-                    
-                    # Add pack contents (in original order)
-                    pack_contents = ""
-                    for i, card in enumerate(cards, 1):
-                        emoji = self._get_rarity_emoji(card['rarity'])
-                        pack_contents += f"{i}. {emoji} **{card['member_name']}** ({card['group_name']})\n"
-                    
-                    final_embed.add_field(
-                        name="📦 Pack Contents",
-                        value=pack_contents,
-                        inline=True
-                    )
-                    
-                    # Calculate total luck
-                    total_luck = self._calculate_pack_luck(cards)
-                    final_embed.add_field(
-                        name="🍀 Pack Luck",
-                        value=total_luck,
-                        inline=True
-                    )
-                    
-                    # Add usage info
-                    final_embed.add_field(
-                        name="📊 Usage Info",
-                        value=f"🎲 Random Packs: {current_count}/3\n⏳ Remaining: {remaining}",
-                        inline=True
-                    )
-                    
-                    final_embed.set_footer(
-                        text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
-                        icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-                    )
-                    
-                    # Send final summary
-                    await ctx.send(embed=final_embed)
-                else:
-                    error_embed = discord.Embed(
-                        title="❌ Pack Generation Failed",
-                        description=pack_summary,
-                        color=0xff0000
-                    )
-                    await loading_msg.edit(embed=error_embed)
-                    
-        except Exception as e:
-            logger.error(f"Error in gacha pack: {e}")
-            error_embed = discord.Embed(
-                title="❌ System Error",
-                description="Gagal melakukan gacha pack.",
-                color=0xff0000
-            )
-            await ctx.send(embed=error_embed)
-    
-    async def _handle_gacha_by_group(self, ctx, group_name):
-        """Handle gacha by group"""
-        if not group_name:
-            await ctx.send("❌ Nama grup tidak boleh kosong. Contoh: `!sn gacha group BLACKPINK`")
-            return
-        
-        user_id = ctx.author.id
-        
-        # Check usage limit
-        if self._check_usage_limit(user_id, 'group'):
-            limit_embed = discord.Embed(
-                title="❌ Usage Limit Reached",
-                description="🎵 **Group Gacha Limit:** 16 kali per user\n\n💡 **Breakdown:**\n• First 8 uses: Normal rarity rates\n• Next 8 uses: Harder rarity (reduced SAR rates)",
-                color=0xff0000
-            )
-            usage = self._get_user_usage(user_id)
-            limit_embed.add_field(
-                name="📊 Your Usage Stats",
-                value=f"🎲 Random Packs: {usage['random']}/3\n👤 Member Gacha: {usage['member']}/16\n🎵 Group Gacha: {usage['group']}/16",
-                inline=False
-            )
-            await ctx.send(embed=limit_embed)
-            return
-        
-        # Get rarity mode
-        rarity_mode = self._get_rarity_mode(user_id, 'group')
-        
-        try:
-            async with ctx.typing():
-                # Increment usage
-                current_count = self._increment_usage(user_id, 'group')
-                remaining = 16 - current_count
-                # Initial suspense for group gacha
-                suspense_embed = discord.Embed(
-                    title=f"🎴 Searching {group_name} Members...",
-                    description="🔍 **Scanning member database...**\n✨ Who will you get?",
-                    color=0x9932cc
-                )
-                loading_msg = await ctx.send(embed=suspense_embed)
-                
-                # Add suspense delay
-                await asyncio.sleep(1.5)
-                
-                # Update to generation message
-                loading_embed = discord.Embed(
-                    title=f"🎴 Generating {group_name} Card...",
-                    description="🎨 **Creating your trading card...**\n⏳ Rendering in progress...",
-                    color=0x00ff00
-                )
-                await loading_msg.edit(embed=loading_embed)
-                
-                # Small delay for rendering anticipation
-                await asyncio.sleep(1)
-                
-                # Generate gacha by group with rarity mode
-                if rarity_mode == 'hard':
-                    # Hard mode: reduced SAR rates (SAR: 2% -> 0.5%)
-                    card_image, card_data = self.gacha_system.gacha_by_group_reduced_sar(group_name)
-                else:
-                    card_image, card_data = self.gacha_system.gacha_by_group(group_name)
-                
-                if card_image:
-                    # Parse card data untuk card flip animation
-                    lines = card_data.split('\n')
-                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
-                    member_name = member_info[0]
-                    actual_group = member_info[1] if len(member_info) > 1 else group_name
-                    rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
-                    
-                    # Create card object for animation with usage info
-                    card = {
-                        'member_name': member_name,
-                        'group_name': actual_group,
-                        'rarity': rarity,
-                        'image': card_image,
-                        'usage_info': f"🎵 Group Gacha: {current_count}/16 • Mode: {rarity_mode.title()} • Remaining: {remaining}"
-                    }
-                    
-                    # Show card flip animation
-                    await self._card_flip_animation(ctx, card)
-                    return
-                else:
-                    error_embed = discord.Embed(
-                        title="❌ Group Gacha Failed",
-                        description=card_data,
-                        color=0xff0000
-                    )
-                    await loading_msg.edit(embed=error_embed)
-                    
-        except Exception as e:
-            logger.error(f"Error in gacha by group: {e}")
-            error_embed = discord.Embed(
-                title="❌ System Error",
-                description=f"Gagal melakukan gacha untuk grup {group_name}.",
-                color=0xff0000
-            )
-            await ctx.send(embed=error_embed)
-    
-    async def _handle_gacha_by_member(self, ctx, member_name):
-        """Handle gacha by member"""
-        if not member_name:
-            await ctx.send("❌ Nama member tidak boleh kosong. Contoh: `!sn gacha member Jennie`")
-            return
-        
-        user_id = ctx.author.id
-        
-        # Check usage limit
-        if self._check_usage_limit(user_id, 'member'):
-            limit_embed = discord.Embed(
-                title="❌ Usage Limit Reached",
-                description="👤 **Member Gacha Limit:** 16 kali per user\n\n💡 **Breakdown:**\n• First 8 uses: Normal rarity rates\n• Next 8 uses: Harder rarity (reduced SAR rates)",
-                color=0xff0000
-            )
-            usage = self._get_user_usage(user_id)
-            limit_embed.add_field(
-                name="📊 Your Usage Stats",
-                value=f"🎲 Random Packs: {usage['random']}/3\n👤 Member Gacha: {usage['member']}/16\n🎵 Group Gacha: {usage['group']}/16",
-                inline=False
-            )
-            await ctx.send(embed=limit_embed)
-            return
-        
-        # Get rarity mode
-        rarity_mode = self._get_rarity_mode(user_id, 'member')
-        
-        try:
-            async with ctx.typing():
-                # Increment usage
-                current_count = self._increment_usage(user_id, 'member')
-                remaining = 16 - current_count
-                # Initial suspense for member gacha
-                suspense_embed = discord.Embed(
-                    title=f"🎴 Searching for {member_name}...",
-                    description="🔍 **Locating member in database...**\n✨ Preparing something special...",
-                    color=0x9932cc
-                )
-                loading_msg = await ctx.send(embed=suspense_embed)
-                
-                # Add suspense delay
-                await asyncio.sleep(1.5)
-                
-                # Update to card generation
-                generation_embed = discord.Embed(
-                    title=f"🎴 Creating {member_name}'s Card...",
-                    description="🎨 **Rendering trading card...**\n⏳ Adding final touches...",
-                    color=0x00ff00
-                )
-                await loading_msg.edit(embed=generation_embed)
-                
-                # Small delay for rendering anticipation
-                await asyncio.sleep(1)
-                
-                # Generate gacha by member with rarity mode
-                if rarity_mode == 'hard':
-                    # Hard mode: reduced SAR rates (SAR: 2% -> 0.5%)
-                    card_image, card_data = self.gacha_system.gacha_by_member_reduced_sar(member_name)
-                else:
-                    card_image, card_data = self.gacha_system.gacha_by_member(member_name)
-                
-                if card_image:
-                    # Parse card data untuk card flip animation
-                    lines = card_data.split('\n')
-                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
-                    actual_member = member_info[0]
-                    group_name = member_info[1] if len(member_info) > 1 else "Unknown"
-                    rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
-                    
-                    # Create card object for animation with usage info
-                    card = {
-                        'member_name': actual_member,
-                        'group_name': group_name,
-                        'rarity': rarity,
-                        'image': card_image,
-                        'usage_info': f"👤 Member Gacha: {current_count}/16 • Mode: {rarity_mode.title()} • Remaining: {remaining}"
-                    }
-                    
-                    # Show card flip animation
-                    await self._card_flip_animation(ctx, card)
-                    return
-                else:
-                    error_embed = discord.Embed(
-                        title="❌ Member Gacha Failed",
-                        description=card_data,
-                        color=0xff0000
-                    )
-                    await loading_msg.edit(embed=error_embed)
-                    
-        except Exception as e:
-            logger.error(f"Error in gacha by member: {e}")
-            error_embed = discord.Embed(
-                title="❌ System Error",
-                description=f"Gagal melakukan gacha untuk member {member_name}.",
-                color=0xff0000
-            )
-            await ctx.send(embed=error_embed)
-    
-    async def _handle_gacha_sar_demo(self, ctx):
-        """Handle SAR demo command - admin only, auto-delete after 5 seconds"""
-        user_id = ctx.author.id
-        
-        # Check if user is admin
-        if not self._is_admin(user_id):
-            await ctx.send("❌ Command ini hanya untuk admin/mod untuk demo kepada user lain.")
-            return
-        
-        try:
-            async with ctx.typing():
-                # Demo message
-                demo_embed = discord.Embed(
-                    title="🌟 SAR Demo - Admin Preview",
-                    description="✨ **Menampilkan contoh kartu SAR untuk demo...**\n🎯 Kartu akan dihapus otomatis setelah 5 detik",
-                    color=0xFF6B9D
-                )
-                loading_msg = await ctx.send(embed=demo_embed)
-                
-                await asyncio.sleep(1.5)
-                
-                # Generate guaranteed SAR card
-                card_image, card_data = self.gacha_system.gacha_guaranteed_sar()
-                
-                if card_image:
-                    # Parse card data
-                    lines = card_data.split('\n')
-                    member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
-                    member_name = member_info[0]
-                    group_name = member_info[1] if len(member_info) > 1 else "Unknown"
-                    
-                    # Create SAR demo embed
-                    sar_embed = discord.Embed(
-                        title="🌟 SAR DEMO - Special Art Rare",
-                        description="✨ **Ini contoh kartu SAR rarity tertinggi!**\n🎯 Auto-delete dalam 5 detik...",
-                        color=0xFF1493
-                    )
-                    
-                    sar_embed.add_field(
-                        name="🎯 SAR Card",
-                        value=f"**{member_name}**\n{group_name}\n\n🌟 **Rarity:** SAR (0.5-2% chance)\n💎 **Ultra Rare dengan holo effects!**",
-                        inline=False
-                    )
-                    
-                    sar_embed.add_field(
-                        name="ℹ️ Demo Info",
-                        value="🔧 **Admin Demo Mode**\n⏰ **Auto-delete:** 5 detik\n🎯 **Purpose:** Showcase SAR quality",
-                        inline=False
-                    )
-                    
-                    # Save and send SAR card
-                    temp_path = self.gacha_system.save_card_temp(card_image, "sar_demo")
-                    if temp_path:
-                        sar_file = discord.File(temp_path, "sar_demo.png")
-                        demo_msg = await loading_msg.edit(embed=sar_embed, attachments=[sar_file])
-                        
-                        # Auto-delete after 5 seconds
-                        await asyncio.sleep(5)
-                        
-                        try:
-                            await demo_msg.delete()
-                            
-                            # Send confirmation
-                            confirm_embed = discord.Embed(
-                                title="✅ SAR Demo Complete",
-                                description="🌟 **Demo kartu SAR telah selesai dan dihapus**\n💡 User dapat melihat kualitas SAR selama 5 detik",
-                                color=0x00FF00
-                            )
-                            confirm_embed.add_field(
-                                name="📊 Demo Stats",
-                                value=f"👤 **Member:** {member_name}\n🎵 **Group:** {group_name}\n⭐ **Rarity:** SAR\n⏰ **Duration:** 5 seconds",
-                                inline=False
-                            )
-                            await ctx.send(embed=confirm_embed, delete_after=10)
-                            
-                        except discord.NotFound:
-                            pass  # Message already deleted
-                        
-                        # Cleanup temp file
-                        import os
-                        try:
-                            os.unlink(temp_path)
-                        except:
-                            pass
-                    else:
-                        await loading_msg.edit(embed=discord.Embed(
-                            title="❌ Demo Failed",
-                            description="Gagal generate kartu SAR demo.",
-                            color=0xff0000
-                        ))
-                else:
-                    await loading_msg.edit(embed=discord.Embed(
-                        title="❌ SAR Demo Failed", 
-                        description="Gagal generate kartu SAR untuk demo.",
-                        color=0xff0000
-                    ))
-                    
-        except Exception as e:
-            logger.error(f"Error in SAR demo: {e}")
-            await ctx.send("❌ Terjadi error saat demo SAR.")
-    
-    async def _handle_gacha_sar_member(self, ctx, member_name):
-        """Handle SAR gacha for specific member - admin only"""
-        user_id = ctx.author.id
-        
-        # Check if user is admin
-        if not self._is_admin(user_id):
-            await ctx.send("❌ Command ini hanya untuk admin/mod.")
-            return
-        
-        if not member_name:
-            await ctx.send("❌ Silakan specify nama member: `!sn gacha sar [member_name]`")
-            return
-        
-        try:
-            async with ctx.typing():
-                # Admin message
-                admin_embed = discord.Embed(
-                    title="🌟 Admin SAR Generation",
-                    description=f"✨ **Generating SAR card untuk: {member_name}**\n🎯 Admin mode - guaranteed SAR",
-                    color=0xFF6B9D
-                )
-                loading_msg = await ctx.send(embed=admin_embed)
-                
-                await asyncio.sleep(1)
-                
-                # Generate SAR for specific member
-                result = self.gacha_system.generate_gacha(member_name, force_rarity="SAR")
-                
-                if result and result.get('rarity') == 'SAR':
-                    # Create SAR result embed
-                    sar_embed = discord.Embed(
-                        title="🌟 SAR Card Generated!",
-                        description=f"✨ **{result.get('member_name', 'Unknown')}** dari **{result.get('group', 'Unknown')}**",
-                        color=0xFF1493
-                    )
-                    
-                    sar_embed.add_field(
-                        name="🎯 SAR Details",
-                        value=f"**Member:** {result.get('member_name', 'Unknown')}\n**Group:** {result.get('group', 'Unknown')}\n**Rarity:** SAR (Admin Generated)\n**Photo URL:** {result.get('photo_url', 'N/A')}",
-                        inline=False
-                    )
-                    
-                    sar_embed.add_field(
-                        name="ℹ️ Admin Info",
-                        value="🔧 **Mode:** Admin SAR Generation\n🎯 **Purpose:** Testing/Demo\n⭐ **Rarity:** Guaranteed SAR",
-                        inline=False
-                    )
-                    
-                    # If there's a card image, attach it
-                    if 'image' in result:
-                        temp_path = self.gacha_system.save_card_temp(result['image'], f"sar_{member_name}")
-                        if temp_path:
-                            sar_file = discord.File(temp_path, f"sar_{member_name}.png")
-                            sar_embed.set_image(url=f"attachment://sar_{member_name}.png")
-                            await loading_msg.edit(embed=sar_embed, attachments=[sar_file])
-                            
-                            # Cleanup temp file
-                            try:
-                                os.unlink(temp_path)
-                            except:
-                                pass
-                        else:
-                            await loading_msg.edit(embed=sar_embed)
-                    else:
-                        await loading_msg.edit(embed=sar_embed)
-                        
-                else:
-                    # Failed to generate SAR
-                    error_embed = discord.Embed(
-                        title="❌ SAR Generation Failed",
-                        description=f"Gagal generate SAR untuk **{member_name}**",
-                        color=0xff0000
-                    )
-                    
-                    if result:
-                        error_embed.add_field(
-                            name="🔍 Debug Info",
-                            value=f"Member found: {result.get('member_name', 'N/A')}\nRarity generated: {result.get('rarity', 'N/A')}\nGroup: {result.get('group', 'N/A')}",
-                            inline=False
-                        )
-                    else:
-                        error_embed.add_field(
-                            name="🔍 Possible Issues",
-                            value=f"• Member '{member_name}' tidak ditemukan\n• Database error\n• No photos available",
-                            inline=False
-                        )
-                    
-                    await loading_msg.edit(embed=error_embed)
-                    
-        except Exception as e:
-            logger.error(f"Error in SAR member generation: {e}")
-            await ctx.send(f"❌ Terjadi error saat generate SAR untuk {member_name}: {e}")
-    
-    async def _handle_gacha_info(self, ctx):
-        """Handle gacha info command - comprehensive gacha system information"""
-        try:
-            embed = discord.Embed(
-                title="🎴 K-pop Gacha Trading Cards",
-                description="Sistem gacha K-pop dengan **Generous Rates** untuk engagement maksimal!",
-                color=0xFF6B9D  # Pink color
-            )
-            
-            # Database Statistics
-            if self.gacha_system and self.gacha_system.members_data:
-                total_members = len(self.gacha_system.members_data)
-                total_photos = sum(len(member.get('photos', [])) for member in self.gacha_system.members_data.values())
-                
-                # Count unique groups
-                groups = set()
-                for member_data in self.gacha_system.members_data.values():
-                    if 'group' in member_data:
-                        groups.add(member_data['group'])
-                total_groups = len(groups)
-                
-                stats_text = f"""📊 **{total_groups:,}** K-pop Groups
-👥 **{total_members:,}** Total Idols  
-📸 **{total_photos:,}** Available Photos
-🎴 **350x540px** Card Resolution"""
-                
-                embed.add_field(
-                    name="📈 Database Statistics",
-                    value=stats_text,
-                    inline=True
-                )
-            
-            # Probability Rates (GENEROUS MODE)
-            probability_text = """🟢 **Common:** 35%
-🔵 **Rare:** 35%
-🟣 **DR:** 20%
-🟠 **SR:** 8%
-🔴 **SAR:** 2%
-
-✨ **Generous Mode Active!**"""
-            
-            embed.add_field(
-                name="🎲 Probability Rates",
-                value=probability_text,
-                inline=True
-            )
-            
-            # Available Commands
-            commands_text = """• `!sn gacha` 🎲 Random 5-card pack
-• `!sn gacha [group]` 🎵 Group gacha
-• `!sn gacha [member]` 👤 Member gacha"""
-            
-            embed.add_field(
-                name="🎯 Available Commands",
-                value=commands_text,
-                inline=False
-            )
-            
-            # Tips & Features
-            tips_text = """💡 **Progressive Loading** untuk mobile
-🎨 **Unique Design** per rarity level
-🚀 **Optimized Performance** dengan caching
-📱 **Discord Mobile** compatible"""
-            
-            embed.add_field(
-                name="💡 Features & Tips",
-                value=tips_text,
-                inline=False
-            )
-            
-            embed.set_footer(text="SN Fun Bot • Generous rates untuk better engagement! 🎉")
-            
-            await ctx.send(embed=embed)
-            logger.info("Gacha info command executed")
+            return temp_path
             
         except Exception as e:
-            logger.error(f"Error in gacha info: {e}")
-            await ctx.send("❌ Gagal menampilkan info gacha.")
+            logger.error(f"Error saving card to temp file: {e}")
+            return None
     
-    async def _handle_gacha_stats(self, ctx):
-        """Handle gacha stats command"""
+    def _integrate_csv_data(self):
+        """Integrate CSV database with JSON data for better member mapping"""
         try:
-            if not self.gacha_system or not self.gacha_system.members_data:
-                await ctx.send("❌ Data gacha tidak tersedia.")
+            if not hasattr(self, 'database') or self.database is None:
+                logger.warning("CSV database not loaded, skipping integration")
                 return
             
-            # Calculate statistics
-            total_members = len(self.gacha_system.members_data)
-            total_photos = sum(len(member.get('photos', [])) for member in self.gacha_system.members_data.values())
+            # Create stage name to member key mapping
+            self.stage_name_mapping = {}
+            self.full_name_mapping = {}
             
-            # Group statistics
-            groups = {}
-            for member_info in self.gacha_system.members_data.values():
-                group = member_info.get('group', 'Unknown')
-                if group not in groups:
-                    groups[group] = {'members': 0, 'photos': 0}
-                groups[group]['members'] += 1
-                groups[group]['photos'] += len(member_info.get('photos', []))
+            for _, row in self.database.iterrows():
+                group = str(row.get('Group', '')).strip()
+                stage_name = str(row.get('Stage Name', '')).strip()
+                full_name = str(row.get('Full Name', '')).strip()
+                korean_name = str(row.get('Korean Stage Name', '')).strip()
+                
+                if not group or not stage_name:
+                    continue
+                
+                # Generate member key (same format as JSON)
+                member_key = f"{stage_name.lower().replace(' ', '_')}_{group.lower().replace(' ', '_')}"
+                
+                # Store mappings
+                self.stage_name_mapping[stage_name.lower()] = {
+                    'member_key': member_key,
+                    'stage_name': stage_name,
+                    'full_name': full_name,
+                    'korean_name': korean_name,
+                    'group': group
+                }
+                
+                if full_name:
+                    self.full_name_mapping[full_name.lower()] = {
+                        'member_key': member_key,
+                        'stage_name': stage_name,
+                        'full_name': full_name,
+                        'korean_name': korean_name,
+                        'group': group
+                    }
+                
+                # Update JSON member data with CSV info if member exists
+                if member_key in self.members_data:
+                    self.members_data[member_key].update({
+                        'stage_name': stage_name,
+                        'full_name': full_name,
+                        'korean_name': korean_name,
+                        'birth_date': str(row.get('Date of Birth', '')).strip(),
+                        'instagram': str(row.get('Instagram', '')).strip()
+                    })
             
-            # Top groups by photos
-            top_groups = sorted(groups.items(), key=lambda x: x[1]['photos'], reverse=True)[:5]
-            
-            embed = discord.Embed(
-                title="📊 Gacha System Statistics",
-                description="Statistik lengkap sistem gacha trading card",
-                color=0x00FF7F  # Green color
-            )
-            
-            # General stats
-            general_stats = f"""• **Total Members:** {total_members:,}
-• **Total Photos:** {total_photos:,}
-• **Total Groups:** {len(groups):,}
-• **Avg Photos/Member:** {total_photos/total_members:.1f}"""
-            
-            embed.add_field(
-                name="🎯 General Statistics",
-                value=general_stats,
-                inline=False
-            )
-            
-            # Top groups
-            top_groups_text = ""
-            for i, (group, stats) in enumerate(top_groups, 1):
-                top_groups_text += f"{i}. **{group}** - {stats['members']} members, {stats['photos']} photos\n"
-            
-            embed.add_field(
-                name="🏆 Top 5 Groups (by photos)",
-                value=top_groups_text,
-                inline=False
-            )
-            
-            # Card specifications
-            specs_text = """📐 **Ukuran Kartu:** 350x540px
-🖼️ **Area Foto:** 290x440px (pre-cropped)
-🎨 **Border:** 15px gradient dengan radial background
-📝 **Font:** Gill Sans Bold Italic
-✨ **FullArt:** Rainbow holo overlay + sparkle effects
-🎯 **Rarity Text:** Posisi dinamis (Common/Rare: bawah kiri, Epic/Legendary: atas kanan)"""
-            
-            embed.add_field(
-                name="📈 Card Specifications",
-                value=specs_text,
-                inline=False
-            )
-            
-            # Rarity rates (NEW SYSTEM)
-            rarity_rates = """• **Common:** 50% chance
-• **Rare:** 30% chance
-• **DR:** 15% chance
-• **SR:** 4% chance
-• **SAR:** 1% chance"""
-            
-            embed.add_field(
-                name="✨ Rarity Rates",
-                value=rarity_rates,
-                inline=True
-            )
-            
-            # System info
-            system_info = """• **Source:** Google Drive
-• **Format:** 350x540px cards
-• **Effects:** Gradients, holo, sparkles
-• **Cache:** Redis integration"""
-            
-            embed.add_field(
-                name="⚙️ System Info",
-                value=system_info,
-                inline=True
-            )
-            
-            embed.set_footer(text="SN Fun Bot • Real-time statistics")
-            
-            await ctx.send(embed=embed)
-            logger.info("Gacha stats command executed")
+            logger.info(f"CSV integration completed: {len(self.stage_name_mapping)} stage names mapped")
             
         except Exception as e:
-            logger.error(f"Error in gacha stats: {e}")
-            await ctx.send("❌ Gagal menampilkan statistik gacha.")
+            logger.error(f"Error integrating CSV data: {e}")
+            self.stage_name_mapping = {}
+            self.full_name_mapping = {}
     
-    async def _handle_smart_gacha(self, ctx, search_term):
-        """Handle smart gacha - detect if member name or group name"""
+    # Wrapper methods for compatibility with test scripts
+    def search_member(self, member_name):
+        """Search for members by name using both JSON and CSV data"""
+        results = []
+        search_name = member_name.lower().strip()
+        
+        # First try stage name mapping from CSV
+        if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
+            csv_info = self.stage_name_mapping[search_name]
+            member_key = csv_info['member_key']
+            
+            # Check if member exists in JSON data (has photos)
+            if member_key in self.members_data:
+                results.append({
+                    'member_key': member_key,
+                    'name': csv_info['stage_name'],
+                    'full_name': csv_info['full_name'],
+                    'korean_name': csv_info['korean_name'],
+                    'group': csv_info['group']
+                })
+        
+        # Try full name mapping from CSV
+        if hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
+            csv_info = self.full_name_mapping[search_name]
+            member_key = csv_info['member_key']
+            
+            # Check if not already added and exists in JSON
+            if member_key in self.members_data and not any(r['member_key'] == member_key for r in results):
+                results.append({
+                    'member_key': member_key,
+                    'name': csv_info['stage_name'],
+                    'full_name': csv_info['full_name'],
+                    'korean_name': csv_info['korean_name'],
+                    'group': csv_info['group']
+                })
+        
+        # Fallback to original JSON-based search
+        if not results:
+            member_keys = self._find_member_key(member_name)
+            for member_key in member_keys:
+                member_info = self.members_data[member_key]
+                results.append({
+                    'member_key': member_key,
+                    'name': member_info.get('stage_name', member_info.get('name', 'Unknown')),
+                    'full_name': member_info.get('full_name', ''),
+                    'korean_name': member_info.get('korean_name', ''),
+                    'group': member_info.get('group', 'Unknown')
+                })
+        
+        return results
+    
+    def generate_random_card(self):
+        """Generate random card (wrapper for gacha_random)"""
         try:
-            async with ctx.typing():
-                loading_msg = await ctx.send(f"🔍 Mencari {search_term}...")
-                
-                # First try as member name
-                member_result = self.gacha_system.search_member(search_term)
-                
-                if member_result:
-                    # Found member, generate member card
-                    card_image, card_data = self.gacha_system.generate_member_card(search_term)
-                    
-                    if card_image:
-                        # Parse card data from message
-                        lines = card_data.split('\n')
-                        member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
-                        member_name = member_info[0]
-                        group_name = member_info[1] if len(member_info) > 1 else "Unknown"
-                        rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
-                        
-                        # Create beautiful embed
-                        embed = discord.Embed(
-                            title=f"🎴 {search_term} Gacha Result",
-                            color=self._get_rarity_color(rarity)
-                        )
-                        
-                        embed.add_field(
-                            name="👤 Member",
-                            value=f"**{member_name}**",
-                            inline=True
-                        )
-                        
-                        embed.add_field(
-                            name="🎵 Group", 
-                            value=f"**{group_name}**",
-                            inline=True
-                        )
-                        
-                        embed.add_field(
-                            name="✨ Rarity",
-                            value=f"**{rarity}**",
-                            inline=True
-                        )
-                        
-                        
-                        
-                        embed.add_field(
-                            name="🎲 Luck",
-                            value=self._get_luck_message(rarity),
-                            inline=True
-                        )
-                        
-                        embed.set_footer(
-                            text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
-                            icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-                        )
-                        
-                        # Save kartu ke temporary file
-                        temp_path = self.gacha_system.save_card_temp(card_image)
-                        
-                        if temp_path:
-                            # Kirim kartu sebagai file dengan embed
-                            with open(temp_path, 'rb') as f:
-                                file = discord.File(f, filename="gacha_card.png")
-                                embed.set_image(url="attachment://gacha_card.png")
-                                await loading_msg.edit(embed=embed, attachments=[file])
-                            
-                            # Cleanup temporary file
-                            import os
-                            try:
-                                os.unlink(temp_path)
-                            except:
-                                pass
-                        else:
-                            await loading_msg.edit(embed=discord.Embed(
-                                title="❌ Error",
-                                description="Gagal menyimpan kartu gacha.",
-                                color=0xff0000
-                            ))
-                    else:
-                        error_embed = discord.Embed(
-                            title="❌ Member Card Failed",
-                            description=card_data,
-                            color=0xff0000
-                        )
-                        await loading_msg.edit(embed=error_embed)
-                else:
-                    # Try as group name
-                    card_image, card_data = self.gacha_system.gacha_by_group(search_term)
-                    
-                    if card_image:
-                        # Parse card data from message
-                        lines = card_data.split('\n')
-                        member_info = lines[0].replace('🎴 **', '').replace('**', '').split(' dari ')
-                        member_name = member_info[0]
-                        group_name = member_info[1] if len(member_info) > 1 else search_term
-                        rarity = lines[1].replace('✨ **Rarity:** ', '') if len(lines) > 1 else "Unknown"
-                        
-                        # Create beautiful embed
-                        embed = discord.Embed(
-                            title=f"🎴 {search_term} Group Gacha Result",
-                            color=self._get_rarity_color(rarity)
-                        )
-                        
-                        embed.add_field(
-                            name="👤 Member",
-                            value=f"**{member_name}**",
-                            inline=True
-                        )
-                        
-                        embed.add_field(
-                            name="🎵 Group", 
-                            value=f"**{group_name}**",
-                            inline=True
-                        )
-                        
-                        embed.add_field(
-                            name="✨ Rarity",
-                            value=f"**{rarity}**",
-                            inline=True
-                        )
-                        
-                        
-                        
-                        embed.add_field(
-                            name="🎲 Luck",
-                            value=self._get_luck_message(rarity),
-                            inline=True
-                        )
-                        
-                        embed.set_footer(
-                            text=f"SN Fun Bot • Requested by {ctx.author.display_name}",
-                            icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-                        )
-                        
-                        # Save kartu ke temporary file
-                        temp_path = self.gacha_system.save_card_temp(card_image)
-                        
-                        if temp_path:
-                            # Kirim kartu sebagai file dengan embed
-                            with open(temp_path, 'rb') as f:
-                                file = discord.File(f, filename="gacha_card.png")
-                                embed.set_image(url="attachment://gacha_card.png")
-                                await loading_msg.edit(embed=embed, attachments=[file])
-                            
-                            # Cleanup temporary file
-                            import os
-                            try:
-                                os.unlink(temp_path)
-                            except:
-                                pass
-                        else:
-                            await loading_msg.edit(embed=discord.Embed(
-                                title="❌ Error",
-                                description="Gagal menyimpan kartu gacha.",
-                                color=0xff0000
-                            ))
-                    else:
-                        # Neither member nor group found
-                        error_embed = discord.Embed(
-                            title="❌ Search Failed",
-                            description=f"**Member atau grup '{search_term}' tidak ditemukan!**",
-                            color=0xff0000
-                        )
-                        
-                        error_embed.add_field(
-                            name="💡 Tips",
-                            value=f"• Coba `!sn gacha member {search_term}` untuk member spesifik\n"
-                                  f"• Coba `!sn gacha group {search_term}` untuk grup spesifik\n"
-                                  f"• Gunakan `!sn gacha help` untuk bantuan lengkap",
-                            inline=False
-                        )
-                        
-                        await loading_msg.edit(embed=error_embed)
-                    
+            # Get random member
+            if not self.members_data:
+                return None
+            
+            member_key = random.choice(self._get_all_member_keys())
+            member_info = self.members_data[member_key]
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None
+            
+            # Get rarity
+            rarity = self._get_random_rarity()
+            
+            return {
+                'member_info': {
+                    'name': member_info.get('name', 'Unknown'),
+                    'group': member_info.get('group', 'Unknown'),
+                    'member_key': member_key
+                },
+                'photo_url': photo_url,
+                'rarity': rarity
+            }
         except Exception as e:
-            logger.error(f"Error in smart gacha: {e}")
-            error_embed = discord.Embed(
-                title="❌ System Error",
-                description=f"Gagal memproses gacha untuk '{search_term}'.",
-                color=0xff0000
+            logger.error(f"Error generating random card: {e}")
+            return None
+    
+    def generate_member_card(self, member_name):
+        """Generate card for specific member by name"""
+        try:
+            # Search for member first
+            search_results = self.search_member(member_name)
+            
+            if not search_results:
+                return None, f"❌ Member '{member_name}' tidak ditemukan!"
+            
+            # Use first result
+            member_data = search_results[0]
+            member_key = member_data['member_key']
+            
+            if member_key not in self.members_data:
+                return None, f"❌ Data foto untuk '{member_name}' tidak tersedia!"
+            
+            member_info = self.members_data[member_key]
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None, f"❌ Foto untuk '{member_name}' tidak dapat diakses!"
+            
+            # Get rarity
+            rarity = self._get_random_rarity()
+            
+            # Generate card using design_kartu
+            card_image = self.generate_card(
+                member_data.get('name', member_info.get('name', 'Unknown')),
+                member_data.get('group', member_info.get('group', 'Unknown')),
+                rarity
             )
-            await loading_msg.edit(embed=error_embed)
+            
+            if card_image:
+                member_display_name = member_data.get('name', member_info.get('name', 'Unknown'))
+                group_display_name = member_data.get('group', member_info.get('group', 'Unknown'))
+                
+                success_msg = f"🎴 **{member_display_name}** dari **{group_display_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity}\n"
+                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🎯 **Generated for:** {member_name}"
+                
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu untuk '{member_name}'"
+            
+        except Exception as e:
+            logger.error(f"Error generating member card for '{member_name}': {e}")
+            return None, f"❌ Error saat generate kartu: {str(e)}"
     
-    def _get_rarity_color(self, rarity):
-        """Get Discord embed color untuk rarity (NEW SYSTEM)"""
-        rarity_colors = {
-            "Common": 0x808080,      # Gray
-            "Rare": 0x0099ff,        # Blue  
-            "DR": 0x9932cc,          # Purple (Double Rare)
-            "SR": 0xff0000,          # Red (Super Rare)
-            "SAR": 0xffd700          # Gold (Special Art Rare)
-        }
-        return rarity_colors.get(rarity, 0x00ff00)  # Default green
-    
-    def _get_luck_message(self, rarity):
-        """Get luck message berdasarkan rarity (NEW SYSTEM)"""
-        luck_messages = {
-            "Common": "🍀 Biasa aja",
-            "Rare": "✨ Lumayan beruntung!",
-            "DR": "🌟 Wah beruntung banget!",      # Double Rare
-            "SR": "💎 SUPER LUCKY!!!",           # Super Rare
-            "SAR": "🏆 JACKPOT LEGENDARY!!!"     # Special Art Rare
-        }
-        return luck_messages.get(rarity, "🎲 Unknown")
-    
-    def _get_rarity_emoji(self, rarity):
-        """Get emoji untuk rarity (NEW SYSTEM)"""
-        emojis = {
-            "Common": "🥈",
-            "Rare": "💙", 
-            "DR": "💜",      # Double Rare
-            "SR": "❤️",      # Super Rare
-            "SAR": "🌈"      # Special Art Rare
-        }
-        return emojis.get(rarity, "⭐") 
-    
-    def _calculate_pack_luck(self, cards):
-        """Calculate overall pack luck based on rarities"""
-        luck_scores = {
-            "Common": 1,
-            "Rare": 3,
-            "DR": 5,        # Double Rare
-            "SR": 8,        # Super Rare
-            "SAR": 10       # Special Art Rare
-        }
+    def gacha_guaranteed_sar(self):
+        """Admin command: Generate guaranteed SAR rarity card"""
+        if not self.members_data:
+            return None, "❌ Data member tidak tersedia"
         
-        total_score = sum(luck_scores.get(card['rarity'], 0) for card in cards)
+        try:
+            # Pilih member random dari JSON
+            member_key = random.choice(self._get_all_member_keys())
+            member_info = self.members_data[member_key]
+            
+            member_name = member_info.get('name', 'Unknown')
+            group_name = member_info.get('group', 'Unknown')
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None, f"❌ Foto untuk {member_name} tidak dapat diakses!"
+            
+            # Force SAR rarity
+            rarity = "SAR"
+            
+            # Generate card using design_kartu
+            card_image = self.generate_card(member_name, group_name, rarity)
+            
+            if card_image:
+                success_msg = f"🌟 **ADMIN GUARANTEED SAR** 🌟\n"
+                success_msg += f"🎴 **{member_name}** dari **{group_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity} (Guaranteed)\n"
+                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🔑 **Admin Command**"
+                
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu SAR {member_name} dari {group_name}"
+            
+        except Exception as e:
+            logger.error(f"Error in gacha_guaranteed_sar: {e}")
+            return None, f"❌ Error saat generate SAR: {str(e)}"
+    
+    def gacha_by_member_guaranteed_sar(self, member_name):
+        """Admin command: Generate guaranteed SAR card for specific member"""
+        if not self.members_data:
+            return None, "❌ Data member tidak tersedia"
         
-        if total_score >= 25:
-            return "🏆 INCREDIBLE LUCK!"
-        elif total_score >= 20:
-            return "💎 AMAZING LUCK!"
-        elif total_score >= 15:
-            return "🌟 GREAT LUCK!"
-        elif total_score >= 10:
-            return "✨ GOOD LUCK!"
-        else:
-            return "🍀 NORMAL LUCK"
+        try:
+            # Search for member
+            search_results = self._search_member_in_json(member_name)
+            
+            if not search_results:
+                return None, f"❌ Member '{member_name}' tidak ditemukan dalam database!"
+            
+            # Use first result
+            member_data = search_results[0]
+            member_key = member_data['member_key']
+            
+            if member_key not in self.members_data:
+                return None, f"❌ Data foto untuk '{member_name}' tidak tersedia!"
+            
+            member_info = self.members_data[member_key]
+            
+            # Get photo URL
+            photo_url, _ = self._get_member_photo_url(member_key)
+            
+            if not photo_url:
+                return None, f"❌ Foto untuk '{member_name}' tidak dapat diakses!"
+            
+            # Force SAR rarity
+            rarity = "SAR"
+            
+            # Generate card using design_kartu
+            card_image = self.generate_card(
+                member_data.get('name', member_info.get('name', 'Unknown')),
+                member_data.get('group', member_info.get('group', 'Unknown')),
+                rarity
+            )
+            
+            if card_image:
+                member_display_name = member_data.get('name', member_info.get('name', 'Unknown'))
+                group_display_name = member_data.get('group', member_info.get('group', 'Unknown'))
+                
+                success_msg = f"🌟 **ADMIN GUARANTEED SAR** 🌟\n"
+                success_msg += f"🎴 **{member_display_name}** dari **{group_display_name}**\n"
+                success_msg += f"✨ **Rarity:** {rarity} (Guaranteed)\n"
+                success_msg += f"📸 **Photo:** Google Drive\n"
+                success_msg += f"🎯 **Generated for:** {member_name}\n"
+                success_msg += f"🔑 **Admin Command**"
+                
+                return card_image, success_msg
+            else:
+                return None, f"❌ Gagal generate kartu SAR untuk '{member_name}'"
+            
+        except Exception as e:
+            logger.error(f"Error generating guaranteed SAR for '{member_name}': {e}")
+            return None, f"❌ Error saat generate SAR: {str(e)}"
