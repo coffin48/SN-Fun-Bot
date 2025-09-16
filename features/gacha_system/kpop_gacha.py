@@ -51,14 +51,24 @@ class KpopGachaSystem:
         if not DESIGN_KARTU_AVAILABLE:
             raise ImportError("design_kartu module is required for gacha system.")
         
+        # NEW DATABASE CONFIGURATION (PRIMARY) - from environment variables
+        self.new_json_folder_id = os.getenv('NEW_GDRIVE_JSON_FOLDER_ID')
+        self.new_photo_folder_id = os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID')
+        self.new_json_url = f"https://drive.google.com/drive/folders/{self.new_json_folder_id}/Path_Foto_DriveIDs_Real.json" if self.new_json_folder_id else None
+        
+        # OLD DATABASE FALLBACK (from environment variables and local files)
         self.json_path = json_path
         self.database_path = database_path
+        # Get old GDrive folder from environment variable
+        self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID', os.getenv('GDRIVE_FOLDER_ID', ''))
+        self.old_base_url = f"https://drive.google.com/uc?export=view&id=" if self.old_gdrive_folder_id else ""
         # Font path untuk backward compatibility (tidak digunakan di new system)
         self.font_path = "assets/fonts/Gill Sans Bold Italic.otf"
         
         # Initialize data containers
         self.members_data = {}
         self.base_url = ""
+        self.using_new_database = False  # Track which database is being used
         
         # Sistem probabilitas rarity (GENEROUS RATES untuk engagement)
         self.RARITY_RATES = {
@@ -78,24 +88,91 @@ class KpopGachaSystem:
         self.max_retries = 3
         self.retry_delay = 1.0
         
-        # Load all data once
-        self._load_json_data()
+        # Load all data once with new database priority
+        self._load_new_json_data()
         self._load_database()
         self._integrate_csv_data()
         
-    def _load_json_data(self):
-        """Load JSON mapping foto yang sudah diperbaiki"""
+        # Set global instance for design_kartu module
+        import sys
+        if 'features.gacha_system.kpop_gacha' in sys.modules:
+            sys.modules['features.gacha_system.kpop_gacha'].current_gacha_instance = self
+        
+    def _load_new_json_data(self):
+        # Load database - try new database first, fallback to old
+        if self.new_json_folder_id and self.new_photo_folder_id:
+            if not self._load_json_from_new_database():
+                logger.warning("⚠️ NEW database failed, falling back to OLD database")
+                self._load_json_data_fallback()
+            else:
+                logger.info("🎯 Using NEW database successfully")
+        else:
+            logger.info("📁 NEW database env variables not set, using OLD database")
+            self._load_json_data_fallback()
+        
+        # If both failed, try fallback
+        if not self.members_data:
+            logger.warning("⚠️ All databases failed, using fallback")
+            self._load_json_data_fallback()
+    
+    def _load_json_from_new_database(self):
+        """Load JSON dari database baru (PRIMARY) - GDrive folder baru"""
+        try:
+            # Try multiple possible URLs for new database
+            possible_urls = [
+                # Direct GDrive download attempts
+                f"https://drive.google.com/uc?id={self.new_json_folder_id}&export=download",
+                f"https://docs.google.com/uc?id={self.new_json_folder_id}&export=download",
+                # GitHub raw URLs (if JSON is also stored there)
+                "https://raw.githubusercontent.com/SN-Fun-Bot/SN-Fun-Bot-Data/main/Path_Foto_DriveIDs_Real.json",
+                "https://raw.githubusercontent.com/SN-Fun-Bot/Database/main/Path_Foto_DriveIDs_Real.json",
+                "https://raw.githubusercontent.com/SN-Fun-Bot/Photos-Database/main/Path_Foto_DriveIDs_Real.json"
+            ]
+            
+            for url in possible_urls:
+                try:
+                    response = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+                    if response.status_code == 200:
+                        data = response.json()
+                        self.members_data = data.get('members', {})
+                        # Use new database base URL format
+                        self.base_url = f"https://drive.google.com/uc?export=view&id="
+                        self.using_new_database = True  # Mark as using new database
+                        logger.info(f"✅ NEW database loaded from {url}: {len(self.members_data)} members")
+                        logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
+                        return True
+                except Exception as e:
+                    logger.debug(f"Failed NEW database URL {url}: {e}")
+                    continue
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Failed to load NEW database: {e}")
+            return False
+    
+    def _load_json_data_fallback(self):
+        """Load JSON mapping foto dari database lama (fallback)"""
         try:
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             self.members_data = data.get('members', {})
-            self.base_url = data.get('base_url', '')
+            # Use old database base URL from local JSON or environment variable
+            if self.old_gdrive_folder_id:
+                self.base_url = self.old_base_url  # From env variable
+                logger.info(f"📁 OLD database using env GDrive folder: {self.old_gdrive_folder_id}")
+            else:
+                self.base_url = data.get('base_url', '')  # From local JSON
+                logger.info(f"📁 OLD database using local JSON base_url")
             
-            logger.info(f"JSON data loaded: {len(self.members_data)} members")
+            self.using_new_database = False  # Mark as using old database
+            
+            logger.info(f"📁 OLD JSON data loaded: {len(self.members_data)} members")
+            logger.info(f"📁 OLD base URL: {self.base_url}")
             
         except Exception as e:
-            logger.error(f"Failed to load JSON data: {e}")
+            logger.error(f"Failed to load OLD JSON data: {e}")
             self.members_data = {}
             self.base_url = ""
     
