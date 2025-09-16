@@ -1580,7 +1580,7 @@ class DataFetcher:
                 if 'Tanggal Lahir:' not in text and 'Birth Date:' not in text:
                     text = f"**{query}**\n\nTanggal Lahir: {birth_date_found}\n\n" + text
                 
-                logger.info(f"Enhanced birth date found for {query}: {birth_date_found}")
+                logger.debug(f"Enhanced birth date found for {query}: {birth_date_found[:50]}...")
             
             return text
             
