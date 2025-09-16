@@ -90,6 +90,13 @@ def auto_migrate_if_needed():
     logger.info("🚀 Starting automatic CSV to PostgreSQL migration...")
     
     try:
+        # Check if schema needs update first
+        if not _check_schema_compatibility():
+            logger.info("🔄 Schema incompatible, updating schema first...")
+            if not _update_schema():
+                logger.error("❌ Schema update failed!")
+                return False
+        
         if migrate_csv_to_postgres():
             logger.info("📊 Creating database indexes...")
             create_indexes()
@@ -101,6 +108,81 @@ def auto_migrate_if_needed():
             
     except Exception as e:
         logger.error(f"❌ Auto-migration error: {e}")
+        return False
+
+def _check_schema_compatibility():
+    """Check if PostgreSQL schema has korean_name column"""
+    try:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return False
+            
+        from sqlalchemy import create_engine, text
+        engine = create_engine(database_url)
+        
+        with engine.connect() as conn:
+            # Check if korean_name column exists
+            result = conn.execute(text("""
+                SELECT COUNT(*) FROM information_schema.columns 
+                WHERE table_name = 'kpop_members' 
+                AND column_name = 'korean_name'
+            """))
+            
+            has_korean_name = result.fetchone()[0] > 0
+            logger.info(f"Schema compatibility check: korean_name exists = {has_korean_name}")
+            return has_korean_name
+            
+    except Exception as e:
+        logger.warning(f"Schema compatibility check failed: {e}")
+        return False
+
+def _update_schema():
+    """Update PostgreSQL schema to include new columns"""
+    try:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return False
+            
+        from sqlalchemy import create_engine, text
+        engine = create_engine(database_url)
+        
+        with engine.connect() as conn:
+            logger.info("🔄 Updating PostgreSQL schema...")
+            
+            # Drop and recreate table with new schema
+            conn.execute(text("DROP TABLE IF EXISTS kpop_members CASCADE;"))
+            
+            # Create new table with all columns
+            create_table_sql = """
+            CREATE TABLE kpop_members (
+                id SERIAL PRIMARY KEY,
+                group_name VARCHAR(255),
+                fandom VARCHAR(255),
+                stage_name VARCHAR(255) NOT NULL,
+                korean_stage_name VARCHAR(255),
+                korean_name VARCHAR(255),
+                full_name VARCHAR(255),
+                date_of_birth DATE,
+                former_group VARCHAR(255),
+                country VARCHAR(100),
+                height INTEGER,
+                weight INTEGER,
+                birthplace VARCHAR(255),
+                gender CHAR(1) CHECK (gender IN ('M', 'F', '')),
+                instagram VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            
+            conn.execute(text(create_table_sql))
+            conn.commit()
+            
+            logger.info("✅ Schema updated successfully")
+            return True
+            
+    except Exception as e:
+        logger.error(f"Schema update failed: {e}")
         return False
 
 if __name__ == "__main__":
