@@ -119,28 +119,33 @@ class KpopGachaSystem:
         """Load JSON dari database baru (PRIMARY) - GDrive folder baru"""
         try:
             # Try local file first (for development/testing)
-            local_path = "data/member_data/Path_Foto_DriveIDs_Real.json"
+            local_path = "data/member_data/New Json Update.json"
             if os.path.exists(local_path):
-                logger.info(f"📁 Trying local NEW database file: {local_path}")
+                logger.info(f"📁 Using local NEW database file: {local_path}")
                 try:
                     with open(local_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                    self.members_data = data.get('members', {})
-                    self.base_url = f"https://drive.google.com/uc?export=view&id="
+                    
+                    # Extract members data from the JSON structure
+                    members_data = {}
+                    for key, value in data.items():
+                        if isinstance(value, dict) and 'name' in value and 'photos' in value:
+                            members_data[key] = value
+                    
+                    self.members_data = members_data
+                    self.base_url = data.get('base_url', "https://drive.google.com/uc?export=view&id=")
                     self.using_new_database = True
                     logger.info(f"✅ NEW database loaded from local file: {len(self.members_data)} members")
-                    logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
+                    logger.info(f"📁 Base URL: {self.base_url}")
                     return True
                 except Exception as e:
-                    logger.debug(f"Local NEW database failed: {e}")
+                    logger.error(f"Local NEW database failed: {e}")
             
-            # Try multiple possible URLs for new database
+            # Fallback: Try multiple possible URLs for new database
             possible_urls = [
-                # GitHub raw URLs (most reliable)
-                "https://raw.githubusercontent.com/SN-Fun-Bot/SN-Fun-Bot-Data/main/Path_Foto_DriveIDs_Real.json",
-                "https://raw.githubusercontent.com/SN-Fun-Bot/Database/main/Path_Foto_DriveIDs_Real.json",
-                "https://raw.githubusercontent.com/SN-Fun-Bot/Photos-Database/main/Path_Foto_DriveIDs_Real.json",
-                # Direct GDrive download attempts
+                # Priority 1: NEW Database JSON file (single source of truth)
+                f"https://drive.google.com/uc?id=1h62KxYAHHs_ytO8dmW1MTxXNnvb2MI9k&export=download",
+                # Priority 3: Fallback GDrive attempts
                 f"https://drive.google.com/uc?id={self.new_json_folder_id}&export=download",
                 f"https://docs.google.com/uc?id={self.new_json_folder_id}&export=download"
             ]
