@@ -353,8 +353,11 @@ class KpopGachaSystem:
             # Extract file ID from filename for Google Drive
             # Assuming filename format: GROUP_MEMBER_NUM.jpg
             photo_url = f"{self.base_url}{photo_filename}"
+            logger.info(f"📸 RAILWAY LOG: Photo URL from NEW GDrive folder: {photo_url[:80]}...")
+            logger.info(f"📁 RAILWAY LOG: Using NEW photo folder ID: {self.new_photo_folder_id}")
         else:
             photo_url = photo_filename
+            logger.info(f"📸 RAILWAY LOG: Photo from local/fallback path: {photo_url}")
         
         return photo_url, photo_filename
     
@@ -446,9 +449,12 @@ class KpopGachaSystem:
                 
                 # Download foto dari NEW database (GDrive)
                 if 'drive.google.com' in photo_url:
+                    logger.info(f"📸 RAILWAY LOG: Downloading from NEW GDrive folder: {photo_url[:80]}...")
+                    logger.info(f"📁 RAILWAY LOG: NEW photo folder ID: {self.new_photo_folder_id}")
                     idol_photo_original = self._download_image_from_url(photo_url)
                 else:
                     # Local file fallback
+                    logger.info(f"📸 RAILWAY LOG: Loading from NEW local path: {photo_url}")
                     if os.path.exists(photo_url):
                         idol_photo_original = Image.open(photo_url).convert("RGBA")
                     else:
@@ -489,9 +495,12 @@ class KpopGachaSystem:
             
             # Download foto dari old database
             if 'drive.google.com' in photo_url:
+                logger.info(f"📸 RAILWAY LOG: Photo URL from OLD GDrive folder: {photo_url[:80]}...")
+                logger.info(f"📁 RAILWAY LOG: Using OLD photo folder ID: {self.kpop_photo_folder_id}")
                 idol_photo_original = self._download_image_from_url(photo_url)
             else:
                 # Local file fallback
+                logger.info(f"📸 RAILWAY LOG: Photo from OLD local database: {photo_url}")
                 if os.path.exists(photo_url):
                     idol_photo_original = Image.open(photo_url).convert("RGBA")
                 else:
