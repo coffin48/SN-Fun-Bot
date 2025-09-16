@@ -95,20 +95,34 @@ class KpopGachaSystem:
         
     def _load_new_json_data(self):
         # Load database - try new database first, fallback to old
+        logger.info("🚀 RAILWAY LOG: Starting database initialization...")
+        logger.info(f"🔧 Environment check - NEW_JSON_FOLDER_ID: {'SET' if self.new_json_folder_id else 'NOT SET'}")
+        logger.info(f"🔧 Environment check - NEW_PHOTO_FOLDER_ID: {'SET' if self.new_photo_folder_id else 'NOT SET'}")
+        
         if self.new_json_folder_id and self.new_photo_folder_id:
+            logger.info("✅ RAILWAY LOG: NEW database environment variables detected")
             if not self._load_json_from_new_database():
-                logger.warning("⚠️ NEW database failed, falling back to OLD database")
+                logger.warning("⚠️ RAILWAY LOG: NEW database failed, falling back to OLD database")
                 self._load_json_data_fallback()
             else:
-                logger.info("🎯 Using NEW database successfully")
+                logger.info("🎯 RAILWAY LOG: NEW database loaded successfully!")
+                logger.info(f"📊 RAILWAY LOG: Database contains {len(self.members_data)} members")
+                logger.info(f"🌐 RAILWAY LOG: Photo access configured with base URL: {self.base_url}")
         else:
-            logger.info("📁 NEW database env variables not set, using OLD database")
+            logger.info("📁 RAILWAY LOG: NEW database env variables not set, using OLD database")
             self._load_json_data_fallback()
         
         # If both failed, try fallback
         if not self.members_data:
-            logger.warning("⚠️ All databases failed, using fallback")
+            logger.warning("⚠️ RAILWAY LOG: All databases failed, using fallback")
             self._load_json_data_fallback()
+        
+        # Final status log
+        if self.members_data:
+            logger.info(f"✅ RAILWAY LOG: Database initialization complete - {len(self.members_data)} members available")
+            logger.info(f"🎯 RAILWAY LOG: Using {'NEW' if self.using_new_database else 'OLD'} database system")
+        else:
+            logger.error("❌ RAILWAY LOG: Database initialization FAILED - no members loaded")
     
     def _load_json_from_new_database(self):
         """Load JSON dari database baru (PRIMARY) - GDrive folder baru"""
@@ -137,6 +151,7 @@ class KpopGachaSystem:
                     logger.error(f"Local NEW database failed: {e}")
             
             # Fallback: Try multiple possible URLs for new database
+            logger.info("🌐 Attempting to access NEW database from Google Drive...")
             possible_urls = [
                 # Priority 1: NEW Database JSON file (single source of truth)
                 f"https://drive.google.com/uc?id=1h62KxYAHHs_ytO8dmW1MTxXNnvb2MI9k&export=download",
@@ -145,20 +160,27 @@ class KpopGachaSystem:
                 f"https://docs.google.com/uc?id={self.new_json_folder_id}&export=download"
             ]
             
-            for url in possible_urls:
+            for i, url in enumerate(possible_urls, 1):
                 try:
+                    logger.info(f"🔄 Trying NEW database URL {i}/{len(possible_urls)}: {url[:80]}...")
                     response = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+                    logger.info(f"📡 Response status: {response.status_code}, Content-Type: {response.headers.get('content-type', 'unknown')}")
+                    
                     if response.status_code == 200:
                         data = response.json()
                         self.members_data = data.get('members', {})
                         # Use new database base URL format
                         self.base_url = f"https://drive.google.com/uc?export=view&id="
                         self.using_new_database = True  # Mark as using new database
-                        logger.info(f"✅ NEW database loaded from {url}: {len(self.members_data)} members")
-                        logger.info(f"📁 NEW photo folder: {self.new_photo_folder_id}")
+                        logger.info(f"✅ NEW database loaded successfully from GDrive!")
+                        logger.info(f"📊 Members loaded: {len(self.members_data)}")
+                        logger.info(f"📁 NEW photo folder ID: {self.new_photo_folder_id}")
+                        logger.info(f"🌐 Base URL configured: {self.base_url}")
                         return True
+                    else:
+                        logger.warning(f"⚠️ HTTP {response.status_code} from URL {i}")
                 except Exception as e:
-                    logger.debug(f"Failed NEW database URL {url}: {e}")
+                    logger.warning(f"❌ Failed NEW database URL {i}: {str(e)[:100]}")
                     continue
             
             return False
