@@ -860,35 +860,120 @@ class KpopGachaSystem:
             return None, f"❌ Error saat member gacha: {str(e)}"
     
     def _gacha_member_fallback_flow(self, member_name):
-        """Fallback flow untuk specific member: Old JSON -> old database folder -> design -> Discord"""
+        """Universal fallback flow untuk ALL members: Old JSON -> old database folder -> design -> Discord"""
         try:
-            logger.info(f"📂 Member fallback flow for {member_name}")
+            logger.info(f"📂 Universal fallback flow for {member_name}")
             
-            # Try to find member in old database structure
-            # This would need to be implemented based on your old database
-            group_name = "Unknown"  # Would be determined from old database
+            # Load old JSON database dari GitHub untuk fallback search
+            old_json_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/member_data/Path_Foto_DriveIDs_Real.json"
             
-            # Get photo from old database
-            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            try:
+                logger.info(f"📂 LOADING OLD DATABASE FROM GITHUB: {old_json_url}")
+                import requests
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                response = requests.get(old_json_url, headers=headers, timeout=30)
+                response.raise_for_status()
+                old_data = response.json()
+                logger.info(f"📊 OLD DATABASE LOADED: {len(old_data.get('members', old_data))} members")
+            except Exception as github_error:
+                logger.warning(f"❌ GAGAL LOAD DARI GITHUB: {github_error}")
+                # Fallback ke file lokal jika GitHub gagal
+                old_json_path = "SN-Fun-Bot-main/data/member_data/Path_Foto_DriveIDs_Real.json"
+                
+                if os.path.exists(old_json_path):
+                    logger.info(f"📂 LOADING OLD DATABASE LOCAL: {old_json_path}")
+                    with open(old_json_path, 'r', encoding='utf-8') as f:
+                        old_data = json.load(f)
+                    logger.info(f"📊 OLD DATABASE LOADED: {len(old_data.get('members', old_data))} members")
+                else:
+                    logger.error("❌ TIDAK ADA DATABASE FALLBACK YANG TERSEDIA")
+                    return None, f"❌ Member **{member_name}** tidak ditemukan - database fallback tidak tersedia"
             
-            if not photo_url:
-                return None, f"❌ Member **{member_name}** tidak ditemukan di database manapun!"
+            # Search for member in old database with multiple strategies
+            member_lower = member_name.lower()
+            found_member = None
             
-            # Generate card using old database
-            rarity = self._get_random_rarity()
-            card_image = self.generate_card(member_name, group_name, rarity)
+            # Strategy 1: Exact name match
+            logger.info(f"🔍 STRATEGY 1: Searching for exact name '{member_lower}'")
+            for key, member_info in old_data.get('members', old_data).items():
+                if isinstance(member_info, dict) and 'name' in member_info:
+                    name_in_db = member_info.get('name', '').lower()
+                    if name_in_db == member_lower:
+                        logger.info(f"✅ EXACT MATCH: {key} -> {member_info.get('name')}")
+                        found_member = (key, member_info)
+                        break
             
-            if card_image:
-                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
-                success_msg += f"✨ **Rarity:** {rarity}\n"
-                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
-                success_msg += f"🎯 **Member Gacha**"
-                return card_image, success_msg
-            else:
-                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
+            # Strategy 2: Partial name match (if exact match fails)
+            if not found_member:
+                logger.info(f"🔍 STRATEGY 2: Searching for partial name match")
+                for key, member_info in old_data.get('members', old_data).items():
+                    if isinstance(member_info, dict) and 'name' in member_info:
+                        name_in_db = member_info.get('name', '').lower()
+                        # Check if member_name is contained in the database name or vice versa
+                        if member_lower in name_in_db or name_in_db in member_lower:
+                            logger.info(f"✅ PARTIAL MATCH: {key} -> {member_info.get('name')}")
+                            found_member = (key, member_info)
+                            break
+                
+            # Strategy 3: Key-based search (for cases like soodam -> soodam_secret_number)
+            if not found_member:
+                logger.info(f"🔍 STRATEGY 3: Searching in member keys")
+                for key, member_info in old_data.get('members', old_data).items():
+                    if isinstance(member_info, dict) and 'name' in member_info:
+                        key_lower = key.lower()
+                        if member_lower in key_lower or key_lower.startswith(member_lower):
+                            logger.info(f"✅ KEY MATCH: {key} -> {member_info.get('name')}")
+                            found_member = (key, member_info)
+                            break
+            
+            # Debug: Show some sample entries if no match found
+            if not found_member:
+                logger.warning(f"❌ NO MATCH FOUND for '{member_name}'")
+                logger.info("📋 Sample database entries:")
+                count = 0
+                for key, member_info in old_data.get('members', old_data).items():
+                    if isinstance(member_info, dict) and 'name' in member_info:
+                        logger.info(f"  {key}: {member_info.get('name', 'Unknown')}")
+                        count += 1
+                        if count >= 5:
+                            break
+                
+            if found_member:
+                member_key, member_info = found_member
+                group_name = member_info.get('group', 'Unknown')
+                actual_name = member_info.get('name', member_name)
+                
+                logger.info(f"📸 FOUND IN OLD DATABASE: {member_name} -> {member_key}")
+                logger.info(f"👤 ACTUAL NAME: {actual_name}")
+                logger.info(f"📁 OLD DATABASE GROUP: {group_name}")
+                
+                # Get photo from old database
+                photos = member_info.get('photos', [])
+                if photos:
+                    photo_id = random.choice(photos)
+                    photo_url = f"https://drive.google.com/uc?export=view&id={photo_id}"
+                    
+                    logger.info(f"📸 OLD DATABASE PHOTO: {photo_url[:80]}...")
+                    
+                    # Generate card using old database with actual name
+                    rarity = self._get_random_rarity()
+                    card_image = self.generate_card(actual_name, group_name, rarity)
+                    
+                    if card_image:
+                        success_msg = f"🎴 **{actual_name}** dari **{group_name}**\n"
+                        success_msg += f"✨ **Rarity:** {rarity}\n"
+                        success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                        success_msg += f"🎯 **Member Gacha**"
+                        if actual_name.lower() != member_name.lower():
+                            success_msg += f"\n🔍 **Searched for:** {member_name}"
+                        return card_image, success_msg
+            
+            return None, f"❌ Member **{member_name}** tidak ditemukan di database manapun!"
                 
         except Exception as e:
-            logger.error(f"Error in member fallback flow: {e}")
+            logger.error(f"Error in universal fallback flow: {e}")
             return None, f"❌ Error saat fallback member gacha: {str(e)}"
     
     def save_card_temp(self, card_image, prefix="gacha_card"):
