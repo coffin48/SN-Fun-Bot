@@ -71,7 +71,7 @@ class DatabaseManager:
                         logger.warning(f"Google Sheets failed: {sheets_error}")
             
             # Priority 3: Railway local file (deployed from GitHub)
-            self.kpop_df = pd.read_csv("data/DATABASE_KPOP.csv")
+            self.kpop_df = pd.read_csv("Database/DATABASE KPOP IDOL.csv")
             logger.info(f"✅ Railway local CSV loaded: {len(self.kpop_df)} records")
             
         except Exception as e:
@@ -83,8 +83,8 @@ class DatabaseManager:
         import requests
         from io import StringIO
         
-        # GitHub raw CSV URL
-        github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/DATABASE_KPOP.csv"
+        # GitHub raw CSV URL - DATABASE KPOP IDOL.csv
+        github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE%20KPOP%20IDOL.csv"
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -160,21 +160,23 @@ class DatabaseManager:
             return self._search_csv(query, limit)
             
         try:
-            # Query dengan similarity search menggunakan trigram
+            # Query dengan similarity search menggunakan trigram - updated untuk DATABASE KPOP IDOL.csv
             sql = text("""
-                SELECT stage_name, group_name, korean_stage_name, full_name, 
-                       date_of_birth, instagram,
+                SELECT stage_name, group_name, korean_stage_name, korean_name, full_name, 
+                       date_of_birth, country, height, weight, birthplace, gender, instagram,
                        GREATEST(
                            similarity(stage_name, :query),
                            similarity(group_name, :query),
                            similarity(full_name, :query),
-                           similarity(korean_stage_name, :query)
+                           similarity(korean_stage_name, :query),
+                           similarity(korean_name, :query)
                        ) as score
                 FROM kpop_members 
                 WHERE stage_name ILIKE :pattern 
                    OR group_name ILIKE :pattern
                    OR full_name ILIKE :pattern
                    OR korean_stage_name ILIKE :pattern
+                   OR korean_name ILIKE :pattern
                    OR similarity(stage_name, :query) > 0.3
                    OR similarity(group_name, :query) > 0.3
                 ORDER BY score DESC, stage_name ASC
@@ -202,23 +204,30 @@ class DatabaseManager:
         try:
             query_lower = query.lower()
             
-            # Filter berdasarkan multiple columns
+            # Filter berdasarkan multiple columns - updated untuk DATABASE KPOP IDOL.csv
             mask = (
                 self.kpop_df['Stage Name'].str.lower().str.contains(query_lower, na=False) |
                 self.kpop_df['Group'].str.lower().str.contains(query_lower, na=False) |
                 self.kpop_df['Full Name'].str.lower().str.contains(query_lower, na=False) |
-                self.kpop_df['Korean Stage Name'].str.lower().str.contains(query_lower, na=False)
+                self.kpop_df['Korean Stage Name'].str.lower().str.contains(query_lower, na=False) |
+                self.kpop_df['Korean Name'].str.lower().str.contains(query_lower, na=False)
             )
             
             results = self.kpop_df[mask].head(limit)
             
-            # Convert ke format dictionary
+            # Convert ke format dictionary - updated untuk DATABASE KPOP IDOL.csv
             return [{
                 'stage_name': row['Stage Name'],
                 'group_name': row['Group'],
                 'korean_stage_name': row.get('Korean Stage Name', ''),
+                'korean_name': row.get('Korean Name', ''),
                 'full_name': row.get('Full Name', ''),
                 'date_of_birth': row.get('Date of Birth', ''),
+                'country': row.get('Country', ''),
+                'height': row.get('Height', ''),
+                'weight': row.get('Weight', ''),
+                'birthplace': row.get('Birthplace', ''),
+                'gender': row.get('Gender', ''),
                 'instagram': row.get('Instagram', ''),
                 'score': 1.0  # Default score untuk CSV
             } for _, row in results.iterrows()]
@@ -237,8 +246,8 @@ class DatabaseManager:
         if POSTGRES_AVAILABLE and self.engine:
             try:
                 sql = text("""
-                    SELECT stage_name, group_name, korean_stage_name, full_name, 
-                           date_of_birth, instagram
+                    SELECT stage_name, group_name, korean_stage_name, korean_name, full_name, 
+                           date_of_birth, country, height, weight, birthplace, gender, instagram
                     FROM kpop_members 
                     WHERE group_name ILIKE :group_name
                     ORDER BY stage_name ASC
@@ -260,8 +269,14 @@ class DatabaseManager:
                 'stage_name': row['Stage Name'],
                 'group_name': row['Group'],
                 'korean_stage_name': row.get('Korean Stage Name', ''),
+                'korean_name': row.get('Korean Name', ''),
                 'full_name': row.get('Full Name', ''),
                 'date_of_birth': row.get('Date of Birth', ''),
+                'country': row.get('Country', ''),
+                'height': row.get('Height', ''),
+                'weight': row.get('Weight', ''),
+                'birthplace': row.get('Birthplace', ''),
+                'gender': row.get('Gender', ''),
                 'instagram': row.get('Instagram', '')
             } for _, row in results.iterrows()]
         
