@@ -1094,8 +1094,14 @@ class GachaCommandsHandler:
             async with ctx.typing():
                 loading_msg = await ctx.send(f"🔍 Mencari {search_term}...")
                 
+                # Debug: Check gacha system status
+                logger.info(f"🔍 Gacha system status: {self.gacha_system is not None}")
+                if self.gacha_system:
+                    logger.info(f"🔍 Members data loaded: {len(self.gacha_system.members_data) if hasattr(self.gacha_system, 'members_data') else 'No members_data'}")
+                
                 # First try as member name
                 member_result = self.gacha_system.search_member(search_term)
+                logger.info(f"🔍 Member search result for '{search_term}': {member_result}")
                 
                 if member_result:
                     # Found member, generate member card
