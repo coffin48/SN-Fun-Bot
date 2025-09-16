@@ -31,7 +31,7 @@ DESIGN_KARTU_AVAILABLE = True
 logger = logging.getLogger(__name__)
 
 class KpopGachaSystem:
-    def __init__(self, json_path="data/member_data/Path_Foto_DriveIDs_Real.json", database_path="data/DATABASE_KPOP.csv"):
+    def __init__(self, json_path="data/member_data/Path_Foto_DriveIDs_Real.json", database_path="Database/DATABASE KPOP IDOL.csv"):
         """
         Initialize Kpop Gacha System
         
@@ -84,9 +84,16 @@ class KpopGachaSystem:
         self.retry_delay = 1.0
         
         # Load all data once with new database priority
+        logger.info("🚀 Starting gacha system initialization...")
         self._load_new_json_data()
+        logger.info(f"📊 After JSON load: {len(self.members_data) if self.members_data else 0} members")
+        
         self._load_database()
+        logger.info(f"📊 After CSV load: {len(self.database) if hasattr(self, 'database') and self.database is not None else 0} CSV records")
+        
         self._integrate_csv_data()
+        logger.info(f"📊 After integration: {len(self.stage_name_mapping) if hasattr(self, 'stage_name_mapping') else 0} stage mappings")
+        logger.info("✅ Gacha system initialization completed")
         
         # Set global instance for design_kartu module
         import sys
@@ -394,9 +401,9 @@ class KpopGachaSystem:
         
         for member_key, member_info in self.members_data.items():
             if isinstance(member_info, dict) and 'group' in member_info:
-                member_group = member_info.get('group', '').lower()
-                # Handle case variations (aespa vs AESPA)
-                if member_group == group_lower:
+                member_group = member_info.get('group', '')
+                # Safe string conversion untuk handle NaN/None values
+                if member_group and str(member_group).lower() == group_lower:
                     matching_keys.append(member_key)
         
         return matching_keys
@@ -412,7 +419,9 @@ class KpopGachaSystem:
         # Strategy 1: Exact name match
         for member_key, member_info in self.members_data.items():
             if isinstance(member_info, dict) and 'name' in member_info:
-                if member_info.get('name', '').lower() == member_lower:
+                member_name_val = member_info.get('name', '')
+                # Safe string conversion untuk handle NaN/None values
+                if member_name_val and str(member_name_val).lower() == member_lower:
                     matching_keys.append(member_key)
         
         # Strategy 2: Key-based search jika exact match tidak ditemukan
@@ -1060,12 +1069,13 @@ class KpopGachaSystem:
             self.full_name_mapping = {}
             
             for _, row in self.database.iterrows():
-                group = str(row.get('Group', '')).strip()
-                stage_name = str(row.get('Stage Name', '')).strip()
-                full_name = str(row.get('Full Name', '')).strip()
-                korean_name = str(row.get('Korean Stage Name', '')).strip()
+                # Safe string conversion untuk handle NaN values
+                group = str(row.get('Group', '') if pd.notna(row.get('Group', '')) else '').strip()
+                stage_name = str(row.get('Stage Name', '') if pd.notna(row.get('Stage Name', '')) else '').strip()
+                full_name = str(row.get('Full Name', '') if pd.notna(row.get('Full Name', '')) else '').strip()
+                korean_name = str(row.get('Korean Stage Name', '') if pd.notna(row.get('Korean Stage Name', '')) else '').strip()
                 
-                if not group or not stage_name:
+                if not group or not stage_name or group == 'nan' or stage_name == 'nan':
                     continue
                 
                 # Generate member key (same format as JSON)
@@ -1080,7 +1090,7 @@ class KpopGachaSystem:
                     'group': group
                 }
                 
-                if full_name:
+                if full_name and full_name != 'nan':
                     self.full_name_mapping[full_name.lower()] = {
                         'member_key': member_key,
                         'stage_name': stage_name,
@@ -1111,6 +1121,13 @@ class KpopGachaSystem:
         """Search for members by name using both JSON and CSV data"""
         results = []
         search_name = member_name.lower().strip()
+        
+        # Debug logging
+        logger.info(f"🔍 Searching for member: '{member_name}' (normalized: '{search_name}')")
+        logger.info(f"🔍 Members data available: {len(self.members_data) if self.members_data else 0}")
+        logger.info(f"🔍 Stage name mapping available: {hasattr(self, 'stage_name_mapping')}")
+        if hasattr(self, 'stage_name_mapping'):
+            logger.info(f"🔍 Stage name mapping size: {len(self.stage_name_mapping)}")
         
         # First try stage name mapping from CSV
         if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
