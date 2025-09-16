@@ -387,25 +387,38 @@ class KpopGachaSystem:
             logger.error(f"Error in enhanced image download from {url}: {e}")
             return None
     
-    def _get_member_keys_by_group(self, group_name):
-        """Get member keys dari grup tertentu"""
+    def _find_group_members(self, group_name):
+        """Find all member keys untuk group tertentu dengan case insensitive"""
         group_lower = group_name.lower()
         matching_keys = []
         
         for member_key, member_info in self.members_data.items():
-            if member_info.get('group', '').lower() == group_lower:
-                matching_keys.append(member_key)
+            if isinstance(member_info, dict) and 'group' in member_info:
+                member_group = member_info.get('group', '').lower()
+                # Handle case variations (aespa vs AESPA)
+                if member_group == group_lower:
+                    matching_keys.append(member_key)
         
         return matching_keys
     
     def _find_member_key(self, member_name):
-        """Find member key berdasarkan nama"""
+        """Find member key berdasarkan nama dengan multiple strategies"""
         member_lower = member_name.lower()
         matching_keys = []
         
+        # Strategy 1: Exact name match
         for member_key, member_info in self.members_data.items():
-            if member_info.get('name', '').lower() == member_lower:
-                matching_keys.append(member_key)
+            if isinstance(member_info, dict) and 'name' in member_info:
+                if member_info.get('name', '').lower() == member_lower:
+                    matching_keys.append(member_key)
+        
+        # Strategy 2: Key-based search jika exact match tidak ditemukan
+        if not matching_keys:
+            for member_key, member_info in self.members_data.items():
+                if isinstance(member_info, dict) and 'name' in member_info:
+                    key_lower = member_key.lower()
+                    if member_lower in key_lower or key_lower.startswith(member_lower):
+                        matching_keys.append(member_key)
         
         return matching_keys
     
