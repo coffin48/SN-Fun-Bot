@@ -604,24 +604,44 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     except:
         pass
     
-    if isinstance(idol_photo, str):
-        # Jika input adalah path - pass database flag
-        foto_img = fit_photo(idol_photo, photo_box[2], photo_box[3], using_new_database=using_new_db)
-    else:
-        # Jika input adalah PIL Image
-        foto_img = fit_photo_from_image(idol_photo, photo_box[2], photo_box[3])
-    
-    # Convert foto ke RGBA untuk proper blending
-    if foto_img.mode != 'RGBA':
-        foto_img = foto_img.convert('RGBA')
-    
-    # NEW DATABASE: Direct paste without resizing
     if using_new_db:
-        # For new database photos (350x540px), paste directly to canvas
-        # Adjust photo_box to fit the 350x540 photo perfectly
-        canvas.paste(foto_img, (0, 0), foto_img)  # Paste at origin since photo is already perfect size
+        # NEW DATABASE: Crop to fit photo_box dimensions, no resize
+        if isinstance(idol_photo, str):
+            # Load image from path
+            foto_img = Image.open(idol_photo).convert('RGBA')
+        else:
+            # PIL Image input
+            foto_img = idol_photo.convert('RGBA')
+        
+        # Crop to photo_box dimensions from center
+        img_width, img_height = foto_img.size
+        box_width, box_height = photo_box[2], photo_box[3]
+        
+        # Calculate crop coordinates (center crop)
+        left = max(0, (img_width - box_width) // 2)
+        top = max(0, (img_height - box_height) // 2)
+        right = min(img_width, left + box_width)
+        bottom = min(img_height, top + box_height)
+        
+        # Crop the image
+        foto_img = foto_img.crop((left, top, right, bottom))
+        
+        # Paste at photo_box coordinates
+        canvas.paste(foto_img, (photo_box[0], photo_box[1]), foto_img)
     else:
-        # OLD DATABASE: Use original photo_box coordinates
+        # OLD DATABASE: Use existing cropping/padding logic
+        if isinstance(idol_photo, str):
+            # Jika input adalah path - pass database flag
+            foto_img = fit_photo(idol_photo, photo_box[2], photo_box[3], using_new_database=using_new_db)
+        else:
+            # Jika input adalah PIL Image
+            foto_img = fit_photo_from_image(idol_photo, photo_box[2], photo_box[3])
+        
+        # Convert foto ke RGBA untuk proper blending
+        if foto_img.mode != 'RGBA':
+            foto_img = foto_img.convert('RGBA')
+        
+        # Paste at photo_box coordinates
         canvas.paste(foto_img, (photo_box[0], photo_box[1]), foto_img)
     
     # Canvas sudah RGBA, tidak perlu convert lagi
