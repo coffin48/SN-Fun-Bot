@@ -1099,7 +1099,7 @@ class GachaCommandsHandler:
                 
                 if member_result:
                     # Found member, generate member card
-                    card_image, card_data = self.gacha_system.generate_member_card(search_term)
+                    card_image, card_data = self.gacha_system.gacha_by_member(search_term)
                     
                     if card_image:
                         # Parse card data from message
