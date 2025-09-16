@@ -144,6 +144,8 @@ class GachaCommandsHandler:
                 await self._handle_gacha_sar_demo(ctx)
         elif subcommand == "stats":
             await self._handle_gacha_stats(ctx)
+        elif subcommand == "test":
+            await self._handle_gacha_test(ctx)
         else:
             # Try to interpret as direct member name or group name
             search_term = " ".join(args)
@@ -818,6 +820,99 @@ class GachaCommandsHandler:
         except Exception as e:
             logger.error(f"Error in SAR demo: {e}")
             await ctx.send("❌ Terjadi error saat demo SAR.")
+    
+    async def _handle_gacha_sar_member(self, ctx, member_name):
+        """Handle SAR gacha for specific member - admin only"""
+        user_id = ctx.author.id
+        
+        # Check if user is admin
+        if not self._is_admin(user_id):
+            await ctx.send("❌ Command ini hanya untuk admin/mod.")
+            return
+        
+        if not member_name:
+            await ctx.send("❌ Silakan specify nama member: `!sn gacha sar [member_name]`")
+            return
+        
+        try:
+            async with ctx.typing():
+                # Admin message
+                admin_embed = discord.Embed(
+                    title="🌟 Admin SAR Generation",
+                    description=f"✨ **Generating SAR card untuk: {member_name}**\n🎯 Admin mode - guaranteed SAR",
+                    color=0xFF6B9D
+                )
+                loading_msg = await ctx.send(embed=admin_embed)
+                
+                await asyncio.sleep(1)
+                
+                # Generate SAR for specific member
+                result = self.gacha_system.generate_gacha(member_name, force_rarity="SAR")
+                
+                if result and result.get('rarity') == 'SAR':
+                    # Create SAR result embed
+                    sar_embed = discord.Embed(
+                        title="🌟 SAR Card Generated!",
+                        description=f"✨ **{result.get('member_name', 'Unknown')}** dari **{result.get('group', 'Unknown')}**",
+                        color=0xFF1493
+                    )
+                    
+                    sar_embed.add_field(
+                        name="🎯 SAR Details",
+                        value=f"**Member:** {result.get('member_name', 'Unknown')}\n**Group:** {result.get('group', 'Unknown')}\n**Rarity:** SAR (Admin Generated)\n**Photo URL:** {result.get('photo_url', 'N/A')}",
+                        inline=False
+                    )
+                    
+                    sar_embed.add_field(
+                        name="ℹ️ Admin Info",
+                        value="🔧 **Mode:** Admin SAR Generation\n🎯 **Purpose:** Testing/Demo\n⭐ **Rarity:** Guaranteed SAR",
+                        inline=False
+                    )
+                    
+                    # If there's a card image, attach it
+                    if 'image' in result:
+                        temp_path = self.gacha_system.save_card_temp(result['image'], f"sar_{member_name}")
+                        if temp_path:
+                            sar_file = discord.File(temp_path, f"sar_{member_name}.png")
+                            sar_embed.set_image(url=f"attachment://sar_{member_name}.png")
+                            await loading_msg.edit(embed=sar_embed, attachments=[sar_file])
+                            
+                            # Cleanup temp file
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+                        else:
+                            await loading_msg.edit(embed=sar_embed)
+                    else:
+                        await loading_msg.edit(embed=sar_embed)
+                        
+                else:
+                    # Failed to generate SAR
+                    error_embed = discord.Embed(
+                        title="❌ SAR Generation Failed",
+                        description=f"Gagal generate SAR untuk **{member_name}**",
+                        color=0xff0000
+                    )
+                    
+                    if result:
+                        error_embed.add_field(
+                            name="🔍 Debug Info",
+                            value=f"Member found: {result.get('member_name', 'N/A')}\nRarity generated: {result.get('rarity', 'N/A')}\nGroup: {result.get('group', 'N/A')}",
+                            inline=False
+                        )
+                    else:
+                        error_embed.add_field(
+                            name="🔍 Possible Issues",
+                            value=f"• Member '{member_name}' tidak ditemukan\n• Database error\n• No photos available",
+                            inline=False
+                        )
+                    
+                    await loading_msg.edit(embed=error_embed)
+                    
+        except Exception as e:
+            logger.error(f"Error in SAR member generation: {e}")
+            await ctx.send(f"❌ Terjadi error saat generate SAR untuk {member_name}: {e}")
     
     async def _handle_gacha_info(self, ctx):
         """Handle gacha info command - comprehensive gacha system information"""
