@@ -785,7 +785,7 @@ class KpopGachaSystem:
         
         try:
             # Step 1: Cari member dari grup di database yang tersedia
-            group_member_keys = self._get_member_keys_by_group(group_name)
+            group_member_keys = self._find_group_members(group_name)
             
             if not group_member_keys:
                 # Jika tidak ditemukan di database aktif, coba fallback
