@@ -783,149 +783,68 @@ class KpopGachaSystem:
             logger.error(f"Error in gacha_pack_5: {e}")
             return [], f"❌ Error saat generate pack: {str(e)}"
     
-    def gacha_by_group(self, group_name):
-        """
-        Gacha member dari grup tertentu dengan flow yang jelas:
-        1. Cek grup di New JSON Update -> GDrive photos -> design -> return
-        2. Fallback: Cek di Old JSON -> old database folder -> design -> return
-        """
-        if not self.members_data:
-            return None, "❌ Data member tidak tersedia"
-        
-        try:
-            # Step 1: Cari member dari grup di database yang tersedia
-            group_member_keys = self._find_group_members(group_name)
-            
-            if not group_member_keys:
-                # Jika tidak ditemukan di database aktif, coba fallback
-                logger.warning(f"⚠️ Group {group_name} not found in active database, trying fallback")
-                return self._gacha_group_fallback_flow(group_name)
-            
-            # Pilih member random dari grup
-            member_key = random.choice(group_member_keys)
-            member_info = self.members_data[member_key]
-            member_name = member_info.get('name', 'Unknown')
-            
-            # Step 2: Flow berdasarkan database yang digunakan
-            if self.using_new_database:
-                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
-                logger.info(f"🎯 Using NEW database flow for group {group_name}, member {member_name}")
-                photo_url, _ = self._get_member_photo_url(member_key)
-                
-                if not photo_url:
-                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
-                    return self._gacha_group_fallback_flow(group_name)
-                
-                # Generate card using NEW database photos
-                rarity = self._get_random_rarity()
-                card_image = self.generate_card(member_name, group_name, rarity)
-                
-                if card_image:
-                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
-                    success_msg += f"✨ **Rarity:** {rarity}\n"
-                    success_msg += f"📸 **Photo:** New GDrive Database\n"
-                    success_msg += f"🎯 **Group Gacha:** {group_name}"
-                    return card_image, success_msg
-                else:
-                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
-                    return self._gacha_group_fallback_flow(group_name)
-            
-            else:
-                # FLOW 2: Old JSON -> old database folder -> design -> Discord
-                logger.info(f"📁 Using OLD database flow for group {group_name}")
-                return self._gacha_group_fallback_flow(group_name)
-                
-        except Exception as e:
-            logger.error(f"Error in gacha_by_group: {e}")
-            return None, f"❌ Error saat group gacha: {str(e)}"
-    
-    def _gacha_group_fallback_flow(self, group_name):
-        """Fallback flow untuk group gacha: Old JSON -> old database folder -> design -> Discord"""
-        try:
-            logger.info(f"📂 Group fallback flow for {group_name}")
-            
-            # Try to find group members in old database structure
-            # This would need to be implemented based on your old database
-            member_name = "Unknown"  # Would be determined from old database
-            
-            # Get photo from old database
-            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
-            
-            if not photo_url:
-                return None, f"❌ Grup **{group_name}** tidak ditemukan di database manapun!"
-            
-            # Generate card using old database
-            rarity = self._get_random_rarity()
-            card_image = self.generate_card(member_name, group_name, rarity)
-            
-            if card_image:
-                success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
-                success_msg += f"✨ **Rarity:** {rarity}\n"
-                success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
-                success_msg += f"🎯 **Group Gacha:** {group_name}"
-                return card_image, success_msg
-            else:
-                return None, f"❌ Gagal generate kartu {member_name} dari {group_name}"
-                
-        except Exception as e:
-            logger.error(f"Error in group fallback flow: {e}")
-            return None, f"❌ Error saat fallback group gacha: {str(e)}"
-    
     def gacha_by_member(self, member_name):
         """
-        Gacha kartu member tertentu dengan format-specific JSON handling:
-        1. NEW JSON: Cek dengan NEW JSON format -> GDrive photos -> design -> return
-        2. OLD JSON Fallback: Cek dengan OLD JSON format -> old database folder -> design -> return
+        DIRECT FLOW: Efficient member gacha with proper source handling
+        1. Search NEW JSON -> Generate with NEW GDrive IDs
+        2. Search OLD JSON -> Generate with OLD GDrive IDs
         """
-        if not self.members_data:
-            return None, "❌ Data member tidak tersedia"
-        
         try:
-            # Step 1: Cari member di NEW database dengan NEW JSON format
-            member_keys = self._find_member_key(member_name)
+            logger.info(f"🚀 DIRECT FLOW: Member gacha for '{member_name}'")
             
-            if not member_keys:
-                # Jika tidak ditemukan di NEW database, coba OLD database fallback
-                logger.warning(f"⚠️ Member {member_name} not found in NEW database, trying OLD database fallback")
-                return self._gacha_member_fallback_flow(member_name)
+            # Direct search using new efficient method
+            search_results = self.search_member(member_name)
             
-            # Jika ada multiple member dengan nama sama, pilih random
-            member_key = random.choice(member_keys)
-            member_info = self.members_data[member_key]
-            group_name = member_info.get('group', 'Unknown')
+            if not search_results:
+                return None, f"❌ Member **{member_name}** tidak ditemukan di database manapun!"
             
-            # Step 2: NEW JSON Database Flow
-            if self.using_new_database:
-                # FLOW 1: NEW JSON format -> GDrive photos -> design -> Discord
-                logger.info(f"🎯 Using NEW JSON format for member {member_name}")
-                logger.info(f"📊 NEW JSON member key: {member_key}")
-                logger.info(f"👤 NEW JSON member data: {member_info.get('name')} from {member_info.get('group')}")
-                
-                photo_url, _ = self._get_member_photo_url(member_key)
-                
-                if not photo_url:
-                    logger.warning(f"⚠️ Photo not found in NEW JSON for {member_name}, trying OLD JSON fallback")
-                    return self._gacha_member_fallback_flow(member_name)
-                
-                # Generate card using NEW JSON photos
-                rarity = self._get_random_rarity()
-                card_image = self.generate_card(member_name, group_name, rarity)
-                
-                if card_image:
-                    success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
-                    success_msg += f"✨ **Rarity:** {rarity}\n"
-                    success_msg += f"📸 **Photo:** NEW JSON Database\n"
-                    success_msg += f"🎯 **Member Gacha**"
-                    return card_image, success_msg
-                else:
-                    logger.warning(f"⚠️ Card generation failed in NEW JSON flow for {member_name}, trying OLD JSON fallback")
-                    return self._gacha_member_fallback_flow(member_name)
+            # Get first result
+            member_result = search_results[0]
+            member_key = member_result['member_key']
+            actual_name = member_result['name']
+            group_name = member_result['group']
+            source = member_result['source']
             
-            else:
-                # FLOW 2: OLD JSON format -> old database folder -> design -> Discord
-                logger.info(f"📁 Using OLD JSON format for member {member_name}")
-                return self._gacha_member_fallback_flow(member_name)
+            logger.info(f"✅ Found member: {actual_name} ({group_name}) from {source} database")
+            
+            # Generate card based on source
+            rarity = self._get_random_rarity()
+            
+            if source == 'NEW':
+                # Use NEW database photos (already loaded)
+                photo_url, photo_filename = self._get_member_photo_url(member_key)
                 
+                if photo_url:
+                    card_image = self.generate_card(actual_name, group_name, rarity)
+                    
+                    if card_image:
+                        success_msg = f"🎴 **{actual_name}** dari **{group_name}**\n"
+                        success_msg += f"✨ **Rarity:** {rarity}\n"
+                        success_msg += f"📸 **Photo:** New Database (GDrive)\n"
+                        success_msg += f"🎯 **Member Gacha**"
+                        if actual_name.lower() != member_name.lower():
+                            success_msg += f"\n🔍 **Searched for:** {member_name}"
+                        return card_image, success_msg
+            
+            elif source == 'OLD':
+                # Use OLD database photos
+                photo_url, _ = self._get_member_photo_url_fallback(actual_name, group_name)
+                
+                if photo_url:
+                    card_image = self.generate_card(actual_name, group_name, rarity)
+                    
+                    if card_image:
+                        success_msg = f"🎴 **{actual_name}** dari **{group_name}**\n"
+                        success_msg += f"✨ **Rarity:** {rarity}\n"
+                        success_msg += f"📸 **Photo:** Old Database (Fallback)\n"
+                        success_msg += f"🎯 **Member Gacha**"
+                        if actual_name.lower() != member_name.lower():
+                            success_msg += f"\n🔍 **Searched for:** {member_name}"
+                        return card_image, success_msg
+            
+            # If photo loading failed
+            return None, f"❌ Gagal memuat foto untuk **{actual_name}**"
+                    
         except Exception as e:
             logger.error(f"Error in gacha_by_member: {e}")
             return None, f"❌ Error saat member gacha: {str(e)}"
@@ -1116,84 +1035,107 @@ class KpopGachaSystem:
             self.stage_name_mapping = {}
             self.full_name_mapping = {}
     
-    # Wrapper methods for compatibility with test scripts
+    # DIRECT FLOW: Efficient NEW JSON -> OLD JSON search
     def search_member(self, member_name):
-        """Search for members by name using both JSON and CSV data"""
-        results = []
+        """Direct search: NEW JSON -> OLD JSON with proper source tracking"""
         search_name = member_name.lower().strip()
+        logger.info(f"🚀 DIRECT FLOW: Searching for '{member_name}' (normalized: '{search_name}')")
         
-        # Debug logging
-        logger.info(f"🔍 Searching for member: '{member_name}' (normalized: '{search_name}')")
-        logger.info(f"🔍 Members data available: {len(self.members_data) if self.members_data else 0}")
-        logger.info(f"🔍 Stage name mapping available: {hasattr(self, 'stage_name_mapping')}")
-        if hasattr(self, 'stage_name_mapping'):
-            logger.info(f"🔍 Stage name mapping size: {len(self.stage_name_mapping)}")
+        # Step 1: Search in NEW JSON (current loaded data)
+        new_result = self._search_in_new_json(search_name)
+        if new_result:
+            logger.info(f"✅ Found '{search_name}' in NEW JSON database")
+            return [new_result]
         
-        # First try stage name mapping from CSV
-        if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
-            logger.info(f"✅ Found '{search_name}' in stage_name_mapping")
-            csv_info = self.stage_name_mapping[search_name]
-            member_key = csv_info['member_key']
-            
-            # Check if member exists in JSON data (has photos)
-            if member_key in self.members_data:
-                logger.info(f"✅ Member '{member_key}' found in JSON data")
-                results.append({
-                    'member_key': member_key,
-                    'name': csv_info['stage_name'],
-                    'full_name': csv_info['full_name'],
-                    'korean_name': csv_info['korean_name'],
-                    'group': csv_info['group']
-                })
-            else:
-                logger.info(f"⚠️ Member '{member_key}' NOT found in JSON data, but exists in CSV")
-                # Still add to results even if no photos - fallback will handle it
-                results.append({
-                    'member_key': member_key,
-                    'name': csv_info['stage_name'],
-                    'full_name': csv_info['full_name'],
-                    'korean_name': csv_info['korean_name'],
-                    'group': csv_info['group']
-                })
-        else:
-            logger.info(f"❌ '{search_name}' NOT found in stage_name_mapping")
+        # Step 2: Search in OLD JSON (GitHub source)
+        old_result = self._search_in_old_json(search_name)
+        if old_result:
+            logger.info(f"✅ Found '{search_name}' in OLD JSON database")
+            return [old_result]
         
-        # Try full name mapping from CSV
-        if hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
-            logger.info(f"✅ Found '{search_name}' in full_name_mapping")
-            csv_info = self.full_name_mapping[search_name]
-            member_key = csv_info['member_key']
-            
-            # Check if not already added
-            if not any(r['member_key'] == member_key for r in results):
-                logger.info(f"✅ Adding '{member_key}' from full_name_mapping")
-                results.append({
-                    'member_key': member_key,
-                    'name': csv_info['stage_name'],
-                    'full_name': csv_info['full_name'],
-                    'korean_name': csv_info['korean_name'],
-                    'group': csv_info['group']
-                })
-        else:
-            logger.info(f"❌ '{search_name}' NOT found in full_name_mapping")
+        logger.info(f"❌ '{search_name}' not found in any database")
+        return []
+    
+    def _search_in_new_json(self, search_name):
+        """Search in NEW JSON database (currently loaded)"""
+        logger.info(f"🔍 Searching in NEW JSON: {len(self.members_data)} members")
         
-        # Fallback to original JSON-based search
-        if not results:
-            logger.info(f"🔍 No results from CSV mappings, trying JSON-based search")
-            member_keys = self._find_member_key(member_name)
-            logger.info(f"🔍 JSON search found {len(member_keys)} keys: {member_keys}")
-            for member_key in member_keys:
+        # Direct search in loaded NEW JSON data
+        for member_key, member_info in self.members_data.items():
+            if isinstance(member_info, dict):
+                member_name = member_info.get('name', '').lower()
+                if member_name == search_name:
+                    return {
+                        'member_key': member_key,
+                        'name': member_info.get('name', 'Unknown'),
+                        'group': member_info.get('group', 'Unknown'),
+                        'source': 'NEW',
+                        'photos': member_info.get('photos', [])
+                    }
+        
+        # Also try key-based search
+        for member_key in self.members_data.keys():
+            if search_name in member_key.lower():
                 member_info = self.members_data[member_key]
-                results.append({
+                return {
                     'member_key': member_key,
-                    'name': member_info.get('stage_name', member_info.get('name', 'Unknown')),
-                    'full_name': member_info.get('full_name', ''),
-                    'korean_name': member_info.get('korean_name', ''),
-                    'group': member_info.get('group', 'Unknown')
-                })
+                    'name': member_info.get('name', 'Unknown'),
+                    'group': member_info.get('group', 'Unknown'),
+                    'source': 'NEW',
+                    'photos': member_info.get('photos', [])
+                }
         
-        logger.info(f"🔍 Final search results: {len(results)} found")
-        return results
+        return None
+    
+    def _search_in_old_json(self, search_name):
+        """Search in OLD JSON database (GitHub source)"""
+        logger.info(f"🔍 Searching in OLD JSON from GitHub...")
+        
+        try:
+            # Load OLD JSON from GitHub
+            import requests
+            old_json_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/member_data/Path_Foto_DriveIDs_Real.json"
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(old_json_url, headers=headers)
+            response.raise_for_status()
+            old_data = response.json()
+            
+            logger.info(f"✅ OLD JSON loaded: {len(old_data)} entries")
+            
+            # Search in OLD JSON format
+            for member_key, member_info in old_data.items():
+                if isinstance(member_info, dict):
+                    member_name = member_info.get('name', '').lower()
+                    if member_name == search_name:
+                        return {
+                            'member_key': member_key,
+                            'name': member_info.get('name', 'Unknown'),
+                            'group': member_info.get('group', 'Unknown'),
+                            'source': 'OLD',
+                            'photos': member_info.get('photos', [])
+                        }
+            
+            # Also try key-based search in OLD JSON
+            for member_key in old_data.keys():
+                if search_name in member_key.lower():
+                    member_info = old_data[member_key]
+                    return {
+                        'member_key': member_key,
+                        'name': member_info.get('name', 'Unknown'),
+                        'group': member_info.get('group', 'Unknown'),
+                        'source': 'OLD',
+                        'photos': member_info.get('photos', [])
+                    }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Error loading OLD JSON: {e}")
+            return None
     
     def generate_random_card(self):
         """Generate random card (wrapper for gacha_random)"""
