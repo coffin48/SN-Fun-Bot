@@ -861,20 +861,14 @@ class GachaCommandsHandler:
                 await asyncio.sleep(1)
                 
                 # Generate SAR for specific member
-                result = self.gacha_system.generate_gacha(member_name, force_rarity="SAR")
+                card_image, result_msg = self.gacha_system.gacha_by_member_guaranteed_sar(member_name)
                 
-                if result and result.get('rarity') == 'SAR':
+                if card_image:
                     # Create SAR result embed
                     sar_embed = discord.Embed(
                         title="🌟 SAR Card Generated!",
-                        description=f"✨ **{result.get('member_name', 'Unknown')}** dari **{result.get('group', 'Unknown')}**",
+                        description=result_msg,
                         color=0xFF1493
-                    )
-                    
-                    sar_embed.add_field(
-                        name="🎯 SAR Details",
-                        value=f"**Member:** {result.get('member_name', 'Unknown')}\n**Group:** {result.get('group', 'Unknown')}\n**Rarity:** SAR (Admin Generated)\n**Photo URL:** {result.get('photo_url', 'N/A')}",
-                        inline=False
                     )
                     
                     sar_embed.add_field(
@@ -883,44 +877,31 @@ class GachaCommandsHandler:
                         inline=False
                     )
                     
-                    # If there's a card image, attach it
-                    if 'image' in result:
-                        temp_path = self.gacha_system.save_card_temp(result['image'], f"sar_{member_name}")
-                        if temp_path:
-                            sar_file = discord.File(temp_path, f"sar_{member_name}.png")
-                            sar_embed.set_image(url=f"attachment://sar_{member_name}.png")
-                            await loading_msg.edit(embed=sar_embed, attachments=[sar_file])
-                            
-                            # Cleanup temp file
-                            try:
-                                os.unlink(temp_path)
-                            except:
-                                pass
-                        else:
-                            await loading_msg.edit(embed=sar_embed)
+                    # Save card image and attach it
+                    temp_path = self.gacha_system.save_card_temp(card_image, f"sar_{member_name}")
+                    if temp_path:
+                        sar_file = discord.File(temp_path, f"sar_{member_name}.png")
+                        sar_embed.set_image(url=f"attachment://sar_{member_name}.png")
+                        await loading_msg.edit(embed=sar_embed, attachments=[sar_file])
+                        
+                        # Clean up temp file
+                        try:
+                            os.remove(temp_path)
+                        except:
+                            pass
                     else:
                         await loading_msg.edit(embed=sar_embed)
-                        
                 else:
-                    # Failed to generate SAR
                     error_embed = discord.Embed(
                         title="❌ SAR Generation Failed",
-                        description=f"Gagal generate SAR untuk **{member_name}**",
-                        color=0xff0000
+                        description=result_msg if result_msg else f"Gagal generate SAR card untuk **{member_name}**",
+                        color=0xFF0000
                     )
-                    
-                    if result:
-                        error_embed.add_field(
-                            name="🔍 Debug Info",
-                            value=f"Member found: {result.get('member_name', 'N/A')}\nRarity generated: {result.get('rarity', 'N/A')}\nGroup: {result.get('group', 'N/A')}",
-                            inline=False
-                        )
-                    else:
-                        error_embed.add_field(
-                            name="🔍 Possible Issues",
-                            value=f"• Member '{member_name}' tidak ditemukan\n• Database error\n• No photos available",
-                            inline=False
-                        )
+                    error_embed.add_field(
+                        name="💡 Tips",
+                        value="• Pastikan nama member benar\n• Coba dengan format nama lengkap\n• Gunakan `!sn gacha help` untuk bantuan",
+                        inline=False
+                    )
                     
                     await loading_msg.edit(embed=error_embed)
                     
