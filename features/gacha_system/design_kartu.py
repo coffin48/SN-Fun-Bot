@@ -592,19 +592,20 @@ def generate_card_template(idol_photo, rarity, member_name="", group_name="", de
     
     # Process foto input dengan box validation
     photo_box = boxes["photo"]
+    
+    # Get database flag from global gacha system if available
+    using_new_db = False
+    try:
+        import sys
+        if 'features.gacha_system.kpop_gacha' in sys.modules:
+            gacha_module = sys.modules['features.gacha_system.kpop_gacha']
+            if hasattr(gacha_module, 'current_gacha_instance'):
+                using_new_db = gacha_module.current_gacha_instance.using_new_database
+    except:
+        pass
+    
     if isinstance(idol_photo, str):
         # Jika input adalah path - pass database flag
-        # Get database flag from global gacha system if available
-        using_new_db = False
-        try:
-            import sys
-            if 'features.gacha_system.kpop_gacha' in sys.modules:
-                gacha_module = sys.modules['features.gacha_system.kpop_gacha']
-                if hasattr(gacha_module, 'current_gacha_instance'):
-                    using_new_db = gacha_module.current_gacha_instance.using_new_database
-        except:
-            pass
-        
         foto_img = fit_photo(idol_photo, photo_box[2], photo_box[3], using_new_database=using_new_db)
     else:
         # Jika input adalah PIL Image
