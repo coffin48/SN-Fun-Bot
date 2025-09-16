@@ -1,6 +1,7 @@
 """
 Auto-migration script yang dijalankan saat Railway startup
-Script ini akan otomatis migrasi CSV ke PostgreSQL jika belum ada data
+Script ini akan otomatis migrasi DATABASE KPOP IDOL.csv ke PostgreSQL jika belum ada data
+Updated untuk menggunakan DATABASE KPOP IDOL.csv dengan semua kolom lengkap
 """
 import os
 import sys
