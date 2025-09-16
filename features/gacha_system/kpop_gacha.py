@@ -1131,11 +1131,13 @@ class KpopGachaSystem:
         
         # First try stage name mapping from CSV
         if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
+            logger.info(f"✅ Found '{search_name}' in stage_name_mapping")
             csv_info = self.stage_name_mapping[search_name]
             member_key = csv_info['member_key']
             
             # Check if member exists in JSON data (has photos)
             if member_key in self.members_data:
+                logger.info(f"✅ Member '{member_key}' found in JSON data")
                 results.append({
                     'member_key': member_key,
                     'name': csv_info['stage_name'],
@@ -1143,14 +1145,28 @@ class KpopGachaSystem:
                     'korean_name': csv_info['korean_name'],
                     'group': csv_info['group']
                 })
+            else:
+                logger.info(f"⚠️ Member '{member_key}' NOT found in JSON data, but exists in CSV")
+                # Still add to results even if no photos - fallback will handle it
+                results.append({
+                    'member_key': member_key,
+                    'name': csv_info['stage_name'],
+                    'full_name': csv_info['full_name'],
+                    'korean_name': csv_info['korean_name'],
+                    'group': csv_info['group']
+                })
+        else:
+            logger.info(f"❌ '{search_name}' NOT found in stage_name_mapping")
         
         # Try full name mapping from CSV
         if hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
+            logger.info(f"✅ Found '{search_name}' in full_name_mapping")
             csv_info = self.full_name_mapping[search_name]
             member_key = csv_info['member_key']
             
-            # Check if not already added and exists in JSON
-            if member_key in self.members_data and not any(r['member_key'] == member_key for r in results):
+            # Check if not already added
+            if not any(r['member_key'] == member_key for r in results):
+                logger.info(f"✅ Adding '{member_key}' from full_name_mapping")
                 results.append({
                     'member_key': member_key,
                     'name': csv_info['stage_name'],
@@ -1158,10 +1174,14 @@ class KpopGachaSystem:
                     'korean_name': csv_info['korean_name'],
                     'group': csv_info['group']
                 })
+        else:
+            logger.info(f"❌ '{search_name}' NOT found in full_name_mapping")
         
         # Fallback to original JSON-based search
         if not results:
+            logger.info(f"🔍 No results from CSV mappings, trying JSON-based search")
             member_keys = self._find_member_key(member_name)
+            logger.info(f"🔍 JSON search found {len(member_keys)} keys: {member_keys}")
             for member_key in member_keys:
                 member_info = self.members_data[member_key]
                 results.append({
@@ -1172,6 +1192,7 @@ class KpopGachaSystem:
                     'group': member_info.get('group', 'Unknown')
                 })
         
+        logger.info(f"🔍 Final search results: {len(results)} found")
         return results
     
     def generate_random_card(self):
