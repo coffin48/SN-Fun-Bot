@@ -135,7 +135,13 @@ class GachaCommandsHandler:
             await self._handle_gacha_by_member(ctx, member_name)
         elif subcommand == "sar":
             # Admin command untuk demo SAR card
-            await self._handle_gacha_sar_demo(ctx)
+            if len(args) > 1:
+                # !sn gacha sar [member_name] - Generate SAR for specific member
+                member_name = " ".join(args[1:])
+                await self._handle_gacha_sar_member(ctx, member_name)
+            else:
+                # !sn gacha sar - Random SAR demo
+                await self._handle_gacha_sar_demo(ctx)
         elif subcommand == "stats":
             await self._handle_gacha_stats(ctx)
         else:
