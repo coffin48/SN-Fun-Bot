@@ -1,5 +1,6 @@
 """
-Script untuk migrasi CSV K-pop database ke PostgreSQL Railway
+Script untuk migrasi DATABASE KPOP IDOL.csv ke PostgreSQL Railway
+Updated untuk menggunakan DATABASE KPOP IDOL.csv dengan semua kolom lengkap
 """
 import os
 import pandas as pd
@@ -24,58 +25,32 @@ def migrate_csv_to_postgres():
         return False
     
     try:
-        # Priority 1: GitHub raw CSV (always latest)
-        try:
-            github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/DATABASE_KPOP.csv"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+        # Priority 1: Local DATABASE KPOP IDOL.csv (target file)
+        local_csv_path = "Database/DATABASE KPOP IDOL.csv"
+        
+        if os.path.exists(local_csv_path):
+            logger.info(f"Loading target CSV: {local_csv_path}")
+            df = pd.read_csv(local_csv_path)
+            logger.info(f"✅ CSV loaded from local file: {len(df)} records")
+        else:
+            logger.error(f"Target CSV file not found: {local_csv_path}")
             
-            response = requests.get(github_url, headers=headers)
-            response.raise_for_status()
-            df = pd.read_csv(StringIO(response.text))
-            logger.info(f"✅ CSV loaded from GitHub: {len(df)} records")
-            
-        except Exception as github_error:
-            logger.warning(f"GitHub CSV failed: {github_error}")
-            
-            # Priority 2: Environment variable source
-            kpop_csv_id = os.getenv("KPOP_CSV_ID")
-            if kpop_csv_id:
-                logger.info(f"Fallback ke environment source: {kpop_csv_id}")
-                try:
-                    # Coba Google Drive
-                    drive_url = f"https://drive.google.com/uc?id={kpop_csv_id}&export=download"
-                    response = requests.get(drive_url, headers=headers)
-                    
-                    # Handle Google Drive virus scan warning
-                    if 'virus scan warning' in response.text.lower():
-                        confirm_token = re.search(r'confirm=([0-9A-Za-z_]+)', response.text)
-                        if confirm_token:
-                            confirm_url = f"{drive_url}&confirm={confirm_token.group(1)}"
-                            response = requests.get(confirm_url, headers=headers)
-                    
-                    response.raise_for_status()
-                    df = pd.read_csv(StringIO(response.text))
-                    logger.info(f"✅ CSV loaded from Google Drive: {len(df)} records")
-                    
-                except Exception as drive_error:
-                    logger.warning(f"Google Drive failed: {drive_error}")
-                    # Fallback ke Google Sheets
-                    try:
-                        csv_url = f"https://docs.google.com/spreadsheets/d/{kpop_csv_id}/export?format=csv&gid=0"
-                        response = requests.get(csv_url, headers=headers)
-                        response.raise_for_status()
-                        df = pd.read_csv(StringIO(response.text))
-                        logger.info(f"✅ CSV loaded from Google Sheets: {len(df)} records")
-                    except Exception as sheets_error:
-                        logger.error(f"Environment sources failed: {sheets_error}")
-                        raise
-            else:
-                # Priority 3: Local file
-                logger.info("Fallback ke file lokal")
-                df = pd.read_csv("data/DATABASE_KPOP.csv")
-                logger.info(f"Local CSV berhasil dibaca: {len(df)} rows")
+            # Fallback: Try GitHub raw CSV - DATABASE KPOP IDOL.csv
+            try:
+                github_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/Database/DATABASE%20KPOP%20IDOL.csv"
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                
+                logger.info(f"Fallback: Loading from GitHub - {github_url}")
+                response = requests.get(github_url, headers=headers)
+                response.raise_for_status()
+                df = pd.read_csv(StringIO(response.text))
+                logger.info(f"✅ DATABASE KPOP IDOL.csv loaded from GitHub: {len(df)} records")
+                
+            except Exception as github_error:
+                logger.error(f"GitHub CSV fallback failed: {github_error}")
+                raise Exception("No CSV source available")
         
         # Bersihkan data
         df = df.fillna('')  # Replace NaN dengan string kosong
@@ -83,15 +58,21 @@ def migrate_csv_to_postgres():
         # Konversi Date of Birth ke format yang benar
         df['Date of Birth'] = pd.to_datetime(df['Date of Birth'], errors='coerce')
         
-        # Rename kolom sesuai schema PostgreSQL
+        # Rename kolom sesuai schema PostgreSQL untuk DATABASE KPOP IDOL.csv
         df_renamed = df.rename(columns={
             'Group': 'group_name',
             'Fandom': 'fandom', 
             'Stage Name': 'stage_name',
             'Korean Stage Name': 'korean_stage_name',
+            'Korean Name': 'korean_name',
             'Full Name': 'full_name',
             'Date of Birth': 'date_of_birth',
             'Former Group': 'former_group',
+            'Country': 'country',
+            'Height': 'height',
+            'Weight': 'weight',
+            'Birthplace': 'birthplace',
+            'Gender': 'gender',
             'Instagram': 'instagram'
         })
         
@@ -101,7 +82,7 @@ def migrate_csv_to_postgres():
         
         # Create table schema terlebih dahulu
         with engine.connect() as conn:
-            # Create table dengan schema yang benar
+            # Create table dengan schema yang benar untuk DATABASE KPOP IDOL.csv
             create_table_sql = """
             CREATE TABLE IF NOT EXISTS kpop_members (
                 id SERIAL PRIMARY KEY,
@@ -109,9 +90,15 @@ def migrate_csv_to_postgres():
                 fandom VARCHAR(255),
                 stage_name VARCHAR(255) NOT NULL,
                 korean_stage_name VARCHAR(255),
+                korean_name VARCHAR(255),
                 full_name VARCHAR(255),
                 date_of_birth DATE,
                 former_group VARCHAR(255),
+                country VARCHAR(100),
+                height INTEGER,
+                weight INTEGER,
+                birthplace VARCHAR(255),
+                gender CHAR(1) CHECK (gender IN ('M', 'F', '')),
                 instagram VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -168,11 +155,15 @@ def create_indexes():
         CREATE INDEX IF NOT EXISTS idx_group_name ON kpop_members(group_name);
         CREATE INDEX IF NOT EXISTS idx_full_name ON kpop_members(full_name);
         CREATE INDEX IF NOT EXISTS idx_korean_stage_name ON kpop_members(korean_stage_name);
+        CREATE INDEX IF NOT EXISTS idx_korean_name ON kpop_members(korean_name);
+        CREATE INDEX IF NOT EXISTS idx_gender ON kpop_members(gender);
+        CREATE INDEX IF NOT EXISTS idx_country ON kpop_members(country);
         
         -- Trigram indexes untuk fuzzy search
         CREATE EXTENSION IF NOT EXISTS pg_trgm;
         CREATE INDEX IF NOT EXISTS idx_stage_name_trgm ON kpop_members USING gin(stage_name gin_trgm_ops);
         CREATE INDEX IF NOT EXISTS idx_group_name_trgm ON kpop_members USING gin(group_name gin_trgm_ops);
+        CREATE INDEX IF NOT EXISTS idx_korean_name_trgm ON kpop_members USING gin(korean_name gin_trgm_ops);
         """
         
         with engine.connect() as conn:
