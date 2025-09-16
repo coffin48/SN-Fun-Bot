@@ -58,6 +58,13 @@ def migrate_csv_to_postgres():
         # Konversi Date of Birth ke format yang benar
         df['Date of Birth'] = pd.to_datetime(df['Date of Birth'], errors='coerce')
         
+        # Fix integer columns - convert empty strings to None
+        for col in ['Height', 'Weight']:
+            if col in df.columns:
+                # Convert empty strings and 0 to None for integer columns
+                df[col] = df[col].replace(['', '0', 0], None)
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
         # Rename kolom sesuai schema PostgreSQL untuk DATABASE KPOP IDOL.csv
         df_renamed = df.rename(columns={
             'Group': 'group_name',
