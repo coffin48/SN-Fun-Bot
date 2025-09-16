@@ -76,9 +76,15 @@ def auto_migrate_if_needed():
         return False
     
     # Cek apakah PostgreSQL sudah memiliki data
-    if check_postgres_has_data():
+    force_migration = os.getenv("FORCE_MIGRATION", "false").lower() == "true"
+    
+    if check_postgres_has_data() and not force_migration:
         logger.info("✅ PostgreSQL already has data - skipping migration")
+        logger.info("💡 Set FORCE_MIGRATION=true to force re-migration")
         return True
+    
+    if force_migration:
+        logger.info("🔄 FORCE_MIGRATION enabled - will re-migrate data")
     
     # Jalankan migrasi
     logger.info("🚀 Starting automatic CSV to PostgreSQL migration...")
