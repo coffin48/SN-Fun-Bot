@@ -115,14 +115,36 @@ class GachaCommandsHandler:
             await ctx.send("❌ Terjadi error saat memproses command gacha.")
     
     async def _handle_gacha_subcommand(self, ctx, args):
-        """Handle subcommand gacha"""
+        """Handle gacha subcommands"""
         if not args:
             # Default gacha random
             await self._handle_gacha_random(ctx)
             return
         
+        # Debug logging for SAR command parsing
+        logger.info(f"🔍 DEBUG: Parsing gacha command with args: {args}")
+        
         subcommand = args[0].lower()
         
+        # Check for SAR command first - both formats
+        if len(args) >= 2 and args[-1].lower() == "sar":
+            # Format: !sn gacha karina sar
+            member_name = " ".join(args[:-1])
+            logger.info(f"🎯 SAR command detected (format 2): member='{member_name}'")
+            await self._handle_gacha_sar_member(ctx, member_name)
+            return
+        elif subcommand == "sar":
+            # Format: !sn gacha sar karina
+            if len(args) > 1:
+                member_name = " ".join(args[1:])
+                logger.info(f"🎯 SAR command detected (format 1): member='{member_name}'")
+                await self._handle_gacha_sar_member(ctx, member_name)
+            else:
+                logger.info("🎯 SAR demo command detected")
+                await self._handle_gacha_sar_demo(ctx)
+            return
+        
+        # Regular subcommands
         if subcommand == "help":
             await self._handle_gacha_info(ctx)
         elif subcommand == "info":
@@ -133,15 +155,6 @@ class GachaCommandsHandler:
         elif subcommand == "member":
             member_name = " ".join(args[1:]) if len(args) > 1 else None
             await self._handle_gacha_by_member(ctx, member_name)
-        elif subcommand == "sar":
-            # Admin command untuk demo SAR card
-            if len(args) > 1:
-                # !sn gacha sar [member_name] - Generate SAR for specific member
-                member_name = " ".join(args[1:])
-                await self._handle_gacha_sar_member(ctx, member_name)
-            else:
-                # !sn gacha sar - Random SAR demo
-                await self._handle_gacha_sar_demo(ctx)
         elif subcommand == "stats":
             await self._handle_gacha_stats(ctx)
         elif subcommand == "test":
@@ -149,6 +162,7 @@ class GachaCommandsHandler:
         else:
             # Try to interpret as direct member name or group name
             search_term = " ".join(args)
+            logger.info(f"🔍 Smart gacha search for: '{search_term}'")
             await self._handle_smart_gacha(ctx, search_term)
     
     def _get_card_back_path(self, rarity):
