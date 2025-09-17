@@ -693,18 +693,32 @@ class KpopGachaSystem:
             return None, f"❌ Error saat fallback gacha: {str(e)}"
     
     def _get_member_photo_url_fallback(self, member_name, group_name):
-        """Get photo URL from old database/folder structure"""
+        """Get photo URL from OLD JSON database (GitHub source)"""
         try:
-            # Try to construct old-style photo path
-            # This would need to be implemented based on your old database structure
-            logger.info(f"🔍 Searching old database for {member_name} from {group_name}")
+            logger.info(f"🔍 Getting photo from OLD database for {member_name} from {group_name}")
             
-            # Placeholder for old database photo retrieval logic
-            # You would implement the actual old database lookup here
+            # Search in OLD JSON for photos
+            old_result = self._search_in_old_json(member_name.lower())
+            if old_result and 'photos' in old_result:
+                photos = old_result['photos']
+                if photos and len(photos) > 0:
+                    # Get random photo from available photos
+                    import random
+                    photo_id = random.choice(photos)
+                    
+                    # Construct Google Drive URL
+                    photo_url = f"https://drive.google.com/uc?id={photo_id}"
+                    logger.info(f"✅ OLD database photo found: {photo_url}")
+                    return photo_url, f"{member_name}_{photo_id}.jpg"
+                else:
+                    logger.warning(f"⚠️ OLD database entry found but no photos for {member_name}")
+            else:
+                logger.warning(f"⚠️ No OLD database entry found for {member_name}")
+            
             return None, None
             
         except Exception as e:
-            logger.error(f"Error getting fallback photo URL: {e}")
+            logger.error(f"❌ Error getting OLD database photo URL: {e}")
             return None, None
     
     def gacha_pack_5(self):
