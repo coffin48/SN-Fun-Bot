@@ -84,10 +84,10 @@ def auto_migrate_if_needed():
         return True
     
     if force_migration:
-        logger.info("🔄 FORCE_MIGRATION enabled - will re-migrate data")
+        logger.debug("🔄 FORCE_MIGRATION enabled - will re-migrate data")
     
     # Jalankan migrasi
-    logger.info("🚀 Starting automatic CSV to PostgreSQL migration...")
+    logger.debug("🚀 Starting automatic CSV to PostgreSQL migration...")
     
     try:
         # Check if schema needs update first
@@ -98,9 +98,9 @@ def auto_migrate_if_needed():
                 return False
         
         if migrate_csv_to_postgres():
-            logger.info("📊 Creating database indexes...")
+            logger.debug("📊 Creating database indexes...")
             create_indexes()
-            logger.info("✅ Auto-migration completed successfully!")
+            logger.debug("✅ Auto-migration completed successfully!")
             return True
         else:
             logger.error("❌ Auto-migration failed!")
