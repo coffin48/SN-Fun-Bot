@@ -1181,8 +1181,22 @@ class KpopGachaSystem:
     # OPTIMIZED FLOW: CSV Mapping -> NEW JSON -> OLD JSON search
     def search_member(self, member_name):
         """Optimized search: Use pre-loaded CSV mapping -> NEW JSON -> OLD JSON with proper source tracking"""
-        search_name = member_name.lower().strip()
-        logger.info(f"🚀 OPTIMIZED FLOW: Searching for '{member_name}' (normalized: '{search_name}')")
+        try:
+            logger.info(f"🚀 OPTIMIZED FLOW METHOD CALLED with: '{member_name}'")
+            search_name = member_name.lower().strip()
+            logger.info(f"🚀 OPTIMIZED FLOW: Searching for '{member_name}' (normalized: '{search_name}')")
+            
+            # Debug: Check if mappings exist
+            has_stage_mapping = hasattr(self, 'stage_name_mapping') and self.stage_name_mapping
+            has_full_mapping = hasattr(self, 'full_name_mapping') and self.full_name_mapping
+            logger.info(f"🔍 CSV Mappings available - Stage: {has_stage_mapping}, Full: {has_full_mapping}")
+            if has_stage_mapping:
+                logger.info(f"🔍 Stage mapping size: {len(self.stage_name_mapping)}")
+            if has_full_mapping:
+                logger.info(f"🔍 Full mapping size: {len(self.full_name_mapping)}")
+        except Exception as e:
+            logger.error(f"❌ Error in search_member initialization: {e}")
+            return []
         
         # Step 1: Check pre-loaded CSV mapping (most accurate)
         logger.info(f"🔍 STEP 1: Checking pre-loaded CSV mapping for '{search_name}'")
