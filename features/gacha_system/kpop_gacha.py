@@ -736,6 +736,41 @@ class KpopGachaSystem:
             logger.error(f"❌ Error getting all available members: {e}")
             return []
     
+    def _search_member_hybrid(self, member_name):
+        """Search member in both NEW and OLD databases"""
+        try:
+            search_name = member_name.lower().strip()
+            results = []
+            
+            # Step 1: Search in NEW database (self.members_data)
+            if self.members_data:
+                for member_key, member_info in self.members_data.items():
+                    if isinstance(member_info, dict) and 'name' in member_info:
+                        if search_name in member_info.get('name', '').lower():
+                            results.append({
+                                'member_key': member_key,
+                                'name': member_info.get('name', ''),
+                                'group': member_info.get('group', ''),
+                                'source': 'NEW'
+                            })
+            
+            # Step 2: Search in OLD database if not found in NEW
+            if not results:
+                old_result = self._search_in_old_json(search_name)
+                if old_result:
+                    results.append({
+                        'member_key': f"{old_result.get('name', '').lower()}_{old_result.get('group', '').lower()}",
+                        'name': old_result.get('name', ''),
+                        'group': old_result.get('group', ''),
+                        'source': 'OLD'
+                    })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Error in hybrid member search: {e}")
+            return []
+    
     def _gacha_fallback_flow(self, member_name, group_name):
         """Fallback flow: Old JSON -> old database folder -> design -> Discord"""
         try:
@@ -1732,46 +1767,31 @@ class KpopGachaSystem:
             return None, "❌ Data member tidak tersedia"
         
         try:
-            # Search for member
-            search_results = self._search_member_in_json(member_name)
+            # Search for member in hybrid database (NEW + OLD)
+            search_results = self._search_member_hybrid(member_name)
             
             if not search_results:
                 return None, f"❌ Member '{member_name}' tidak ditemukan dalam database!"
             
             # Use first result
             member_data = search_results[0]
-            member_key = member_data['member_key']
-            
-            if member_key not in self.members_data:
-                return None, f"❌ Data foto untuk '{member_name}' tidak tersedia!"
-            
-            member_info = self.members_data[member_key]
-            
-            # Get photo URL
-            photo_url, _ = self._get_member_photo_url(member_key)
-            
-            if not photo_url:
-                return None, f"❌ Foto untuk '{member_name}' tidak dapat diakses!"
+            member_name = member_data['name']
+            group_name = member_data['group']
+            source = member_data['source']
             
             # Force SAR rarity
             rarity = "SAR"
             
-            # Generate card using design_kartu
-            card_image = self.generate_card(
-                member_data.get('name', member_info.get('name', 'Unknown')),
-                member_data.get('group', member_info.get('group', 'Unknown')),
-                rarity
-            )
+            # Generate card berdasarkan source (hybrid approach)
+            card_image = self.generate_card(member_name, group_name, rarity)
             
             if card_image:
-                member_display_name = member_data.get('name', member_info.get('name', 'Unknown'))
-                group_display_name = member_data.get('group', member_info.get('group', 'Unknown'))
+                source_emoji = "🆕" if source == 'NEW' else "🗂️"
                 
                 success_msg = f"🌟 **ADMIN GUARANTEED SAR** 🌟\n"
-                success_msg += f"🎴 **{member_display_name}** dari **{group_display_name}**\n"
+                success_msg += f"🎴 **{member_name}** dari **{group_name}**\n"
                 success_msg += f"✨ **Rarity:** {rarity} (Guaranteed)\n"
-                success_msg += f"📸 **Photo:** Google Drive\n"
-                success_msg += f"🎯 **Generated for:** {member_name}\n"
+                success_msg += f"📸 **Photo:** {source_emoji} {source} GDrive\n"
                 success_msg += f"🔑 **Admin Command**"
                 
                 return card_image, success_msg
