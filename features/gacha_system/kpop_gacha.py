@@ -1178,19 +1178,51 @@ class KpopGachaSystem:
             self.stage_name_mapping = {}
             self.full_name_mapping = {}
     
-    # DIRECT FLOW: Efficient NEW JSON -> OLD JSON search
+    # OPTIMIZED FLOW: CSV Mapping -> NEW JSON -> OLD JSON search
     def search_member(self, member_name):
-        """Direct search: NEW JSON -> OLD JSON with proper source tracking"""
+        """Optimized search: Use pre-loaded CSV mapping -> NEW JSON -> OLD JSON with proper source tracking"""
         search_name = member_name.lower().strip()
-        logger.info(f"🚀 DIRECT FLOW: Searching for '{member_name}' (normalized: '{search_name}')")
+        logger.info(f"🚀 OPTIMIZED FLOW: Searching for '{member_name}' (normalized: '{search_name}')")
         
-        # Step 1: Search in NEW JSON (current loaded data)
+        # Step 1: Check pre-loaded CSV mapping (most accurate)
+        logger.info(f"🔍 STEP 1: Checking pre-loaded CSV mapping for '{search_name}'")
+        
+        # Try stage name mapping first
+        if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
+            csv_info = self.stage_name_mapping[search_name]
+            logger.info(f"✅ Found '{search_name}' in stage_name_mapping: {csv_info['group']}")
+            
+            # Check if member has photos in NEW or OLD JSON
+            member_with_photos = self._find_photos_for_csv_member(csv_info)
+            if member_with_photos:
+                return [member_with_photos]
+            else:
+                logger.warning(f"⚠️ Member '{search_name}' found in CSV but no photos available")
+        
+        # Try full name mapping
+        elif hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
+            csv_info = self.full_name_mapping[search_name]
+            logger.info(f"✅ Found '{search_name}' in full_name_mapping: {csv_info['group']}")
+            
+            # Check if member has photos in NEW or OLD JSON
+            member_with_photos = self._find_photos_for_csv_member(csv_info)
+            if member_with_photos:
+                return [member_with_photos]
+            else:
+                logger.warning(f"⚠️ Member '{search_name}' found in CSV but no photos available")
+        
+        else:
+            logger.info(f"❌ '{search_name}' not found in CSV mappings")
+        
+        # Step 2: Fallback to NEW JSON (current loaded data)
+        logger.info(f"🔍 STEP 2: CSV failed, searching in NEW JSON for '{search_name}'")
         new_result = self._search_in_new_json(search_name)
         if new_result:
             logger.info(f"✅ Found '{search_name}' in NEW JSON database")
             return [new_result]
         
-        # Step 2: Search in OLD JSON (GitHub source)
+        # Step 3: Fallback to OLD JSON (GitHub source)
+        logger.info(f"🔍 STEP 3: NEW JSON failed, searching in OLD JSON for '{search_name}'")
         old_result = self._search_in_old_json(search_name)
         if old_result:
             logger.info(f"✅ Found '{search_name}' in OLD JSON database")
@@ -1198,6 +1230,66 @@ class KpopGachaSystem:
         
         logger.info(f"❌ '{search_name}' not found in any database")
         return []
+    
+    def _find_photos_for_csv_member(self, csv_info):
+        """Find photos for CSV member in NEW or OLD JSON"""
+        member_key = csv_info['member_key']
+        stage_name = csv_info['stage_name'].lower()
+        
+        logger.info(f"🔍 Looking for photos for CSV member: {stage_name} (key: {member_key})")
+        
+        # Try to find in NEW JSON first
+        if member_key in self.members_data:
+            member_info = self.members_data[member_key]
+            photos = member_info.get('photos', [])
+            if photos and len(photos) > 0:
+                logger.info(f"✅ Found {len(photos)} photos in NEW JSON for {stage_name}")
+                return {
+                    'member_key': member_key,
+                    'name': csv_info['stage_name'],
+                    'group': csv_info['group'],
+                    'full_name': csv_info['full_name'],
+                    'korean_name': csv_info['korean_name'],
+                    'source': 'NEW',
+                    'photos': photos
+                }
+        
+        # Try to find by name in NEW JSON
+        for json_key, member_info in self.members_data.items():
+            if isinstance(member_info, dict):
+                json_name = member_info.get('name', '').lower()
+                if json_name == stage_name:
+                    photos = member_info.get('photos', [])
+                    if photos and len(photos) > 0:
+                        logger.info(f"✅ Found {len(photos)} photos in NEW JSON for {stage_name} (name match)")
+                        return {
+                            'member_key': member_key,
+                            'name': csv_info['stage_name'],
+                            'group': csv_info['group'],
+                            'full_name': csv_info['full_name'],
+                            'korean_name': csv_info['korean_name'],
+                            'source': 'NEW',
+                            'photos': photos
+                        }
+        
+        # Try to find in OLD JSON
+        logger.info(f"🔍 Not found in NEW JSON, checking OLD JSON for {stage_name}")
+        old_result = self._search_in_old_json(stage_name)
+        if old_result:
+            logger.info(f"✅ Found in OLD JSON for {stage_name}")
+            # Merge CSV info with OLD JSON photos
+            return {
+                'member_key': member_key,
+                'name': csv_info['stage_name'],
+                'group': csv_info['group'],
+                'full_name': csv_info['full_name'],
+                'korean_name': csv_info['korean_name'],
+                'source': 'OLD',
+                'photos': old_result.get('photos', [])
+            }
+        
+        logger.warning(f"❌ No photos found for CSV member: {stage_name}")
+        return None
     
     def _search_in_new_json(self, search_name):
         """Search in NEW JSON database (currently loaded)"""
@@ -1207,8 +1299,10 @@ class KpopGachaSystem:
         for member_key, member_info in self.members_data.items():
             if isinstance(member_info, dict):
                 member_name = member_info.get('name', '').lower()
+                logger.debug(f"🔍 Checking NEW JSON: '{member_name}' vs '{search_name}'")
                 if member_name == search_name:
                     photos = member_info.get('photos', [])
+                    logger.info(f"🔍 FOUND MATCH in NEW JSON: {member_key} -> name: '{member_name}', photos: {len(photos)}")
                     # PENTING: Hanya return jika ada foto yang tersedia
                     if photos and len(photos) > 0:
                         logger.info(f"✅ Found '{search_name}' in NEW JSON with {len(photos)} photos")
@@ -1221,12 +1315,17 @@ class KpopGachaSystem:
                         }
                     else:
                         logger.warning(f"⚠️ Found '{search_name}' in NEW JSON but NO PHOTOS available - will try OLD JSON")
+                        # JANGAN return None di sini, lanjutkan pencarian
         
-        # Also try key-based search
+        # Also try key-based search (EXACT match only)
         for member_key in self.members_data.keys():
-            if search_name in member_key.lower():
+            # Extract member name from key (e.g., "lia_itzy" -> "lia")
+            key_member_name = member_key.split('_')[0].lower()
+            logger.debug(f"🔍 Checking key-based: '{key_member_name}' vs '{search_name}'")
+            if key_member_name == search_name:  # EXACT match only
                 member_info = self.members_data[member_key]
                 photos = member_info.get('photos', [])
+                logger.info(f"🔍 FOUND KEY MATCH in NEW JSON: {member_key} -> name: '{key_member_name}', photos: {len(photos)}")
                 # PENTING: Hanya return jika ada foto yang tersedia
                 if photos and len(photos) > 0:
                     logger.info(f"✅ Found '{search_name}' in NEW JSON (key-based) with {len(photos)} photos")
