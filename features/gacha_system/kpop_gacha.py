@@ -59,12 +59,12 @@ class KpopGachaSystem:
         self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID') or os.getenv('GDRIVE_FOLDER_ID') or ''
         self.kpop_photo_folder_id = self.old_gdrive_folder_id  # Compatibility
         
-        # Railway: Log environment variable status
-        logger.info(f"🔍 RAILWAY Environment Variables Check:")
-        logger.info(f"  OLD_GDRIVE_FOLDER_ID: {'✅ SET' if os.getenv('OLD_GDRIVE_FOLDER_ID') else '❌ NOT SET'}")
-        logger.info(f"  NEW_GDRIVE_PHOTO_FOLDER_ID: {'✅ SET' if os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID') else '❌ NOT SET'}")
-        logger.info(f"  Final old_gdrive_folder_id: '{self.old_gdrive_folder_id}'")
-        logger.info(f"  Final new_photo_folder_id: '{self.new_photo_folder_id}'")
+        # Railway: Log environment variable status (using WARNING level for visibility)
+        logger.warning(f"🔍 RAILWAY Environment Variables Check:")
+        logger.warning(f"  OLD_GDRIVE_FOLDER_ID: {'✅ SET' if os.getenv('OLD_GDRIVE_FOLDER_ID') else '❌ NOT SET'}")
+        logger.warning(f"  NEW_GDRIVE_PHOTO_FOLDER_ID: {'✅ SET' if os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID') else '❌ NOT SET'}")
+        logger.warning(f"  Final old_gdrive_folder_id: '{self.old_gdrive_folder_id}'")
+        logger.warning(f"  Final new_photo_folder_id: '{self.new_photo_folder_id}'")
         
         self.new_json_url = f"https://drive.google.com/drive/folders/{self.new_json_folder_id}/Path_Foto_DriveIDs_Real.json" if self.new_json_folder_id else None
         
@@ -795,7 +795,7 @@ class KpopGachaSystem:
         """
         try:
             cards = []  # Initialize cards list
-            logger.info("🎲 HYBRID PACK 5: Combining NEW + OLD databases for pack generation")
+            logger.warning("🎲 HYBRID PACK 5: Combining NEW + OLD databases for pack generation")
             
             # Step 1: Get all available members dari NEW + OLD
             all_members = self._get_all_available_members()
@@ -815,7 +815,7 @@ class KpopGachaSystem:
             
             # Generate 5 unique members dari hybrid pool
             selected_members = random.sample(all_members, 5)
-            logger.info(f"🎯 Selected 5 members from hybrid pool: {[m['name'] for m in selected_members]}")
+            logger.warning(f"🎯 Selected 5 members from hybrid pool: {[m['name'] for m in selected_members]}")
             
             for i, selected_member in enumerate(selected_members):
                 member_name = selected_member['name']
@@ -823,7 +823,7 @@ class KpopGachaSystem:
                 source = selected_member['source']
                 rarity = guaranteed_rarities[i]
                 
-                logger.info(f"🎴 Generating card {i+1}/5: {member_name} ({group_name}) from {source} - {rarity}")
+                logger.warning(f"🎴 Generating card {i+1}/5: {member_name} ({group_name}) from {source} - {rarity}")
                 
                 # Get photo URL berdasarkan source dengan struktur data yang berbeda
                 if source == 'NEW':
@@ -849,11 +849,11 @@ class KpopGachaSystem:
                             'source': source  # Track source untuk debugging
                         }
                         cards.append(card_data)
-                        # Simple success log with Railway info
+                        # Simple success log with Railway info (using WARNING level for visibility)
                         source_emoji = "🆕" if source == 'NEW' else "🗂️"
                         folder_id = self.new_photo_folder_id if source == 'NEW' else self.old_gdrive_folder_id
-                        logger.info(f"✅ {member_name} - {source_emoji} {source} GDrive")
-                        logger.info(f"📁 RAILWAY: Using {source} folder ID: {folder_id}")
+                        logger.warning(f"✅ {member_name} - {source_emoji} {source} GDrive")
+                        logger.warning(f"📁 RAILWAY: Using {source} folder ID: {folder_id}")
                     else:
                         logger.warning(f"❌ {member_name} - Card generation failed")
                 else:
