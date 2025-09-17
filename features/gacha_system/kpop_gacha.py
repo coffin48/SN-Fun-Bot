@@ -825,8 +825,20 @@ class KpopGachaSystem:
                         if actual_name.lower() != member_name.lower():
                             success_msg += f"\n🔍 **Searched for:** {member_name}"
                         return card_image, success_msg
+                else:
+                    # NEW database photo gagal, coba OLD database sebagai fallback
+                    logger.warning(f"⚠️ NEW database photo failed for {actual_name}, trying OLD database fallback")
+                    old_result = self._search_in_old_json(member_name.lower())
+                    if old_result:
+                        # Update ke OLD source dan coba lagi
+                        source = 'OLD'
+                        actual_name = old_result['name']
+                        group_name = old_result['group']
+                        logger.info(f"✅ Fallback successful: Using OLD database for {actual_name}")
+                    else:
+                        return None, f"❌ Gagal memuat foto untuk **{actual_name}** dari NEW dan OLD database"
             
-            elif source == 'OLD':
+            if source == 'OLD':
                 # Use OLD database photos
                 photo_url, _ = self._get_member_photo_url_fallback(actual_name, group_name)
                 
@@ -1196,26 +1208,39 @@ class KpopGachaSystem:
             if isinstance(member_info, dict):
                 member_name = member_info.get('name', '').lower()
                 if member_name == search_name:
-                    return {
-                        'member_key': member_key,
-                        'name': member_info.get('name', 'Unknown'),
-                        'group': member_info.get('group', 'Unknown'),
-                        'source': 'NEW',
-                        'photos': member_info.get('photos', [])
-                    }
+                    photos = member_info.get('photos', [])
+                    # PENTING: Hanya return jika ada foto yang tersedia
+                    if photos and len(photos) > 0:
+                        logger.info(f"✅ Found '{search_name}' in NEW JSON with {len(photos)} photos")
+                        return {
+                            'member_key': member_key,
+                            'name': member_info.get('name', 'Unknown'),
+                            'group': member_info.get('group', 'Unknown'),
+                            'source': 'NEW',
+                            'photos': photos
+                        }
+                    else:
+                        logger.warning(f"⚠️ Found '{search_name}' in NEW JSON but NO PHOTOS available - will try OLD JSON")
         
         # Also try key-based search
         for member_key in self.members_data.keys():
             if search_name in member_key.lower():
                 member_info = self.members_data[member_key]
-                return {
-                    'member_key': member_key,
-                    'name': member_info.get('name', 'Unknown'),
-                    'group': member_info.get('group', 'Unknown'),
-                    'source': 'NEW',
-                    'photos': member_info.get('photos', [])
-                }
+                photos = member_info.get('photos', [])
+                # PENTING: Hanya return jika ada foto yang tersedia
+                if photos and len(photos) > 0:
+                    logger.info(f"✅ Found '{search_name}' in NEW JSON (key-based) with {len(photos)} photos")
+                    return {
+                        'member_key': member_key,
+                        'name': member_info.get('name', 'Unknown'),
+                        'group': member_info.get('group', 'Unknown'),
+                        'source': 'NEW',
+                        'photos': photos
+                    }
+                else:
+                    logger.warning(f"⚠️ Found '{search_name}' in NEW JSON (key-based) but NO PHOTOS - will try OLD JSON")
         
+        logger.info(f"❌ '{search_name}' not found in NEW JSON OR no photos available")
         return None
     
     def _search_in_old_json(self, search_name):
