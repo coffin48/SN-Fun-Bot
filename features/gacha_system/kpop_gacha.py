@@ -630,53 +630,125 @@ class KpopGachaSystem:
     
     def gacha_random(self):
         """
-        Gacha random member dengan flow yang jelas:
-        1. Cek New JSON Update -> GDrive photos -> design -> return
-        2. Fallback: Old JSON -> old database folder -> design -> return
+        Gacha random member dengan HYBRID selection dari NEW + OLD database:
+        1. Combine members dari NEW JSON (52 members) + OLD JSON (legacy members)
+        2. Random selection dari combined pool
+        3. Generate card berdasarkan source database
         """
-        if not self.members_data:
-            return None, "❌ Data member tidak tersedia"
-        
         try:
-            # Step 1: Pilih member random dari database yang tersedia
-            member_key = random.choice(self._get_all_member_keys())
-            member_info = self.members_data[member_key]
+            logger.info("🎲 HYBRID RANDOM GACHA: Combining NEW + OLD databases")
             
-            member_name = member_info.get('name', 'Unknown')
-            group_name = member_info.get('group', 'Unknown')
+            # Step 1: Get all available members dari NEW + OLD
+            all_members = self._get_all_available_members()
             
-            # Step 2: Flow berdasarkan database yang digunakan
-            if self.using_new_database:
-                # FLOW 1: New JSON Update -> GDrive photos -> design -> Discord
-                logger.info(f"🎯 Using NEW database flow for {member_name}")
+            if not all_members:
+                return None, "❌ Tidak ada member yang tersedia di database manapun"
+            
+            # Step 2: Random selection dari combined pool
+            selected_member = random.choice(all_members)
+            member_name = selected_member['name']
+            group_name = selected_member['group']
+            source = selected_member['source']
+            
+            logger.info(f"🎯 Random selected: {member_name} ({group_name}) from {source} database")
+            
+            # Step 3: Generate card berdasarkan source database
+            rarity = self._get_random_rarity()
+            
+            if source == 'NEW':
+                # Use NEW database flow
+                logger.info(f"🆕 Generating card from NEW database for {member_name}")
+                member_key = selected_member.get('member_key')
                 photo_url, _ = self._get_member_photo_url(member_key)
                 
-                if not photo_url:
-                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
-                    return self._gacha_fallback_flow(member_name, group_name)
+                if photo_url:
+                    card_image = self.generate_card(member_name, group_name, rarity)
+                    if card_image:
+                        success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
+                        success_msg += f"✨ **Rarity:** {rarity}\n"
+                        success_msg += f"📸 **Photo:** NEW Database (Hybrid Random)\n"
+                        success_msg += f"🎲 **Hybrid Random Gacha**"
+                        return card_image, success_msg
                 
-                # Generate card using NEW database photos
-                rarity = self._get_random_rarity()
+                # NEW failed, try OLD fallback
+                logger.warning(f"⚠️ NEW database failed for {member_name}, trying OLD fallback")
+            
+            # Use OLD database flow (either selected from OLD or NEW failed)
+            logger.info(f"🗂️ Generating card from OLD database for {member_name}")
+            photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+            
+            if photo_url:
                 card_image = self.generate_card(member_name, group_name, rarity)
-                
                 if card_image:
                     success_msg = f"🎴 **{member_name}** dari **{group_name}**\n"
                     success_msg += f"✨ **Rarity:** {rarity}\n"
-                    success_msg += f"📸 **Photo:** New GDrive Database\n"
-                    success_msg += f"🎯 **Random Gacha**"
+                    success_msg += f"📸 **Photo:** OLD Database (Hybrid Random)\n"
+                    success_msg += f"🎲 **Hybrid Random Gacha**"
                     return card_image, success_msg
-                else:
-                    logger.warning(f"⚠️ Card generation failed in NEW flow for {member_name}, trying fallback")
-                    return self._gacha_fallback_flow(member_name, group_name)
             
-            else:
-                # FLOW 2: Old JSON -> old database folder -> design -> Discord
-                logger.info(f"📁 Using OLD database flow for {member_name}")
-                return self._gacha_fallback_flow(member_name, group_name)
+            return None, f"❌ Gagal generate kartu untuk {member_name} dari database manapun"
                 
         except Exception as e:
             logger.error(f"Error in gacha_random: {e}")
             return None, f"❌ Error saat random gacha: {str(e)}"
+    
+    def _get_all_available_members(self):
+        """Get combined list of all members dari NEW + OLD database"""
+        try:
+            all_members = []
+            
+            # Step 1: Add members dari NEW JSON (self.members_data)
+            if self.members_data:
+                for member_key, member_info in self.members_data.items():
+                    all_members.append({
+                        'member_key': member_key,
+                        'name': member_info.get('name', 'Unknown'),
+                        'group': member_info.get('group', 'Unknown'),
+                        'source': 'NEW'
+                    })
+                logger.info(f"📊 Added {len(self.members_data)} members from NEW database")
+            
+            # Step 2: Add members dari OLD JSON (GitHub source)
+            try:
+                logger.info("🔍 Loading OLD JSON for hybrid random selection...")
+                import requests
+                old_json_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/member_data/Path_Foto_DriveIDs_Real.json"
+                
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                response = requests.get(old_json_url, headers=headers, timeout=30)
+                response.raise_for_status()
+                old_data = response.json()
+                
+                # Handle OLD JSON format
+                members_data = old_data.get('members', old_data)
+                old_count = 0
+                
+                for member_key, member_info in members_data.items():
+                    if isinstance(member_info, dict) and 'name' in member_info:
+                        # Skip if already exists in NEW database (avoid duplicates)
+                        member_name = member_info.get('name', '').lower()
+                        existing_names = [m['name'].lower() for m in all_members]
+                        
+                        if member_name not in existing_names:
+                            all_members.append({
+                                'member_key': member_key,
+                                'name': member_info.get('name', 'Unknown'),
+                                'group': member_info.get('group', 'Unknown'),
+                                'source': 'OLD'
+                            })
+                            old_count += 1
+                
+                logger.info(f"📊 Added {old_count} unique members from OLD database")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to load OLD JSON for hybrid random: {e}")
+            
+            logger.info(f"🎲 Total available members for hybrid random: {len(all_members)}")
+            return all_members
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting all available members: {e}")
+            return []
     
     def _gacha_fallback_flow(self, member_name, group_name):
         """Fallback flow: Old JSON -> old database folder -> design -> Discord"""
