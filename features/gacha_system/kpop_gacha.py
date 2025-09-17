@@ -55,11 +55,12 @@ class KpopGachaSystem:
         self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID') or os.getenv('GDRIVE_FOLDER_ID') or ''
         self.kpop_photo_folder_id = self.old_gdrive_folder_id  # Compatibility
         
-        # Debug: Log environment variable status
-        logger.info(f"🔍 Environment Variables Check:")
+        # Railway: Log environment variable status
+        logger.info(f"🔍 RAILWAY Environment Variables Check:")
         logger.info(f"  OLD_GDRIVE_FOLDER_ID: {'✅ SET' if os.getenv('OLD_GDRIVE_FOLDER_ID') else '❌ NOT SET'}")
-        logger.info(f"  GDRIVE_FOLDER_ID: {'✅ SET' if os.getenv('GDRIVE_FOLDER_ID') else '❌ NOT SET'}")
+        logger.info(f"  NEW_GDRIVE_PHOTO_FOLDER_ID: {'✅ SET' if os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID') else '❌ NOT SET'}")
         logger.info(f"  Final old_gdrive_folder_id: '{self.old_gdrive_folder_id}'")
+        logger.info(f"  Final new_photo_folder_id: '{self.new_photo_folder_id}'")
         
         # NEW DATABASE CONFIGURATION (PRIMARY) - from environment variables
         self.new_json_folder_id = os.getenv('NEW_GDRIVE_JSON_FOLDER_ID')
@@ -847,9 +848,11 @@ class KpopGachaSystem:
                             'source': source  # Track source untuk debugging
                         }
                         cards.append(card_data)
-                        # Simple success log
+                        # Simple success log with Railway info
                         source_emoji = "🆕" if source == 'NEW' else "🗂️"
+                        folder_id = self.new_photo_folder_id if source == 'NEW' else self.old_gdrive_folder_id
                         logger.info(f"✅ {member_name} - {source_emoji} {source} GDrive")
+                        logger.info(f"📁 RAILWAY: Using {source} folder ID: {folder_id}")
                     else:
                         logger.warning(f"❌ {member_name} - Card generation failed")
                 else:
