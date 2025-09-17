@@ -993,9 +993,22 @@ class KpopGachaSystem:
             return []
     
     def _gacha_member_fallback_flow(self, member_name):
-        """Universal fallback flow untuk ALL members: Old JSON -> old database folder -> design -> Discord"""
+        """Universal fallback flow untuk ALL members: CSV -> NEW JSON -> OLD JSON -> design -> Discord"""
+        logger.info(f"🔥🔥🔥 FALLBACK FLOW CALLED with: '{member_name}' 🔥🔥🔥")
+        
+        # STEP 1: Try optimized search first
         try:
-            logger.info(f"📂 Universal fallback flow for {member_name}")
+            logger.info(f"🚀 STEP 1: Trying optimized CSV search for '{member_name}'")
+            optimized_result = self.search_member_optimized(member_name)
+            if optimized_result:
+                logger.info(f"✅ Found in optimized search: {len(optimized_result)} results")
+                return optimized_result[0]  # Return first result for fallback compatibility
+        except Exception as e:
+            logger.error(f"❌ Optimized search failed: {e}")
+        
+        # STEP 2: Original fallback flow
+        try:
+            logger.info(f"📂 STEP 2: Original fallback flow for {member_name}")
             
             # Load old JSON database dari GitHub untuk fallback search
             old_json_url = "https://raw.githubusercontent.com/coffin48/SN-Fun-Bot/main/data/member_data/Path_Foto_DriveIDs_Real.json"
@@ -1253,8 +1266,8 @@ class KpopGachaSystem:
         return []
     
     def search_member(self, member_name):
-        """Wrapper method that calls optimized search"""
-        logger.info(f"🔄 WRAPPER: Calling optimized search for '{member_name}'")
+        """NEW SEARCH METHOD - CSV → NEW JSON → OLD JSON flow"""
+        logger.info(f"🔥🔥🔥 NEW SEARCH METHOD CALLED with: '{member_name}' 🔥🔥🔥")
         return self.search_member_optimized(member_name)
     
     def _find_photos_for_csv_member(self, csv_info):
