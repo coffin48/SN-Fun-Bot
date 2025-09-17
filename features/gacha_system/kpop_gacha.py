@@ -845,12 +845,17 @@ class KpopGachaSystem:
                 
                 logger.info(f"🎴 Generating card {i+1}/5: {member_name} ({group_name}) from {source} - {rarity}")
                 
-                # Get photo URL berdasarkan source
+                # Get photo URL berdasarkan source dengan struktur data yang berbeda
                 if source == 'NEW':
+                    # NEW JSON structure: menggunakan member_key untuk akses foto
                     member_key = selected_member['member_key']
                     photo_url, _ = self._get_member_photo_url(member_key)
+                    logger.info(f"📸 NEW source: Using member_key '{member_key}' for photo access")
                 else:
+                    # OLD JSON structure: menggunakan nama member untuk akses foto
+                    member_key = selected_member.get('member_key', f"{member_name.lower()}_{group_name.lower()}")
                     photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
+                    logger.info(f"📸 OLD source: Using name-based lookup for '{member_name}' from '{group_name}'")
                 
                 if photo_url:
                     # Generate card
@@ -862,9 +867,15 @@ class KpopGachaSystem:
                             'member_name': member_name,
                             'group_name': group_name,
                             'rarity': rarity,
-                            'member_key': member_key
+                            'member_key': member_key,
+                            'source': source  # Track source untuk debugging
                         }
                         cards.append(card_data)
+                        logger.info(f"✅ Card generated successfully: {member_name} ({source})")
+                    else:
+                        logger.warning(f"⚠️ Card generation failed for {member_name} ({source})")
+                else:
+                    logger.warning(f"⚠️ Photo URL not found for {member_name} ({source})")
             
             if len(cards) == 5:
                 # Create pack summary message
