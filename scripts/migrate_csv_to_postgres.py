@@ -29,9 +29,9 @@ def migrate_csv_to_postgres():
         local_csv_path = "Database/DATABASE KPOP IDOL.csv"
         
         if os.path.exists(local_csv_path):
-            logger.info(f"Loading target CSV: {local_csv_path}")
+            logger.debug(f"Loading target CSV: {local_csv_path}")
             df = pd.read_csv(local_csv_path)
-            logger.info(f"✅ CSV loaded from local file: {len(df)} records")
+            logger.debug(f"✅ CSV loaded from local file: {len(df)} records")
         else:
             logger.error(f"Target CSV file not found: {local_csv_path}")
             
@@ -85,7 +85,7 @@ def migrate_csv_to_postgres():
         
         # Koneksi ke PostgreSQL
         engine = create_engine(database_url)
-        logger.info("Koneksi PostgreSQL berhasil")
+        logger.debug("Koneksi PostgreSQL berhasil")
         
         # Create table schema terlebih dahulu
         with engine.connect() as conn:
@@ -113,13 +113,13 @@ def migrate_csv_to_postgres():
             """
             conn.execute(text(create_table_sql))
             conn.commit()
-            logger.info("✅ Table kpop_members created/verified")
+            logger.debug("✅ Table kpop_members created/verified")
         
         # Clear existing data untuk fresh import
         with engine.connect() as conn:
             conn.execute(text("DELETE FROM kpop_members"))
             conn.commit()
-            logger.info("✅ Cleared existing data for fresh import")
+            logger.debug("✅ Cleared existing data for fresh import")
         
         # Import data ke PostgreSQL
         df_renamed.to_sql(
@@ -130,19 +130,19 @@ def migrate_csv_to_postgres():
             method='multi'
         )
         
-        logger.info(f"✅ Berhasil import {len(df_renamed)} records ke PostgreSQL")
+        logger.debug(f"✅ Berhasil import {len(df_renamed)} records ke PostgreSQL")
         
         # Verifikasi data
         with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM kpop_members"))
             count = result.fetchone()[0]
-            logger.info(f"✅ Verifikasi: {count} records di database")
+            logger.debug(f"✅ Verifikasi: {count} records di database")
             
             # Sample data
             sample = conn.execute(text("SELECT stage_name, group_name FROM kpop_members LIMIT 5"))
-            logger.info("Sample data:")
+            logger.debug("Sample data:")
             for row in sample:
-                logger.info(f"  - {row[0]} ({row[1]})")
+                logger.debug(f"  - {row[0]} ({row[1]})")
         
         return True
         
@@ -177,7 +177,7 @@ def create_indexes():
             conn.execute(text(indexes_sql))
             conn.commit()
         
-        logger.info("✅ Indexes berhasil dibuat")
+        logger.debug("✅ Indexes berhasil dibuat")
         return True
         
     except Exception as e:
