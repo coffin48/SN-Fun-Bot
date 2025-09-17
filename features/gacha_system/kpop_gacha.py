@@ -815,6 +815,7 @@ class KpopGachaSystem:
         - 1 Legendary/FullArt
         """
         try:
+            cards = []  # Initialize cards list
             logger.info("🎲 HYBRID PACK 5: Combining NEW + OLD databases for pack generation")
             
             # Step 1: Get all available members dari NEW + OLD
