@@ -809,19 +809,18 @@ class KpopGachaSystem:
     
     def gacha_pack_5(self):
         """
-        Gacha pack 5 kartu dengan guaranteed rarity:
+        HYBRID Gacha pack 5 kartu dengan guaranteed rarity dari NEW + OLD database:
         - 2 Common
         - 2 Rare/Epic  
         - 1 Legendary/FullArt
         """
-        if not self.members_data:
-            return [], "❌ Data member tidak tersedia"
-        
         try:
-            cards = []
-            all_member_keys = self._get_all_member_keys()
+            logger.info("🎲 HYBRID PACK 5: Combining NEW + OLD databases for pack generation")
             
-            if len(all_member_keys) < 5:
+            # Step 1: Get all available members dari NEW + OLD
+            all_members = self._get_all_available_members()
+            
+            if len(all_members) < 5:
                 return [], "❌ Tidak cukup member untuk pack 5 kartu"
             
             # Guaranteed rarity distribution (NEW SYSTEM)
@@ -834,17 +833,24 @@ class KpopGachaSystem:
             # Shuffle untuk random order
             random.shuffle(guaranteed_rarities)
             
-            # Generate 5 unique members
-            selected_members = random.sample(all_member_keys, 5)
+            # Generate 5 unique members dari hybrid pool
+            selected_members = random.sample(all_members, 5)
+            logger.info(f"🎯 Selected 5 members from hybrid pool: {[m['name'] for m in selected_members]}")
             
-            for i, member_key in enumerate(selected_members):
-                member_info = self.members_data[member_key]
-                member_name = member_info.get('name', 'Unknown')
-                group_name = member_info.get('group', 'Unknown')
+            for i, selected_member in enumerate(selected_members):
+                member_name = selected_member['name']
+                group_name = selected_member['group']
+                source = selected_member['source']
                 rarity = guaranteed_rarities[i]
                 
-                # Get photo URL
-                photo_url, _ = self._get_member_photo_url(member_key)
+                logger.info(f"🎴 Generating card {i+1}/5: {member_name} ({group_name}) from {source} - {rarity}")
+                
+                # Get photo URL berdasarkan source
+                if source == 'NEW':
+                    member_key = selected_member['member_key']
+                    photo_url, _ = self._get_member_photo_url(member_key)
+                else:
+                    photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
                 
                 if photo_url:
                     # Generate card
