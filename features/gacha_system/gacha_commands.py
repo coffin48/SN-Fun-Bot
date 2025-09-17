@@ -1101,6 +1101,8 @@ class GachaCommandsHandler:
                     logger.info(f"🔍 Members data loaded: {len(self.gacha_system.members_data) if hasattr(self.gacha_system, 'members_data') else 'No members_data'}")
                 
                 # DIRECT FLOW: Search member in both NEW and OLD JSON
+                logger.info(f"🔍 About to call self.gacha_system.search_member('{search_term}')")
+                logger.info(f"🔍 Gacha system type: {type(self.gacha_system)}")
                 member_result = self.gacha_system.search_member(search_term)
                 logger.info(f"🔍 Direct search result for '{search_term}': {len(member_result) if member_result else 0} found")
                 
