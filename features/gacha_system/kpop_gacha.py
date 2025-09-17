@@ -525,7 +525,7 @@ class KpopGachaSystem:
                 photo_url, photo_filename = self._get_member_photo_url(member_key, photo_num)
                 
                 if not photo_url:
-                    logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
+                    # Fallback to old database - simplified logging
                     return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
                 
                 # Download foto dari NEW database (GDrive) - simplified logging
@@ -539,7 +539,7 @@ class KpopGachaSystem:
                         idol_photo_original = None
                 
                 if idol_photo_original is None:
-                    logger.warning(f"⚠️ Failed to load photo from NEW database for {member_name}, trying fallback")
+                    # Fallback to old database - simplified logging
                     return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
                 
                 # Generate card using NEW database
@@ -571,17 +571,11 @@ class KpopGachaSystem:
                 logger.error(f"❌ Photo not found in any database for {member_name}")
                 return None
             
-            # Download foto dari old database
+            # Download foto dari old database - simplified logging
             if 'drive.google.com' in photo_url:
-                print(f"📸 DOWNLOADING: OLD GDrive folder - {photo_url[:80]}...")
-                print(f"📁 OLD FOLDER ID: {self.kpop_photo_folder_id}")
-                logger.info(f"📸 RAILWAY LOG: Photo URL from OLD GDrive folder: {photo_url[:80]}...")
-                logger.info(f"📁 RAILWAY LOG: Using OLD photo folder ID: {self.kpop_photo_folder_id}")
                 idol_photo_original = self._download_image_from_url(photo_url)
             else:
-                # Local file fallback
-                print(f"📸 LOADING: OLD local database - {photo_url}")
-                logger.info(f"📸 RAILWAY LOG: Photo from OLD local database: {photo_url}")
+                # Local file fallback - simplified logging
                 if os.path.exists(photo_url):
                     idol_photo_original = Image.open(photo_url).convert("RGBA")
                 else:
