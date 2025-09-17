@@ -945,11 +945,24 @@ class KpopGachaSystem:
             response.raise_for_status()
             old_data = response.json()
             
+            # Handle OLD JSON structure (with or without 'members' wrapper)
+            if 'members' in old_data:
+                members_data = old_data['members']
+            else:
+                members_data = old_data
+            
             group_lower = group_name.lower()
             matching_members = []
             
+            # Debug: Log beberapa sample untuk group search
+            sample_count = 0
+            for key, info in members_data.items():
+                if sample_count < 3 and isinstance(info, dict):
+                    logger.info(f"🔍 OLD JSON group sample {sample_count + 1}: {key} -> group: {info.get('group', 'NO_GROUP')}")
+                    sample_count += 1
+            
             # Search for group members in OLD JSON
-            for member_key, member_info in old_data.items():
+            for member_key, member_info in members_data.items():
                 if isinstance(member_info, dict):
                     member_group = member_info.get('group', '').lower()
                     if member_group == group_lower:
@@ -1224,8 +1237,23 @@ class KpopGachaSystem:
             
             logger.info(f"✅ OLD JSON loaded: {len(old_data)} entries")
             
+            # Debug: Log struktur OLD JSON
+            if old_data:
+                first_key = list(old_data.keys())[0]
+                first_item = old_data[first_key]
+                logger.info(f"🔍 OLD JSON struktur sample - Key: {first_key}")
+                logger.info(f"🔍 OLD JSON struktur sample - Value: {type(first_item)} - {first_item if isinstance(first_item, dict) else str(first_item)[:100]}")
+            
+            # Check if OLD JSON has 'members' wrapper
+            if 'members' in old_data:
+                logger.info("🔍 OLD JSON menggunakan wrapper 'members'")
+                members_data = old_data['members']
+            else:
+                logger.info("🔍 OLD JSON format direct (tanpa wrapper)")
+                members_data = old_data
+            
             # Search in OLD JSON format
-            for member_key, member_info in old_data.items():
+            for member_key, member_info in members_data.items():
                 if isinstance(member_info, dict):
                     member_name = member_info.get('name', '').lower()
                     if member_name == search_name:
@@ -1238,9 +1266,9 @@ class KpopGachaSystem:
                         }
             
             # Also try key-based search in OLD JSON
-            for member_key in old_data.keys():
+            for member_key in members_data.keys():
                 if search_name in member_key.lower():
-                    member_info = old_data[member_key]
+                    member_info = members_data[member_key]
                     return {
                         'member_key': member_key,
                         'name': member_info.get('name', 'Unknown'),
