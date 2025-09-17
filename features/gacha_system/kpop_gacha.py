@@ -374,14 +374,10 @@ class KpopGachaSystem:
             # Extract file ID from filename for Google Drive
             # Assuming filename format: GROUP_MEMBER_NUM.jpg
             photo_url = f"{self.base_url}{photo_filename}"
-            print(f"📸 PHOTO SOURCE: NEW GDrive folder - {photo_url[:80]}...")
-            print(f"📁 NEW FOLDER ID: {self.new_photo_folder_id}")
-            logger.info(f"📸 RAILWAY LOG: Photo URL from NEW GDrive folder: {photo_url[:80]}...")
-            logger.info(f"📁 RAILWAY LOG: Using NEW photo folder ID: {self.new_photo_folder_id}")
+            # Simplified logging - removed spam logs
         else:
             photo_url = photo_filename
-            print(f"📸 PHOTO SOURCE: Local/fallback path - {photo_url}")
-            logger.info(f"📸 RAILWAY LOG: Photo from local/fallback path: {photo_url}")
+            # Simplified logging - removed spam logs
         
         return photo_url, photo_filename
     
@@ -532,17 +528,11 @@ class KpopGachaSystem:
                     logger.warning(f"⚠️ Photo not found in NEW database for {member_name}, trying fallback")
                     return self._generate_card_fallback_flow(member_name, group_name, rarity, photo_num)
                 
-                # Download foto dari NEW database (GDrive)
+                # Download foto dari NEW database (GDrive) - simplified logging
                 if 'drive.google.com' in photo_url:
-                    print(f"📸 DOWNLOADING: NEW GDrive folder - {photo_url[:80]}...")
-                    print(f"📁 NEW FOLDER ID: {self.new_photo_folder_id}")
-                    logger.info(f"📸 RAILWAY LOG: Downloading from NEW GDrive folder: {photo_url[:80]}...")
-                    logger.info(f"📁 RAILWAY LOG: NEW photo folder ID: {self.new_photo_folder_id}")
                     idol_photo_original = self._download_image_from_url(photo_url)
                 else:
-                    # Local file fallback
-                    print(f"📸 LOADING: NEW local path - {photo_url}")
-                    logger.info(f"📸 RAILWAY LOG: Loading from NEW local path: {photo_url}")
+                    # Local file fallback - simplified logging
                     if os.path.exists(photo_url):
                         idol_photo_original = Image.open(photo_url).convert("RGBA")
                     else:
