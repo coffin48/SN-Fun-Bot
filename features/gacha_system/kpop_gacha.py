@@ -1179,7 +1179,7 @@ class KpopGachaSystem:
             self.full_name_mapping = {}
     
     # OPTIMIZED FLOW: CSV Mapping -> NEW JSON -> OLD JSON search
-    def search_member(self, member_name):
+    def search_member_optimized(self, member_name):
         """Optimized search: Use pre-loaded CSV mapping -> NEW JSON -> OLD JSON with proper source tracking"""
         logger.info(f"🚀🚀🚀 OPTIMIZED FLOW METHOD CALLED with: '{member_name}' 🚀🚀🚀")
         
@@ -1251,6 +1251,11 @@ class KpopGachaSystem:
         
         logger.info(f"❌ '{search_name}' not found in any database")
         return []
+    
+    def search_member(self, member_name):
+        """Wrapper method that calls optimized search"""
+        logger.info(f"🔄 WRAPPER: Calling optimized search for '{member_name}'")
+        return self.search_member_optimized(member_name)
     
     def _find_photos_for_csv_member(self, csv_info):
         """Find photos for CSV member in NEW or OLD JSON"""
