@@ -781,9 +781,7 @@ class KpopGachaSystem:
     def _get_member_photo_url_fallback(self, member_name, group_name):
         """Get photo URL from OLD JSON database (GitHub source)"""
         try:
-            logger.info(f"🔍 Getting photo from OLD database for {member_name} from {group_name}")
-            
-            # Search in OLD JSON for photos
+            # Search in OLD JSON for photos (simplified logging)
             old_result = self._search_in_old_json(member_name.lower())
             if old_result and 'photos' in old_result:
                 photos = old_result['photos']
@@ -794,12 +792,7 @@ class KpopGachaSystem:
                     
                     # Construct Google Drive URL
                     photo_url = f"https://drive.google.com/uc?id={photo_id}"
-                    logger.info(f"✅ OLD database photo found: {photo_url}")
                     return photo_url, f"{member_name}_{photo_id}.jpg"
-                else:
-                    logger.warning(f"⚠️ OLD database entry found but no photos for {member_name}")
-            else:
-                logger.warning(f"⚠️ No OLD database entry found for {member_name}")
             
             return None, None
             
@@ -851,12 +844,10 @@ class KpopGachaSystem:
                     # NEW JSON structure: menggunakan member_key untuk akses foto
                     member_key = selected_member['member_key']
                     photo_url, _ = self._get_member_photo_url(member_key)
-                    logger.info(f"📸 NEW source: Using member_key '{member_key}' for photo access")
                 else:
                     # OLD JSON structure: menggunakan nama member untuk akses foto
                     member_key = selected_member.get('member_key', f"{member_name.lower()}_{group_name.lower()}")
                     photo_url, _ = self._get_member_photo_url_fallback(member_name, group_name)
-                    logger.info(f"📸 OLD source: Using name-based lookup for '{member_name}' from '{group_name}'")
                 
                 if photo_url:
                     # Generate card
@@ -872,11 +863,13 @@ class KpopGachaSystem:
                             'source': source  # Track source untuk debugging
                         }
                         cards.append(card_data)
-                        logger.info(f"✅ Card generated successfully: {member_name} ({source})")
+                        # Simple success log
+                        source_emoji = "🆕" if source == 'NEW' else "🗂️"
+                        logger.info(f"✅ {member_name} - {source_emoji} {source} GDrive")
                     else:
-                        logger.warning(f"⚠️ Card generation failed for {member_name} ({source})")
+                        logger.warning(f"❌ {member_name} - Card generation failed")
                 else:
-                    logger.warning(f"⚠️ Photo URL not found for {member_name} ({source})")
+                    logger.warning(f"❌ {member_name} - Photo not found")
             
             if len(cards) == 5:
                 # Create pack summary message
