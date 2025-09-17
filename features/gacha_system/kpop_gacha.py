@@ -1191,13 +1191,16 @@ class KpopGachaSystem:
         if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
             csv_info = self.stage_name_mapping[search_name]
             logger.info(f"✅ Found '{search_name}' in stage_name_mapping: {csv_info['group']}")
+            logger.info(f"🔍 CSV Info: {csv_info}")
             
             # Check if member has photos in NEW or OLD JSON
+            logger.info(f"🔍 Starting photo search for CSV member: {search_name}")
             member_with_photos = self._find_photos_for_csv_member(csv_info)
             if member_with_photos:
+                logger.info(f"✅ CSV member with photos found, returning result")
                 return [member_with_photos]
             else:
-                logger.warning(f"⚠️ Member '{search_name}' found in CSV but no photos available")
+                logger.warning(f"⚠️ Member '{search_name}' found in CSV but no photos available - continuing to fallback")
         
         # Try full name mapping
         elif hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
@@ -1237,11 +1240,14 @@ class KpopGachaSystem:
         stage_name = csv_info['stage_name'].lower()
         
         logger.info(f"🔍 Looking for photos for CSV member: {stage_name} (key: {member_key})")
+        logger.info(f"🔍 Available NEW JSON keys: {len(self.members_data)} total")
         
-        # Try to find in NEW JSON first
+        # Try to find in NEW JSON first by key
+        logger.info(f"🔍 Checking NEW JSON by key: {member_key}")
         if member_key in self.members_data:
             member_info = self.members_data[member_key]
             photos = member_info.get('photos', [])
+            logger.info(f"🔍 Found key match in NEW JSON: {len(photos)} photos")
             if photos and len(photos) > 0:
                 logger.info(f"✅ Found {len(photos)} photos in NEW JSON for {stage_name}")
                 return {
@@ -1253,8 +1259,13 @@ class KpopGachaSystem:
                     'source': 'NEW',
                     'photos': photos
                 }
+            else:
+                logger.warning(f"⚠️ Key found in NEW JSON but no photos: {member_key}")
+        else:
+            logger.info(f"❌ Key not found in NEW JSON: {member_key}")
         
         # Try to find by name in NEW JSON
+        logger.info(f"🔍 Checking NEW JSON by name: {stage_name}")
         for json_key, member_info in self.members_data.items():
             if isinstance(member_info, dict):
                 json_name = member_info.get('name', '').lower()
@@ -1274,11 +1285,13 @@ class KpopGachaSystem:
         
         # Try to find in OLD JSON
         logger.info(f"🔍 Not found in NEW JSON, checking OLD JSON for {stage_name}")
+        logger.info(f"🔍 Calling _search_in_old_json for: {stage_name}")
         old_result = self._search_in_old_json(stage_name)
         if old_result:
             logger.info(f"✅ Found in OLD JSON for {stage_name}")
+            logger.info(f"🔍 OLD JSON result: {old_result}")
             # Merge CSV info with OLD JSON photos
-            return {
+            result = {
                 'member_key': member_key,
                 'name': csv_info['stage_name'],
                 'group': csv_info['group'],
@@ -1287,6 +1300,10 @@ class KpopGachaSystem:
                 'source': 'OLD',
                 'photos': old_result.get('photos', [])
             }
+            logger.info(f"✅ Returning merged CSV+OLD result: {result}")
+            return result
+        else:
+            logger.warning(f"❌ OLD JSON search also failed for: {stage_name}")
         
         logger.warning(f"❌ No photos found for CSV member: {stage_name}")
         return None
