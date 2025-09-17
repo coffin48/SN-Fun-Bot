@@ -37,7 +37,7 @@ class KpopGachaSystem:
         
         Args:
             json_path: Path ke JSON mapping foto yang sudah diperbaiki
-            database_path: Path ke database K-pop CSV (backup)
+            database_path: Path ke CSV database
         """
         # Check dependencies first
         if not PIL_AVAILABLE:
@@ -45,6 +45,21 @@ class KpopGachaSystem:
         
         if not DESIGN_KARTU_AVAILABLE:
             raise ImportError("design_kartu module is required for gacha system.")
+        
+        self.json_path = json_path
+        self.database_path = database_path
+        self.members_data = {}
+        self.using_new_database = True  # Flag untuk track database yang digunakan
+        
+        # OLD GDrive folder IDs dari environment variables
+        self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID') or os.getenv('GDRIVE_FOLDER_ID') or ''
+        self.kpop_photo_folder_id = self.old_gdrive_folder_id  # Compatibility
+        
+        # Debug: Log environment variable status
+        logger.info(f"🔍 Environment Variables Check:")
+        logger.info(f"  OLD_GDRIVE_FOLDER_ID: {'✅ SET' if os.getenv('OLD_GDRIVE_FOLDER_ID') else '❌ NOT SET'}")
+        logger.info(f"  GDRIVE_FOLDER_ID: {'✅ SET' if os.getenv('GDRIVE_FOLDER_ID') else '❌ NOT SET'}")
+        logger.info(f"  Final old_gdrive_folder_id: '{self.old_gdrive_folder_id}'")
         
         # NEW DATABASE CONFIGURATION (PRIMARY) - from environment variables
         self.new_json_folder_id = os.getenv('NEW_GDRIVE_JSON_FOLDER_ID')
@@ -54,8 +69,7 @@ class KpopGachaSystem:
         # OLD DATABASE FALLBACK (from environment variables and local files)
         self.json_path = json_path
         self.database_path = database_path
-        # Get old GDrive folder from environment variable
-        self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID', os.getenv('GDRIVE_FOLDER_ID', ''))
+        # OLD GDrive folder sudah di-set di atas, tidak perlu duplikasi
         self.old_base_url = f"https://drive.google.com/uc?export=view&id=" if self.old_gdrive_folder_id else ""
         # Font path untuk backward compatibility (tidak digunakan di new system)
         self.font_path = "assets/fonts/Gill Sans Bold Italic.otf"
