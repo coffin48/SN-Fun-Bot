@@ -1266,9 +1266,53 @@ class KpopGachaSystem:
         return []
     
     def search_member(self, member_name):
-        """NEW SEARCH METHOD - CSV → NEW JSON → OLD JSON flow"""
-        logger.info(f"🔥🔥🔥 NEW SEARCH METHOD CALLED with: '{member_name}' 🔥🔥🔥")
-        return self.search_member_optimized(member_name)
+        """FINAL SEARCH METHOD - DIRECT INTEGRATION"""
+        logger.info(f"🌟🌟🌟 FINAL SEARCH METHOD CALLED with: '{member_name}' 🌟🌟🌟")
+        
+        # DIRECT INTEGRATION - No delegation, direct optimized flow
+        search_name = member_name.lower().strip()
+        logger.info(f"🚀 DIRECT OPTIMIZED FLOW: Searching for '{member_name}' (normalized: '{search_name}')")
+        
+        # Step 1: Check pre-loaded CSV mapping (most accurate)
+        logger.info(f"🔍 STEP 1: Checking pre-loaded CSV mapping for '{search_name}'")
+        
+        # Try stage name mapping first
+        if hasattr(self, 'stage_name_mapping') and search_name in self.stage_name_mapping:
+            csv_info = self.stage_name_mapping[search_name]
+            logger.info(f"✅ Found '{search_name}' in stage_name_mapping: {csv_info['group']}")
+            
+            # Check if member has photos in NEW or OLD JSON
+            member_with_photos = self._find_photos_for_csv_member(csv_info)
+            if member_with_photos:
+                logger.info(f"✅ CSV member with photos found, returning result")
+                return [member_with_photos]
+        
+        # Try full name mapping
+        elif hasattr(self, 'full_name_mapping') and search_name in self.full_name_mapping:
+            csv_info = self.full_name_mapping[search_name]
+            logger.info(f"✅ Found '{search_name}' in full_name_mapping: {csv_info['group']}")
+            
+            # Check if member has photos in NEW or OLD JSON
+            member_with_photos = self._find_photos_for_csv_member(csv_info)
+            if member_with_photos:
+                return [member_with_photos]
+        
+        # Step 2: Fallback to NEW JSON
+        logger.info(f"🔍 STEP 2: CSV failed, searching in NEW JSON for '{search_name}'")
+        new_result = self._search_in_new_json(search_name)
+        if new_result:
+            logger.info(f"✅ Found '{search_name}' in NEW JSON database")
+            return [new_result]
+        
+        # Step 3: Fallback to OLD JSON
+        logger.info(f"🔍 STEP 3: NEW JSON failed, searching in OLD JSON for '{search_name}'")
+        old_result = self._search_in_old_json(search_name)
+        if old_result:
+            logger.info(f"✅ Found '{search_name}' in OLD JSON database")
+            return [old_result]
+        
+        logger.info(f"❌ '{search_name}' not found in any database")
+        return []
     
     def _find_photos_for_csv_member(self, csv_info):
         """Find photos for CSV member in NEW or OLD JSON"""
