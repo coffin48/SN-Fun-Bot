@@ -51,6 +51,10 @@ class KpopGachaSystem:
         self.members_data = {}
         self.using_new_database = True  # Flag untuk track database yang digunakan
         
+        # NEW DATABASE CONFIGURATION (PRIMARY) - from environment variables
+        self.new_json_folder_id = os.getenv('NEW_GDRIVE_JSON_FOLDER_ID')
+        self.new_photo_folder_id = os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID')
+        
         # OLD GDrive folder IDs dari environment variables
         self.old_gdrive_folder_id = os.getenv('OLD_GDRIVE_FOLDER_ID') or os.getenv('GDRIVE_FOLDER_ID') or ''
         self.kpop_photo_folder_id = self.old_gdrive_folder_id  # Compatibility
@@ -62,9 +66,6 @@ class KpopGachaSystem:
         logger.info(f"  Final old_gdrive_folder_id: '{self.old_gdrive_folder_id}'")
         logger.info(f"  Final new_photo_folder_id: '{self.new_photo_folder_id}'")
         
-        # NEW DATABASE CONFIGURATION (PRIMARY) - from environment variables
-        self.new_json_folder_id = os.getenv('NEW_GDRIVE_JSON_FOLDER_ID')
-        self.new_photo_folder_id = os.getenv('NEW_GDRIVE_PHOTO_FOLDER_ID')
         self.new_json_url = f"https://drive.google.com/drive/folders/{self.new_json_folder_id}/Path_Foto_DriveIDs_Real.json" if self.new_json_folder_id else None
         
         # OLD DATABASE FALLBACK (from environment variables and local files)
